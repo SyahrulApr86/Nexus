@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Link } from "@tanstack/react-router";
 import { HeroDemo } from "../components/HeroDemo.js";
+import { Mark } from "../components/Mark.js";
 import { LinkGraphIllustration } from "../components/LinkGraphIllustration.js";
 
 // Three.js only ships to visitors who actually land here.
@@ -18,16 +19,10 @@ const ConstellationField = lazy(() =>
  */
 
 function Wordmark({ size = "md" }: { size?: "md" | "sm" }) {
-  const box = size === "md" ? "h-7 w-7 text-[15px]" : "h-6 w-6 text-[13px]";
   const text = size === "md" ? "text-[18px]" : "text-[15px]";
   return (
     <span className="flex items-center gap-2">
-      <span
-        aria-hidden="true"
-        className={`flex items-center justify-center rounded-[8px] bg-accent-fill font-semibold text-on-accent ${box}`}
-      >
-        N
-      </span>
+      <Mark size={size === "md" ? 26 : 22} className="text-accent" />
       <span className={`font-semibold tracking-heading text-ink ${text}`}>
         Nexus
       </span>

@@ -19,6 +19,7 @@ import { TagsSection } from "../components/TagsSection.js";
 import { useRealtime } from "../lib/realtime.js";
 import { ImportExport } from "../components/ImportExport.js";
 import { Icon } from "../components/Icon.js";
+import { Mark } from "../components/Mark.js";
 import {
   CommandPalette,
   type Command,
@@ -156,12 +157,7 @@ export function WorkspacePage() {
       >
         <div className="flex items-center justify-between px-3 py-3">
           <span className="flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-accent-fill text-[13px] font-semibold text-on-accent"
-            >
-              N
-            </span>
+            <Mark size={22} className="text-accent" />
             <span className="text-[15px] font-semibold tracking-heading">
               Nexus
             </span>

@@ -131,6 +131,14 @@ CI-verifiable gate — per PRD §6.
 - **Settings dialog**: theme and idle timeout (FR-003's 5–120 minute range had
   no UI otherwise), with serialized preference writes.
 - **404 page** that routes guests and signed-in users somewhere useful.
+- **Mark and favicon**: the N is drawn as a graph — a node where the stroke
+  starts, a node where the link lands, the diagonal standing in for the
+  connection. Hand-drawn SVG rather than generated raster, because it has to
+  hold up at 16px; ships as `favicon.svg`, `apple-touch-icon.png`, and an
+  inline `<Mark>` that inherits `currentColor`.
+- **Responsive shell**: below 1024px the sidebar is a drawer and the editor
+  shows one pane with a write/preview switch — PRD §10 lists tablet as a
+  target and the split layout was unusable there.
 
 ## Design decisions worth knowing
 
