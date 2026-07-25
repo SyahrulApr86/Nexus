@@ -16,6 +16,7 @@ import { WorkspaceHome, WorkspacePage } from "./pages/WorkspacePage.js";
 import { NoteEditorScreen } from "./pages/NotePage.js";
 import { TrashPage } from "./pages/TrashPage.js";
 import { TagPage } from "./pages/TagPage.js";
+import { GraphPage } from "./pages/GraphPage.js";
 import { applyTheme, type Theme } from "./theme.js";
 
 export interface RouterContext {
@@ -94,6 +95,12 @@ export const tagRoute = createRoute({
   component: TagRouteComponent,
 });
 
+export const graphRoute = createRoute({
+  getParentRoute: () => workspaceRoute,
+  path: "/graph",
+  component: GraphPage,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
@@ -133,6 +140,7 @@ const routeTree = rootRoute.addChildren([
     noteRoute,
     trashRoute,
     tagRoute,
+    graphRoute,
   ]),
   loginRoute,
   registerRoute,

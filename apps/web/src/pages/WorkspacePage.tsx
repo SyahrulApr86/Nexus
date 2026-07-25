@@ -64,6 +64,7 @@ export function WorkspacePage() {
         run: () => document.getElementById("vault-search")?.focus(),
       },
       { id: "trash", label: "Open trash", run: () => navigate({ to: "/trash" }) },
+      { id: "graph", label: "Open graph", run: () => navigate({ to: "/graph" }) },
       {
         id: "theme-dark",
         label: "Theme: Dark",
@@ -139,6 +140,13 @@ export function WorkspacePage() {
         />
         <TagsSection />
         <div className="border-t border-border px-2 py-2">
+          <Link
+            to="/graph"
+            className="block rounded-control px-2 py-1.5 text-[14px] text-ink hover:bg-card"
+            activeProps={{ className: "bg-card font-medium" }}
+          >
+            🕸 Graph
+          </Link>
           <Link
             to="/trash"
             className="block rounded-control px-2 py-1.5 text-[14px] text-ink hover:bg-card"

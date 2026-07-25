@@ -7,6 +7,7 @@ import { folderRoutes } from "./routes/folders.js";
 import { searchRoutes } from "./routes/search.js";
 import { trashRoutes } from "./routes/trash.js";
 import { tagRoutes } from "./routes/tags.js";
+import { graphRoutes } from "./routes/graph.js";
 
 export function buildApp() {
   const app = new Hono()
@@ -23,7 +24,8 @@ export function buildApp() {
     .route("/api/folders", folderRoutes)
     .route("/api/search", searchRoutes)
     .route("/api/trash", trashRoutes)
-    .route("/api/tags", tagRoutes);
+    .route("/api/tags", tagRoutes)
+    .route("/api/graph", graphRoutes);
 
   return app;
 }
