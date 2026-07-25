@@ -64,6 +64,8 @@ model Note {
   title            String    @default("Untitled")
   // pgp_sym_encrypt(content, key) — never read/written except via noteContent repo (FR-026)
   contentEnc       Bytes
+  // Derived lexeme index for search (SC-003); leaks vocabulary only, not full text
+  contentTsv       Unsupported("tsvector")?
   position         Int       @default(0)
   isTrashed        Boolean   @default(false)
   trashedAt        DateTime?

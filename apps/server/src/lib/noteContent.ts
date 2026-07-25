@@ -41,28 +41,18 @@ export async function readVersionContent(
 }
 
 /**
- * Fuzzy content search, decrypt-in-SQL, strictly vault-scoped (FR-013/FR-025).
- * Returns note ids with a similarity score against the decrypted content.
+ * Refresh the derived search index for a note (SC-003 fallback design).
+ * 'simple' config: no stemming surprises, CJK strings kept as whole tokens
+ * (matched via prefix queries).
  */
-export async function searchDecryptedContent(
-  vaultId: string,
-  query: string,
-): Promise<{ id: string; score: number; snippet: string }[]> {
-  return prisma.$queryRaw`
-    WITH decrypted AS (
-      SELECT id, pgp_sym_decrypt("contentEnc", ${KEY}) AS content
-      FROM "Note"
-      WHERE "vaultId" = ${vaultId}::uuid AND "isTrashed" = false
-    )
-    SELECT id,
-           GREATEST(similarity(content, ${query}),
-                    CASE WHEN content ILIKE ${"%" + query + "%"} THEN 0.6 ELSE 0 END)::float AS score,
-           LEFT(content, 200) AS snippet
-    FROM decrypted
-    WHERE similarity(content, ${query}) > 0.05
-       OR content ILIKE ${"%" + query + "%"}
-    ORDER BY score DESC
-    LIMIT 50` as Promise<{ id: string; score: number; snippet: string }[]>;
+export async function updateSearchIndex(
+  noteId: string,
+  content: string,
+): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE "Note"
+    SET "contentTsv" = to_tsvector('simple', LEFT(${content}, 200000))
+    WHERE id = ${noteId}::uuid`;
 }
 
 export const sql = Prisma.sql;

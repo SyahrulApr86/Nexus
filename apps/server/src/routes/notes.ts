@@ -13,6 +13,7 @@ import { prisma } from "../db.js";
 import {
   encryptContent,
   readNoteContent,
+  updateSearchIndex,
 } from "../lib/noteContent.js";
 import { requireAuth } from "../middleware/auth.js";
 import { reindexNoteLinks } from "../lib/wikilinkIndex.js";
@@ -109,6 +110,7 @@ export const noteRoutes = new Hono()
       },
     });
     await snapshotVersion(note.id, contentEnc);
+    await updateSearchIndex(note.id, content);
     await reindexNoteLinks(note.id, vaultId, content);
     // A new title may resolve previously broken links elsewhere (FR-012)
     if (title) await relinkTargetsForTitles(vaultId, [title], note.id);
@@ -198,6 +200,7 @@ export const noteRoutes = new Hono()
     });
     if (contentEnc) {
       await snapshotVersion(note.id, contentEnc);
+      await updateSearchIndex(note.id, content!);
       await reindexNoteLinks(note.id, vaultId, content!);
     }
     if (title !== undefined && title !== note.title) {

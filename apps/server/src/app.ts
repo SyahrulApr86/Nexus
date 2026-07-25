@@ -4,6 +4,7 @@ import { env } from "./env.js";
 import { authRoutes } from "./routes/auth.js";
 import { noteRoutes } from "./routes/notes.js";
 import { folderRoutes } from "./routes/folders.js";
+import { searchRoutes } from "./routes/search.js";
 
 export function buildApp() {
   const app = new Hono()
@@ -17,7 +18,8 @@ export function buildApp() {
     .get("/api/health", (c) => c.json({ ok: true }))
     .route("/api/auth", authRoutes)
     .route("/api/notes", noteRoutes)
-    .route("/api/folders", folderRoutes);
+    .route("/api/folders", folderRoutes)
+    .route("/api/search", searchRoutes);
 
   return app;
 }

@@ -4,6 +4,7 @@ import { useCreateNote, useNotes } from "../api/notes.js";
 import { useFolderTree } from "../api/folders.js";
 import { Button } from "../components/ui.js";
 import { FolderTree } from "../components/FolderTree.js";
+import { SearchPanel } from "../components/SearchPanel.js";
 
 /**
  * Authenticated app shell: sidebar (notes, folders, search, trash) + main pane.
@@ -47,6 +48,7 @@ export function WorkspacePage() {
             Log out
           </Button>
         </div>
+        <SearchPanel />
         <div className="px-4 pb-2">
           <Button
             onClick={() => newNote(null)}
