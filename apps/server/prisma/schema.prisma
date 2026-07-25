@@ -1,0 +1,116 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto, pg_trgm]
+}
+
+model User {
+  id                 String   @id @default(uuid()) @db.Uuid
+  email              String   @unique
+  passwordHash       String
+  displayName        String?
+  theme              String   @default("system") // light | dark | system
+  idleTimeoutMinutes Int      @default(30)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  vault       Vault?
+  resetTokens PasswordResetToken[]
+}
+
+model Vault {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  folders Folder[]
+  notes   Note[]
+}
+
+model Folder {
+  id               String    @id @default(uuid()) @db.Uuid
+  vaultId          String    @db.Uuid
+  vault            Vault     @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  name             String
+  parentId         String?   @db.Uuid
+  parent           Folder?   @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children         Folder[]  @relation("FolderTree")
+  position         Int       @default(0)
+  isTrashed        Boolean   @default(false)
+  trashedAt        DateTime?
+  // When a folder is trashed as part of a cascade, this records which
+  // ancestor initiated it, so restore only revives that subtree (US12).
+  trashRootId      String?   @db.Uuid
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  notes Note[]
+
+  @@index([vaultId, parentId])
+}
+
+model Note {
+  id               String    @id @default(uuid()) @db.Uuid
+  vaultId          String    @db.Uuid
+  vault            Vault     @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  folderId         String?   @db.Uuid
+  folder           Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  title            String    @default("Untitled")
+  // pgp_sym_encrypt(content, key) — never read/written except via noteContent repo (FR-026)
+  contentEnc       Bytes
+  position         Int       @default(0)
+  isTrashed        Boolean   @default(false)
+  trashedAt        DateTime?
+  trashRootId      String?   @db.Uuid
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  versions      NoteVersion[]
+  linksOut      WikilinkRef[] @relation("LinkSource")
+  linksIn       WikilinkRef[] @relation("LinkTarget")
+
+  @@index([vaultId, folderId, isTrashed])
+  @@index([vaultId, title])
+}
+
+model NoteVersion {
+  id            String   @id @default(uuid()) @db.Uuid
+  noteId        String   @db.Uuid
+  note          Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  contentEnc    Bytes
+  changeSummary String?
+  createdAt     DateTime @default(now())
+
+  @@index([noteId, createdAt])
+}
+
+model WikilinkRef {
+  id           String  @id @default(uuid()) @db.Uuid
+  sourceNoteId String  @db.Uuid
+  source       Note    @relation("LinkSource", fields: [sourceNoteId], references: [id], onDelete: Cascade)
+  targetTitle  String
+  targetNoteId String? @db.Uuid
+  target       Note?   @relation("LinkTarget", fields: [targetNoteId], references: [id], onDelete: SetNull)
+
+  @@index([sourceNoteId])
+  @@index([targetNoteId])
+  @@index([targetTitle])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}

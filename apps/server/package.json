@@ -1,0 +1,35 @@
+{
+  "name": "@nexus/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@hono/node-ws": "^1.0.4",
+    "@hono/zod-validator": "^0.4.0",
+    "@nexus/shared": "workspace:*",
+    "@node-rs/argon2": "^2.0.0",
+    "@prisma/client": "^6.5.0",
+    "fflate": "^0.8.2",
+    "hono": "^4.7.0",
+    "ioredis": "^5.4.0",
+    "nodemailer": "^6.9.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/nodemailer": "^6.4.0",
+    "prisma": "^6.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
