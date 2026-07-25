@@ -11,6 +11,7 @@ import { Button } from "../components/ui.js";
 import { FolderTree } from "../components/FolderTree.js";
 import { SearchPanel } from "../components/SearchPanel.js";
 import { TagsSection } from "../components/TagsSection.js";
+import { useRealtime } from "../lib/realtime.js";
 import {
   CommandPalette,
   type Command,
@@ -28,6 +29,7 @@ export function WorkspacePage() {
   const createNote = useCreateNote();
   const updatePrefs = useUpdatePreferences();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const connection = useRealtime();
 
   const newNote = (folderId: string | null = null) =>
     createNote.mutate(
@@ -154,8 +156,25 @@ export function WorkspacePage() {
           >
             🗑 Trash
           </Link>
-          <p className="truncate px-2 pt-1 text-[13px] text-muted">
-            {user?.displayName || user?.email}
+          <p className="flex items-center gap-2 truncate px-2 pt-1 text-[13px] text-muted">
+            <span
+              aria-hidden="true"
+              className={`inline-block h-2 w-2 shrink-0 rounded-full ${
+                connection === "connected"
+                  ? "bg-accent"
+                  : connection === "connecting"
+                    ? "bg-mist"
+                    : "bg-danger"
+              }`}
+            />
+            <span className="truncate">
+              {user?.displayName || user?.email}
+            </span>
+            {connection === "offline" && (
+              <span role="status" className="shrink-0 text-danger">
+                Offline
+              </span>
+            )}
           </p>
         </div>
       </aside>

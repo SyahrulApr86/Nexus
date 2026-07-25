@@ -2,7 +2,7 @@ import { prisma } from "../src/db.js";
 import { redis } from "../src/redis.js";
 import { buildApp } from "../src/app.js";
 
-export const app = buildApp();
+export const app = buildApp().app;
 
 export async function resetDb() {
   await prisma.$executeRawUnsafe(

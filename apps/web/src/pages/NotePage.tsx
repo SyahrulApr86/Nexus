@@ -141,6 +141,15 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
     };
   }, [noteId, qc]);
 
+  // US10-S3: queued changes sync when connectivity returns
+  useEffect(() => {
+    const onOnline = () => {
+      if (timerRef.current) void flush();
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [flush]);
+
   if (isLoading || !data) {
     return (
       <div className="flex h-full items-center justify-center text-muted">

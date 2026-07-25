@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { createNodeWebSocket } from "@hono/node-ws";
+import { getCookie } from "hono/cookie";
 import { env } from "./env.js";
+import { getSession } from "./lib/session.js";
+import { joinVault } from "./lib/realtime.js";
 import { authRoutes } from "./routes/auth.js";
 import { noteRoutes } from "./routes/notes.js";
 import { folderRoutes } from "./routes/folders.js";
@@ -10,7 +14,36 @@ import { tagRoutes } from "./routes/tags.js";
 import { graphRoutes } from "./routes/graph.js";
 
 export function buildApp() {
-  const app = new Hono()
+  const app = new Hono();
+  const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+
+  // US10: per-vault realtime room. The session cookie on the upgrade request
+  // determines the vault — clients can never choose a room (FR-025).
+  app.get(
+    "/api/ws",
+    upgradeWebSocket((c) => {
+      let leave: (() => void) | null = null;
+      return {
+        async onOpen(_evt, ws) {
+          const token = getCookie(c, "nexus_session");
+          const session = token ? await getSession(token) : null;
+          if (!session) {
+            ws.close(4401, "unauthenticated");
+            return;
+          }
+          leave = joinVault(session.vaultId, (event) => {
+            ws.send(JSON.stringify(event));
+          });
+          ws.send(JSON.stringify({ type: "joined" }));
+        },
+        onClose() {
+          leave?.();
+        },
+      };
+    }),
+  );
+
+  app
     .use(
       "*",
       cors({
@@ -27,7 +60,7 @@ export function buildApp() {
     .route("/api/tags", tagRoutes)
     .route("/api/graph", graphRoutes);
 
-  return app;
+  return { app, injectWebSocket };
 }
 
-export type AppType = ReturnType<typeof buildApp>;
+export type AppType = ReturnType<typeof buildApp>["app"];
