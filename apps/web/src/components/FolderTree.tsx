@@ -1,4 +1,4 @@
-import { useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import type { FolderDto, NoteSummaryDto } from "@nexus/shared";
 import {
@@ -139,6 +139,13 @@ export function FolderTree({
 
   const newFolder = (parentId: string | null) =>
     setDialog({ kind: "new-folder", parentId });
+
+  // Command palette dispatches this (FR-020 → FR-007)
+  useEffect(() => {
+    const onNewFolder = () => setDialog({ kind: "new-folder", parentId: null });
+    window.addEventListener("nexus:new-folder", onNewFolder);
+    return () => window.removeEventListener("nexus:new-folder", onNewFolder);
+  }, []);
 
   const renderNotes = (folderId: string | null, depth: number) => {
     const list = sortNotes(notesByFolder.get(folderId) ?? [], sortFor(folderId));
