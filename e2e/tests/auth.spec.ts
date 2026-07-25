@@ -19,10 +19,11 @@ test.describe("US1 — registration & login (independent test)", () => {
     await page.getByRole("button", { name: /log out/i }).click();
     await expect(page).toHaveURL(/\/login/);
 
-    // Workspace inaccessible after logout
+    // Workspace inaccessible after logout — guests land on the marketing page
     await page.goto("/");
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/welcome/);
 
+    await page.getByRole("navigation", { name: "Account" }).getByRole("link", { name: "Log in" }).click();
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill(GOOD_PW);
     await page.getByRole("button", { name: /^log in$/i }).click();

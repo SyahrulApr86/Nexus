@@ -17,6 +17,7 @@ import { NoteEditorScreen } from "./pages/NotePage.js";
 import { TrashPage } from "./pages/TrashPage.js";
 import { TagPage } from "./pages/TagPage.js";
 import { GraphPage } from "./pages/GraphPage.js";
+import { LandingPage } from "./pages/LandingPage.js";
 import { applyTheme, type Theme } from "./theme.js";
 
 export interface RouterContext {
@@ -54,7 +55,8 @@ const workspaceRoute = createRoute({
   id: "workspace",
   beforeLoad: async ({ context }) => {
     const user = await ensureUser(context.queryClient);
-    if (!user) throw redirect({ to: "/login" });
+    // Guests land on the public marketing page
+    if (!user) throw redirect({ to: "/welcome" });
     applyTheme(user.theme as Theme);
     return { user };
   },
@@ -101,6 +103,12 @@ export const graphRoute = createRoute({
   component: GraphPage,
 });
 
+const landingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/welcome",
+  component: LandingPage,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
@@ -142,6 +150,7 @@ const routeTree = rootRoute.addChildren([
     tagRoute,
     graphRoute,
   ]),
+  landingRoute,
   loginRoute,
   registerRoute,
   forgotPasswordRoute,

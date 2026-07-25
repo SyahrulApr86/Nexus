@@ -182,7 +182,7 @@ body {
   text-decoration: none;
   cursor: pointer;
 }
-.md-preview .tag-chip {
+.tag-chip {
   background: var(--t-tag-bg);
   color: var(--t-ink);
   border-radius: 9999px;
