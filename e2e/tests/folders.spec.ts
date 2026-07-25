@@ -8,8 +8,9 @@ import {
 const sidebar = (page: Page) => page.locator('[aria-label="Folders and notes"]');
 
 async function createFolder(page: Page, name: string) {
-  page.once("dialog", (d) => d.accept(name));
   await page.getByRole("button", { name: "New folder" }).click();
+  await page.getByLabel("Folder name").fill(name);
+  await page.getByRole("button", { name: "Create", exact: true }).click();
   await expect(folderButton(page, name)).toBeVisible();
 }
 
@@ -108,8 +109,9 @@ test.describe("US3 — folders (independent test)", () => {
     const row = folderButton(page, "Oldname").locator("xpath=ancestor::div[1]");
     await row.hover();
     await row.getByRole("button", { name: "Actions for folder Oldname" }).click();
-    page.once("dialog", (d) => d.accept("Newname"));
     await page.getByRole("menuitem", { name: "Rename" }).click();
+    await page.getByLabel("Folder name").fill("Newname");
+    await page.getByRole("button", { name: "Rename", exact: true }).click();
     const renamed = folderButton(page, "Newname");
     await expect(renamed).toBeVisible();
     await expect(renamed).toContainText("1");
@@ -119,8 +121,8 @@ test.describe("US3 — folders (independent test)", () => {
     await renamedRow
       .getByRole("button", { name: "Actions for folder Newname" })
       .click();
-    page.once("dialog", (d) => d.accept());
     await page.getByRole("menuitem", { name: "Delete folder" }).click();
+    await page.getByRole("button", { name: "Move to trash" }).click();
     await expect(folderButton(page, "Newname")).toHaveCount(0);
     await expect(
       sidebar(page).getByRole("link", { name: "Survivor" }),

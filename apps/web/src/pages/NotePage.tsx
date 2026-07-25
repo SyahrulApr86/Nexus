@@ -7,6 +7,7 @@ import { Editor } from "../components/Editor.js";
 import { MarkdownPreview } from "../components/MarkdownPreview.js";
 import { useToast } from "../components/Toast.js";
 import { wikilinkAutocomplete } from "../components/wikilinkAutocomplete.js";
+import { ConfirmDialog } from "../components/Dialogs.js";
 
 const AUTOSAVE_DEBOUNCE_MS = 1000; // FR-006
 
@@ -19,6 +20,8 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
   const navigate = useNavigate();
   const editorExtensions = useMemo(() => [wikilinkAutocomplete()], []);
 
+  const [missingLink, setMissingLink] = useState<string | null>(null);
+
   const openWikilink = useCallback(
     (title: string, resolvedId: string | null) => {
       if (resolvedId) {
@@ -26,17 +29,9 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
         return;
       }
       // FR-012: broken link — offer to create the missing note
-      if (window.confirm(`"${title}" doesn't exist yet. Create it?`)) {
-        createNote.mutate(
-          { title },
-          {
-            onSuccess: (note) =>
-              navigate({ to: "/notes/$noteId", params: { noteId: note.id } }),
-          },
-        );
-      }
+      setMissingLink(title);
     },
-    [createNote, navigate],
+    [navigate],
   );
 
   const [title, setTitle] = useState("");
@@ -202,6 +197,23 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
           />
         </div>
       </div>
+      <ConfirmDialog
+        open={missingLink !== null}
+        title="Create missing note"
+        message={`"${missingLink ?? ""}" doesn't exist yet. Create it?`}
+        confirmLabel="Create note"
+        onConfirm={() => {
+          if (!missingLink) return;
+          createNote.mutate(
+            { title: missingLink },
+            {
+              onSuccess: (note) =>
+                navigate({ to: "/notes/$noteId", params: { noteId: note.id } }),
+            },
+          );
+        }}
+        onClose={() => setMissingLink(null)}
+      />
     </div>
   );
 }

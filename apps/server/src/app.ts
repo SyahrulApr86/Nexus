@@ -5,6 +5,7 @@ import { authRoutes } from "./routes/auth.js";
 import { noteRoutes } from "./routes/notes.js";
 import { folderRoutes } from "./routes/folders.js";
 import { searchRoutes } from "./routes/search.js";
+import { trashRoutes } from "./routes/trash.js";
 
 export function buildApp() {
   const app = new Hono()
@@ -19,7 +20,8 @@ export function buildApp() {
     .route("/api/auth", authRoutes)
     .route("/api/notes", noteRoutes)
     .route("/api/folders", folderRoutes)
-    .route("/api/search", searchRoutes);
+    .route("/api/search", searchRoutes)
+    .route("/api/trash", trashRoutes);
 
   return app;
 }

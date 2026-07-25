@@ -230,6 +230,7 @@ export const noteRoutes = new Hono()
           isTrashed: true,
           trashedAt: new Date(),
           trashRootId: note.id,
+          originalFolderId: note.folderId,
         },
       }),
       // Links pointing here become broken; content stays recoverable in trash

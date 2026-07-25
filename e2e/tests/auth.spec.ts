@@ -14,7 +14,7 @@ test.describe("US1 — registration & login (independent test)", () => {
     const email = uniqueEmail();
 
     await register(page, email);
-    await expect(page.getByText(email)).toBeVisible();
+    await expect(page.getByText(email.split("@")[0]!)).toBeVisible();
 
     await page.getByRole("button", { name: /log out/i }).click();
     await expect(page).toHaveURL(/\/login/);
@@ -26,15 +26,17 @@ test.describe("US1 — registration & login (independent test)", () => {
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill(GOOD_PW);
     await page.getByRole("button", { name: /^log in$/i }).click();
-    await expect(page.getByText(email)).toBeVisible();
+    await expect(page.getByText(email.split("@")[0]!)).toBeVisible();
   });
 
   test("weak password shows specific per-rule feedback (US1-S2)", async ({
     page,
   }) => {
     await page.goto("/register");
+    await page.getByLabel("Username").fill("weakpw");
     await page.getByLabel("Email").fill(uniqueEmail());
     await page.getByLabel("Password", { exact: true }).fill("abcdefgh");
+    await page.getByLabel("Confirm password").fill("abcdefgh");
     await page.getByRole("button", { name: /create account/i }).click();
     await expect(page.getByRole("alert")).toContainText("uppercase");
     await expect(page.getByRole("alert")).toContainText("digit");
@@ -60,12 +62,16 @@ test.describe("US1 — registration & login (independent test)", () => {
     const email = uniqueEmail("kbd");
     await page.goto("/register");
     // Tab into the form and drive it with keys only
-    await page.getByLabel("Email").focus();
+    await page.getByLabel("Username").focus();
+    await page.keyboard.type("kbduser");
+    await page.keyboard.press("Tab");
     await page.keyboard.type(email);
     await page.keyboard.press("Tab");
     await page.keyboard.type(GOOD_PW);
+    await page.keyboard.press("Tab");
+    await page.keyboard.type(GOOD_PW);
     await page.keyboard.press("Enter");
-    await expect(page.getByText(email)).toBeVisible();
+    await expect(page.getByText("kbduser")).toBeVisible();
   });
 
   test("login page passes WCAG 2.1 AA audit (SC-010)", async ({ page }) => {
@@ -113,7 +119,7 @@ test.describe("US1b — password reset (independent test)", () => {
     // New password works
     await page.getByLabel("Password", { exact: true }).fill(NEW_PW);
     await page.getByRole("button", { name: /^log in$/i }).click();
-    await expect(page.getByText(email)).toBeVisible();
+    await expect(page.getByText(email.split("@")[0]!)).toBeVisible();
   });
 
   test("forgot-password page passes WCAG 2.1 AA audit (SC-010)", async ({

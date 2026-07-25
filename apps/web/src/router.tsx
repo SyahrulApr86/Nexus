@@ -14,6 +14,7 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage.js";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage.js";
 import { WorkspaceHome, WorkspacePage } from "./pages/WorkspacePage.js";
 import { NoteEditorScreen } from "./pages/NotePage.js";
+import { TrashPage } from "./pages/TrashPage.js";
 import { applyTheme, type Theme } from "./theme.js";
 
 export interface RouterContext {
@@ -75,6 +76,12 @@ export const noteRoute = createRoute({
   component: NoteRouteComponent,
 });
 
+export const trashRoute = createRoute({
+  getParentRoute: () => workspaceRoute,
+  path: "/trash",
+  component: TrashPage,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
@@ -109,7 +116,7 @@ const resetPasswordRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
-  workspaceRoute.addChildren([workspaceHomeRoute, noteRoute]),
+  workspaceRoute.addChildren([workspaceHomeRoute, noteRoute, trashRoute]),
   loginRoute,
   registerRoute,
   forgotPasswordRoute,

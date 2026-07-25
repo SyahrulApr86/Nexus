@@ -12,6 +12,7 @@ import {
 import { useDeleteNote } from "../api/notes.js";
 import { Menu } from "./Menu.js";
 import { MoveDialog } from "./MoveDialog.js";
+import { ConfirmDialog, PromptDialog } from "./Dialogs.js";
 import { useToast } from "./Toast.js";
 
 type SortMode = "manual" | "title-asc" | "title-desc" | "date-new" | "date-old";
@@ -46,6 +47,11 @@ interface MoveTarget {
   title: string;
 }
 
+type FolderDialog =
+  | { kind: "new-folder"; parentId: string | null }
+  | { kind: "rename"; folder: FolderDto }
+  | { kind: "delete"; folder: FolderDto };
+
 export function FolderTree({
   tree,
   notes,
@@ -58,6 +64,7 @@ export function FolderTree({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [sortModes, setSortModes] = useState<Record<string, SortMode>>({});
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
+  const [dialog, setDialog] = useState<FolderDialog | null>(null);
 
   const createFolder = useCreateFolder();
   const renameFolder = useRenameFolder();
@@ -130,13 +137,8 @@ export function FolderTree({
     reorderNote.mutate({ noteId: note.id, position: swap.position });
   };
 
-  const newFolder = (parentId: string | null) => {
-    const name = window.prompt("Folder name");
-    if (name?.trim()) {
-      createFolder.mutate({ name: name.trim(), parentId });
-      if (parentId) setExpanded((p) => new Set(p).add(parentId));
-    }
-  };
+  const newFolder = (parentId: string | null) =>
+    setDialog({ kind: "new-folder", parentId });
 
   const renderNotes = (folderId: string | null, depth: number) => {
     const list = sortNotes(notesByFolder.get(folderId) ?? [], sortFor(folderId));
@@ -246,14 +248,7 @@ export function FolderTree({
                 { label: "New subfolder", onSelect: () => newFolder(folder.id) },
                 {
                   label: "Rename",
-                  onSelect: () => {
-                    const name = window.prompt("Rename folder", folder.name);
-                    if (name?.trim())
-                      renameFolder.mutate({
-                        folderId: folder.id,
-                        name: name.trim(),
-                      });
-                  },
+                  onSelect: () => setDialog({ kind: "rename", folder }),
                 },
                 {
                   label: "Move to…",
@@ -277,16 +272,7 @@ export function FolderTree({
                 {
                   label: "Delete folder",
                   danger: true,
-                  onSelect: () => {
-                    if (
-                      window.confirm(
-                        `Delete "${folder.name}" and move all its contents to trash?`,
-                      )
-                    ) {
-                      deleteFolder.mutate(folder.id);
-                      toast("Folder moved to trash");
-                    }
-                  },
+                  onSelect: () => setDialog({ kind: "delete", folder }),
                 },
               ]}
             />
@@ -352,6 +338,47 @@ export function FolderTree({
         }}
         onClose={() => setMoveTarget(null)}
       />
+      {dialog?.kind === "new-folder" && (
+        <PromptDialog
+          open
+          title="New folder"
+          label="Folder name"
+          submitLabel="Create"
+          onSubmit={(name) => {
+            createFolder.mutate({ name, parentId: dialog.parentId });
+            if (dialog.parentId)
+              setExpanded((p) => new Set(p).add(dialog.parentId!));
+          }}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === "rename" && (
+        <PromptDialog
+          open
+          title="Rename folder"
+          label="Folder name"
+          submitLabel="Rename"
+          initialValue={dialog.folder.name}
+          onSubmit={(name) =>
+            renameFolder.mutate({ folderId: dialog.folder.id, name })
+          }
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === "delete" && (
+        <ConfirmDialog
+          open
+          title="Delete folder"
+          message={`Delete "${dialog.folder.name}" and move all its contents to trash? You can restore it from the trash later.`}
+          confirmLabel="Move to trash"
+          danger
+          onConfirm={() => {
+            deleteFolder.mutate(dialog.folder.id);
+            toast("Folder moved to trash");
+          }}
+          onClose={() => setDialog(null)}
+        />
+      )}
     </div>
   );
 }

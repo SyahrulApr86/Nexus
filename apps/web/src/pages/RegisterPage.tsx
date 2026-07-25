@@ -7,13 +7,20 @@ import { AuthLayout, Button, Field } from "../components/ui.js";
 
 export function RegisterPage() {
   const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [touched, setTouched] = useState(false);
+  const [confirmTouched, setConfirmTouched] = useState(false);
   const register = useRegister();
   const navigate = useNavigate();
 
   // FR-001: live, specific per-rule feedback
   const pwFailures = touched ? validatePassword(password) : [];
+  const mismatch =
+    confirmTouched && confirm.length > 0 && confirm !== password
+      ? "Passwords do not match"
+      : null;
   const serverError =
     register.error instanceof ApiError ? register.error.message : null;
   const duplicate =
@@ -25,16 +32,25 @@ export function RegisterPage() {
         className="flex flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault();
-          if (validatePassword(password).length > 0) {
-            setTouched(true);
+          setTouched(true);
+          setConfirmTouched(true);
+          if (validatePassword(password).length > 0 || confirm !== password) {
             return;
           }
           register.mutate(
-            { email, password },
+            { email, password, displayName: displayName.trim() },
             { onSuccess: () => navigate({ to: "/" }) },
           );
         }}
       >
+        <Field
+          label="Username"
+          autoComplete="username"
+          required
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          hint="How you'll appear in the app."
+        />
         <Field
           label="Email"
           type="email"
@@ -63,6 +79,18 @@ export function RegisterPage() {
           }}
           hint="At least 8 characters with uppercase, lowercase, digit, and special character."
           error={pwFailures.length > 0 ? pwFailures.join("\n") : null}
+        />
+        <Field
+          label="Confirm password"
+          type="password"
+          autoComplete="new-password"
+          required
+          value={confirm}
+          onChange={(e) => {
+            setConfirm(e.target.value);
+            setConfirmTouched(true);
+          }}
+          error={mismatch}
         />
         <Button type="submit" disabled={register.isPending}>
           {register.isPending ? "Creating…" : "Create account"}

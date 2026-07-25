@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from "@tanstack/react-router";
+import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useCurrentUser, useLogout } from "../api/auth.js";
 import { useCreateNote, useNotes } from "../api/notes.js";
 import { useFolderTree } from "../api/folders.js";
@@ -63,8 +63,17 @@ export function WorkspacePage() {
           notes={notes ?? []}
           onCreateNote={newNote}
         />
-        <div className="border-t border-border px-4 py-2 text-[13px] text-muted truncate">
-          {user?.email}
+        <div className="border-t border-border px-2 py-2">
+          <Link
+            to="/trash"
+            className="block rounded-control px-2 py-1.5 text-[14px] text-ink hover:bg-card"
+            activeProps={{ className: "bg-card font-medium" }}
+          >
+            🗑 Trash
+          </Link>
+          <p className="truncate px-2 pt-1 text-[13px] text-muted">
+            {user?.displayName || user?.email}
+          </p>
         </div>
       </aside>
       <main className="min-w-0 flex-1">

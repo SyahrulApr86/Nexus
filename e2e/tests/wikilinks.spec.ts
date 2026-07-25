@@ -69,11 +69,10 @@ test.describe("US4 — wikilinks (independent test)", () => {
       .locator("a.wikilink-broken", { hasText: "Ghost Note" });
     await expect(broken).toBeVisible();
 
-    page.once("dialog", (d) => {
-      expect(d.message()).toContain("Ghost Note");
-      d.accept();
-    });
     await broken.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("Ghost Note");
+    await dialog.getByRole("button", { name: "Create note" }).click();
     // New note created with the missing title
     await expect(page.getByLabel("Note title")).toHaveValue("Ghost Note", {
       timeout: 5000,

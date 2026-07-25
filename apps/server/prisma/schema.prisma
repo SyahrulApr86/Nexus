@@ -70,6 +70,8 @@ model Note {
   isTrashed        Boolean   @default(false)
   trashedAt        DateTime?
   trashRootId      String?   @db.Uuid
+  // Pre-trash folder (no FK — may point at a purged folder), for US12-S7
+  originalFolderId String?   @db.Uuid
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

@@ -23,10 +23,12 @@ export async function expectNoA11yViolations(page: Page) {
 
 export async function register(page: Page, email: string, password = GOOD_PW) {
   await page.goto("/register");
+  await page.getByLabel("Username").fill(email.split("@")[0]!);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByLabel("Confirm password").fill(password);
   await page.getByRole("button", { name: /create account/i }).click();
-  await expect(page.getByText(email)).toBeVisible();
+  await expect(page.getByText(email.split("@")[0]!)).toBeVisible();
 }
 
 /** Fetch the newest Mailpit message for a recipient and extract the reset URL. */
