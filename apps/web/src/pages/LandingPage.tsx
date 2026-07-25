@@ -1,6 +1,5 @@
 import { lazy, Suspense } from "react";
 import { Link } from "@tanstack/react-router";
-import { Icon } from "../components/Icon.js";
 import { HeroDemo } from "../components/HeroDemo.js";
 import { LinkGraphIllustration } from "../components/LinkGraphIllustration.js";
 
@@ -11,30 +10,11 @@ const ConstellationField = lazy(() =>
   })),
 );
 
-/** Decorative colour fields behind the hero. */
-function HeroAtmosphere() {
-  return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-20 overflow-hidden">
-      <div
-        className="blob blob-drift-a left-[-8vw] top-[-14vh] h-[46vw] w-[46vw] max-h-[560px] max-w-[560px]"
-        style={{ background: "var(--t-accent)" }}
-      />
-      <div
-        className="blob blob-drift-b right-[-10vw] top-[-6vh] h-[38vw] w-[38vw] max-h-[480px] max-w-[480px]"
-        style={{ background: "#7c5cff" }}
-      />
-      <div
-        className="blob blob-drift-c left-[38%] top-[42vh] h-[30vw] w-[30vw] max-h-[400px] max-w-[400px]"
-        style={{ background: "#12b5a8" }}
-      />
-    </div>
-  );
-}
-
 /**
- * Public marketing page (DESIGN.md palette + rhythm). The hero shows the real
- * editor typing into itself rather than describing it; everything below stays
- * quiet so that demo carries the page.
+ * Public marketing page. One idea carries it: raw syntax sitting next to its
+ * result. The hero types into the real editor; everything below is set as an
+ * outline — hairline rules and monospace labels, the shape of the thing being
+ * sold — so nothing competes with that demo.
  */
 
 function Wordmark({ size = "md" }: { size?: "md" | "sm" }) {
@@ -55,119 +35,167 @@ function Wordmark({ size = "md" }: { size?: "md" | "sm" }) {
   );
 }
 
-function Kbd({ children }: { children: string }) {
+/** Decorative colour fields behind the hero, kept faint on purpose. */
+function HeroAtmosphere() {
   return (
-    <kbd className="rounded-[5px] border border-border bg-card px-1.5 py-0.5 font-mono text-[12px] text-ink">
-      {children}
-    </kbd>
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-20 overflow-hidden"
+    >
+      <div
+        className="blob blob-drift-a left-[-8vw] top-[-14vh] h-[46vw] w-[46vw] max-h-[560px] max-w-[560px]"
+        style={{ background: "var(--t-accent)" }}
+      />
+      <div
+        className="blob blob-drift-b right-[-10vw] top-[-6vh] h-[38vw] w-[38vw] max-h-[480px] max-w-[480px]"
+        style={{ background: "#7c5cff" }}
+      />
+    </div>
+  );
+}
+
+function Section({
+  eyebrow,
+  children,
+  className = "",
+}: {
+  eyebrow: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`border-t border-border ${className}`}>
+      <div className="mx-auto max-w-[1120px] px-6 py-16">
+        <p className="eyebrow">{eyebrow}</p>
+        <div className="mt-6">{children}</div>
+      </div>
+    </section>
+  );
+}
+
+/** Syntax rendered as display type — the one typographic flourish. */
+function Syn({ children }: { children: string }) {
+  return (
+    <span className="font-mono font-medium text-accent">{children}</span>
   );
 }
 
 const CAPABILITIES = [
   {
-    icon: "search",
-    title: "Search that forgives typos",
-    body: "Fuzzy matching over titles and content. Five thousand notes come back in well under a second, with title matches on top.",
+    label: "search",
+    title: "Finds it even when you misspell it",
+    body: "Fuzzy matching across titles and content. Five thousand notes answer in tens of milliseconds, titles ranked first.",
   },
   {
-    icon: "graph",
-    title: "A graph you can actually read",
-    body: "Every wikilink is an edge. Pan and zoom a thousand notes without the browser breaking a sweat; unlinked notes sit at the edge instead of vanishing.",
+    label: "graph",
+    title: "Shows how the notes connect",
+    body: "Pan and zoom a thousand notes without the browser stuttering. Notes with no links sit at the edge rather than disappearing.",
   },
   {
-    icon: "trash",
-    title: "Deleting is never final",
-    body: "Notes and folders go to a versioned trash. Restore puts them back where they were, with the full revision history intact.",
+    label: "trash",
+    title: "Keeps what you delete",
+    body: "Notes and folders go to a versioned trash. Restore returns them to where they were, revision history intact.",
   },
   {
-    icon: "upload",
-    title: "Yours to take back",
-    body: "Import a folder of .md files or a whole ZIP; export the vault the same way. Wikilinks and tags stay plain text on the way out.",
+    label: "import / export",
+    title: "Hands the files back",
+    body: "Bring in a folder of .md or a whole ZIP; take the vault out the same way. Wikilinks and tags stay plain text.",
   },
 ] as const;
 
 const SHORTCUTS = [
-  ["Ctrl+P", "Command palette — every action, no mouse"],
+  ["Ctrl+P", "Open the command palette"],
   ["[[", "Link a note, with autocomplete"],
-  ["#topic", "Tag as you write; the sidebar keeps count"],
-  ["Alt+↑↓", "Reorder notes from the keyboard"],
+  ["#topic", "Tag as you write"],
+  ["Alt+↑↓", "Reorder notes"],
+] as const;
+
+const NOT_DOING = [
+  "Real-time co-editing — one vault, one person",
+  "Native mobile or desktop apps — the browser is the app",
+  "Image and file hosting — media is referenced by URL",
+  "Offline-first sync — the server is the system of record",
 ] as const;
 
 export function LandingPage() {
   return (
     <div className="min-h-full bg-bg text-ink">
-      <header className="sticky top-0 z-30 mx-auto flex max-w-[1120px] items-center justify-between px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-bg/80">
-        <Wordmark />
-        <nav aria-label="Account" className="flex items-center gap-2">
-          <Link
-            to="/login"
-            className="rounded-control border border-border px-4 py-2 text-[14px] font-medium text-ink hover:bg-surface"
-          >
-            Log in
-          </Link>
-          <Link
-            to="/register"
-            className="rounded-control bg-accent-fill px-4 py-2 text-[14px] font-medium text-on-accent hover:bg-accent-fill-hover"
-          >
-            Create your vault
-          </Link>
-        </nav>
+      <header className="sticky top-0 z-30 border-b border-transparent backdrop-blur supports-[backdrop-filter]:bg-bg/80">
+        <div className="mx-auto flex max-w-[1120px] items-center justify-between px-6 py-4">
+          <Wordmark />
+          <nav aria-label="Account" className="flex items-center gap-2">
+            <Link
+              to="/login"
+              className="rounded-control border border-border px-4 py-2 text-[14px] font-medium text-ink hover:bg-surface"
+            >
+              Log in
+            </Link>
+            <Link
+              to="/register"
+              className="rounded-control bg-accent-fill px-4 py-2 text-[14px] font-medium text-on-accent hover:bg-accent-fill-hover"
+            >
+              Create your vault
+            </Link>
+          </nav>
+        </div>
       </header>
 
       <main>
-        <section className="relative isolate mx-auto max-w-[1120px] px-6 pb-14 pt-14">
+        <section className="relative isolate overflow-hidden">
           <HeroAtmosphere />
           <Suspense fallback={null}>
             <ConstellationField />
           </Suspense>
-          <div className="mx-auto max-w-[720px] text-center">
-            <h1 className="text-[44px] font-semibold leading-[1.12] tracking-display sm:text-[56px]">
-              Notes that link, sync, and stay yours.
-            </h1>
-            <p className="mx-auto mt-5 max-w-[560px] text-[18px] leading-relaxed text-muted">
-              A keyboard-first Markdown workspace that runs in the browser.
-              Wikilinks weave your notes into a graph; the server keeps every
-              device on the same page.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                to="/register"
-                className="rounded-control bg-accent-fill px-6 py-3 text-[16px] font-medium text-on-accent hover:bg-accent-fill-hover"
-              >
-                Create your vault
-              </Link>
-              <Link
-                to="/login"
-                className="rounded-control border border-border px-6 py-3 text-[16px] font-medium text-ink hover:bg-surface"
-              >
-                Log in
-              </Link>
+          <div className="mx-auto max-w-[1120px] px-6 pb-16 pt-16">
+            <div className="mx-auto max-w-[760px] text-center">
+              <h1 className="text-[42px] font-semibold leading-[1.12] tracking-display sm:text-[56px]">
+                Write <Syn>[[</Syn>notes<Syn>]]</Syn> that know each other.
+              </h1>
+              <p className="mx-auto mt-5 max-w-[540px] text-[18px] leading-relaxed text-muted">
+                A keyboard-first Markdown workspace in the browser. Type two
+                brackets to link a note; the connection becomes navigation, a
+                backlink, and an edge in your graph.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                <Link
+                  to="/register"
+                  className="rounded-control bg-accent-fill px-6 py-3 text-[16px] font-medium text-on-accent hover:bg-accent-fill-hover"
+                >
+                  Create your vault
+                </Link>
+                <Link
+                  to="/login"
+                  className="rounded-control border border-border bg-bg/70 px-6 py-3 text-[16px] font-medium text-ink hover:bg-surface"
+                >
+                  Log in
+                </Link>
+              </div>
+              <p className="mt-4 font-mono text-[12px] text-muted">
+                free while in development · export anytime · no lock-in
+              </p>
             </div>
-            <p className="mt-4 text-[13px] text-muted">
-              Free while in development · export anytime · no lock-in
-            </p>
-          </div>
 
-          <div className="mx-auto mt-14 max-w-[880px]">
-            <HeroDemo />
-            <p className="mt-3 text-center text-[13px] text-muted">
-              The editor above is the real one — same preview, same autosave.
-            </p>
+            <div className="mx-auto mt-14 max-w-[880px]">
+              <HeroDemo />
+              <p className="mt-3 text-center font-mono text-[12px] text-muted">
+                the editor above is the real one — same preview, same autosave
+              </p>
+            </div>
           </div>
         </section>
 
-        <section className="border-t border-border py-16">
-          <div className="mx-auto flex max-w-[1120px] flex-col gap-10 px-6 md:flex-row md:items-center">
+        <Section eyebrow="what the links do">
+          <div className="flex flex-col gap-10 md:flex-row md:items-center">
             <div className="max-w-[400px] flex-1">
               <h2 className="text-[32px] font-semibold leading-tight tracking-heading">
-                Every link becomes an edge
+                A link is a real thing, not a convention
               </h2>
               <p className="mt-4 text-[16px] leading-relaxed text-muted">
-                Write <code className="rounded-[4px] bg-surface px-1 py-0.5 font-mono text-[14px]">[[Feedback Loops]]</code>{" "}
-                and the connection is real: clickable in the preview, an edge in
-                the graph, a backlink waiting on the other side.
+                Write <Syn>[[Feedback Loops]]</Syn> and it becomes clickable in
+                the preview, an edge in the graph, and a backlink waiting on the
+                other side.
               </p>
-              <ul className="mt-5 space-y-2 text-[14px] text-muted">
+              <ul className="mt-6 space-y-3 text-[14px] text-muted">
                 <li className="flex items-start gap-2.5">
                   <span
                     aria-hidden="true"
@@ -181,7 +209,8 @@ export function LandingPage() {
                     className="mt-[6px] inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-dashed border-broken"
                   />
                   <span>
-                    A link to a note you haven't written yet — click to create it
+                    A link to a note you haven't written yet — click it to
+                    create it
                   </span>
                 </li>
               </ul>
@@ -190,98 +219,90 @@ export function LandingPage() {
               <LinkGraphIllustration />
             </div>
           </div>
-        </section>
+        </Section>
 
-        <section className="border-y border-border bg-surface py-16">
-          <div className="mx-auto max-w-[1120px] px-6">
-            <h2 className="max-w-[520px] text-[32px] font-semibold leading-tight tracking-heading">
-              Built for the way linked notes actually get used
-            </h2>
-            <ul className="mt-10 grid gap-6 sm:grid-cols-2">
-              {CAPABILITIES.map((c) => (
-                <li
-                  key={c.title}
-                  className="rounded-card border border-border bg-card p-6"
-                >
-                  <Icon
-                    name={c.icon as "search"}
-                    size={20}
-                    className="text-accent"
-                  />
-                  <h3 className="mt-3 text-[17px] font-semibold tracking-heading text-ink">
+        <Section eyebrow="what it does well">
+          <h2 className="max-w-[560px] text-[32px] font-semibold leading-tight tracking-heading">
+            Built for notes that pile up
+          </h2>
+          <ul className="mt-8">
+            {CAPABILITIES.map((c) => (
+              <li
+                key={c.title}
+                className="grid gap-2 border-t border-border py-6 md:grid-cols-[160px_1fr] md:gap-10"
+              >
+                <p className="eyebrow pt-1">{c.label}</p>
+                <div>
+                  <h3 className="text-[19px] font-semibold tracking-heading text-ink">
                     {c.title}
                   </h3>
-                  <p className="mt-2 text-[15px] leading-relaxed text-muted">
+                  <p className="mt-1.5 max-w-[620px] text-[15px] leading-relaxed text-muted">
                     {c.body}
                   </p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Section>
 
-        <section className="mx-auto max-w-[1120px] px-6 py-16">
-          <div className="flex flex-col gap-10 md:flex-row md:items-center">
-            <div className="max-w-[440px] flex-1">
+        <Section eyebrow="keyboard">
+          <div className="flex flex-col gap-10 md:flex-row md:items-start">
+            <div className="max-w-[420px] flex-1">
               <h2 className="text-[32px] font-semibold leading-tight tracking-heading">
-                Hands stay on the keyboard
+                Hands stay where you type
               </h2>
               <p className="mt-4 text-[16px] leading-relaxed text-muted">
                 Creating, linking, searching, reordering, restoring — every core
-                action has a key path. The command palette is one keystroke away
+                action has a key path, and the palette is one keystroke away
                 from anywhere in the app.
               </p>
             </div>
-            <dl className="flex-1 divide-y divide-border rounded-card border border-border bg-card">
+            <dl className="flex-1">
               {SHORTCUTS.map(([keys, label]) => (
                 <div
                   key={keys}
-                  className="flex items-center justify-between gap-4 px-5 py-3.5"
+                  className="flex items-baseline justify-between gap-6 border-t border-border py-3.5"
                 >
-                  <dt className="shrink-0">
-                    <Kbd>{keys}</Kbd>
+                  <dt>
+                    <kbd className="font-mono text-[14px] font-medium text-ink">
+                      {keys}
+                    </kbd>
                   </dt>
                   <dd className="text-right text-[14px] text-muted">{label}</dd>
                 </div>
               ))}
             </dl>
           </div>
-        </section>
+        </Section>
 
-        <section className="border-t border-border py-16">
-          <div className="mx-auto max-w-[1120px] px-6">
-            <h2 className="text-[28px] font-semibold leading-tight tracking-heading">
-              What Nexus doesn't do
-            </h2>
-            <p className="mt-3 max-w-[560px] text-[16px] leading-relaxed text-muted">
-              Worth knowing before you move your notes in. These are deliberate
-              omissions, not gaps waiting to be patched next week.
-            </p>
-            <ul className="mt-8 grid gap-x-10 gap-y-4 sm:grid-cols-2">
-              {[
-                "No real-time co-editing — one vault, one person",
-                "No native mobile or desktop app — the browser is the app",
-                "No image or file hosting — media is referenced by URL",
-                "No offline-first mode — the server is the system of record",
-              ].map((item) => (
+        <Section eyebrow="boundaries">
+          <div className="flex flex-col gap-10 md:flex-row md:items-start">
+            <div className="max-w-[420px] flex-1">
+              <h2 className="text-[28px] font-semibold leading-tight tracking-heading">
+                What Nexus doesn't do
+              </h2>
+              <p className="mt-3 text-[16px] leading-relaxed text-muted">
+                Worth knowing before you move your notes in. Deliberate
+                omissions, not gaps waiting to be patched next week.
+              </p>
+            </div>
+            <ul className="flex-1">
+              {NOT_DOING.map((item) => (
                 <li
                   key={item}
-                  className="flex items-start gap-3 border-t border-border pt-4 text-[15px] text-muted"
+                  className="border-t border-border py-3.5 text-[15px] text-muted"
                 >
-                  <span aria-hidden="true" className="mt-[2px] text-mist">
-                    —
-                  </span>
                   {item}
                 </li>
               ))}
             </ul>
           </div>
-        </section>
+        </Section>
 
         <section className="border-t border-border bg-surface">
           <div className="mx-auto max-w-[720px] px-6 py-16 text-center">
             <h2 className="text-[28px] font-semibold leading-tight tracking-heading">
-              Start with an empty vault or bring your own
+              Start empty, or bring what you have
             </h2>
             <p className="mx-auto mt-3 max-w-[480px] text-[16px] leading-relaxed text-muted">
               Import your existing Markdown in one step. If you ever want out,
@@ -298,9 +319,11 @@ export function LandingPage() {
       </main>
 
       <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-3 px-6 py-6 text-[13px] text-muted">
+        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-3 px-6 py-6">
           <Wordmark size="sm" />
-          <p>Markdown in, Markdown out.</p>
+          <p className="font-mono text-[12px] text-muted">
+            markdown in, markdown out
+          </p>
         </div>
       </footer>
     </div>

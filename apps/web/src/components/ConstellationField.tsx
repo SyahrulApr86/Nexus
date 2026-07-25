@@ -187,7 +187,14 @@ export function ConstellationField() {
     <div
       ref={hostRef}
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 -z-10 opacity-70"
+      className="pointer-events-none absolute inset-0 -z-10 opacity-60"
+      style={{
+        // Keep the field at the edges: nothing drifts behind the headline.
+        maskImage:
+          "radial-gradient(ellipse 62% 58% at 50% 42%, transparent 40%, black 78%)",
+        WebkitMaskImage:
+          "radial-gradient(ellipse 62% 58% at 50% 42%, transparent 40%, black 78%)",
+      }}
     />
   );
 }

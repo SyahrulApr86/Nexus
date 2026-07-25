@@ -8,7 +8,7 @@ test.describe("Landing page", () => {
     await page.goto("/");
     await expect(page).toHaveURL(/\/welcome/);
     await expect(
-      page.getByRole("heading", { name: /Notes that link/ }),
+      page.getByRole("heading", { name: /that know each other/ }),
     ).toBeVisible();
     await page
       .getByRole("main")
@@ -35,7 +35,7 @@ test.describe("Landing page", () => {
       const page = await ctx.newPage();
       await page.goto("/welcome");
       await expect(
-        page.getByRole("heading", { name: /Notes that link/ }),
+        page.getByRole("heading", { name: /that know each other/ }),
       ).toBeVisible();
       await expectNoA11yViolations(page);
       await ctx.close();

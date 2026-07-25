@@ -33,6 +33,9 @@ test.describe("US4 — wikilinks (independent test)", () => {
     // Autocomplete dropdown appears filtered (US4-S1)
     const option = page.locator(".cm-tooltip-autocomplete li").first();
     await expect(option).toContainText("Note Two", { timeout: 5000 });
+    // The suggestion list settles asynchronously; pressing Enter mid-refresh
+    // can land on a stale selection.
+    await expect(page.locator(".cm-tooltip-autocomplete li")).toHaveCount(1);
     await page.keyboard.press("Enter"); // select (US4-S2)
 
     await expect(editor(page)).toContainText("Go to [[Note Two]]");

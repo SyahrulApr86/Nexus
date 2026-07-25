@@ -1,4 +1,8 @@
 @import "tailwindcss";
+/* Bundled locally: DESIGN.md specifies InterVar, and nothing here should
+   depend on a third-party font CDN. JetBrains Mono carries the syntax voice. */
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 
 /*
  * Design tokens from DESIGN.md (Clearbit reference, light) with a derived
@@ -62,8 +66,12 @@
   --color-tag-bg: var(--t-tag-bg);
   --color-broken: var(--t-broken);
 
-  --font-sans: "InterVar", "Inter", ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Inter Variable", "InterVar", "Inter", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* A second display role, not just a code face: this product's subject is
+     raw syntax sitting next to its result. */
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
 
   --radius-card: 12px;
   --radius-control: 8px;
@@ -96,18 +104,29 @@ body {
   border-radius: var(--radius-control);
 }
 
+/* Section eyebrow: the label a section would carry in an outline, set in the
+   product's own syntax voice. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t-muted);
+}
+
 /* Landing atmosphere: soft colour fields behind the hero. Purely decorative,
    sized in vw so they scale with the viewport instead of clipping. */
 .blob {
   position: absolute;
   border-radius: 9999px;
-  filter: blur(72px);
-  opacity: 0.5;
+  filter: blur(86px);
+  opacity: 0.28;
   will-change: transform;
 }
 [data-theme="dark"] .blob {
-  opacity: 0.34;
-  filter: blur(88px);
+  opacity: 0.26;
+  filter: blur(100px);
 }
 @media (prefers-reduced-motion: no-preference) {
   .blob-drift-a {
@@ -254,7 +273,7 @@ body {
   font-size: 15px;
 }
 .cm-editor .cm-content {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   caret-color: var(--t-ink);
 }
 .cm-editor.cm-focused {
