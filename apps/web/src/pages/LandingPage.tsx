@@ -1,6 +1,35 @@
+import { lazy, Suspense } from "react";
 import { Link } from "@tanstack/react-router";
 import { Icon } from "../components/Icon.js";
 import { HeroDemo } from "../components/HeroDemo.js";
+import { LinkGraphIllustration } from "../components/LinkGraphIllustration.js";
+
+// Three.js only ships to visitors who actually land here.
+const ConstellationField = lazy(() =>
+  import("../components/ConstellationField.js").then((m) => ({
+    default: m.ConstellationField,
+  })),
+);
+
+/** Decorative colour fields behind the hero. */
+function HeroAtmosphere() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-20 overflow-hidden">
+      <div
+        className="blob blob-drift-a left-[-8vw] top-[-14vh] h-[46vw] w-[46vw] max-h-[560px] max-w-[560px]"
+        style={{ background: "var(--t-accent)" }}
+      />
+      <div
+        className="blob blob-drift-b right-[-10vw] top-[-6vh] h-[38vw] w-[38vw] max-h-[480px] max-w-[480px]"
+        style={{ background: "#7c5cff" }}
+      />
+      <div
+        className="blob blob-drift-c left-[38%] top-[42vh] h-[30vw] w-[30vw] max-h-[400px] max-w-[400px]"
+        style={{ background: "#12b5a8" }}
+      />
+    </div>
+  );
+}
 
 /**
  * Public marketing page (DESIGN.md palette + rhythm). The hero shows the real
@@ -67,7 +96,7 @@ const SHORTCUTS = [
 export function LandingPage() {
   return (
     <div className="min-h-full bg-bg text-ink">
-      <header className="mx-auto flex max-w-[1120px] items-center justify-between px-6 py-4">
+      <header className="sticky top-0 z-30 mx-auto flex max-w-[1120px] items-center justify-between px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-bg/80">
         <Wordmark />
         <nav aria-label="Account" className="flex items-center gap-2">
           <Link
@@ -86,7 +115,11 @@ export function LandingPage() {
       </header>
 
       <main>
-        <section className="mx-auto max-w-[1120px] px-6 pb-14 pt-14">
+        <section className="relative isolate mx-auto max-w-[1120px] px-6 pb-14 pt-14">
+          <HeroAtmosphere />
+          <Suspense fallback={null}>
+            <ConstellationField />
+          </Suspense>
           <div className="mx-auto max-w-[720px] text-center">
             <h1 className="text-[44px] font-semibold leading-[1.12] tracking-display sm:text-[56px]">
               Notes that link, sync, and stay yours.
@@ -120,6 +153,42 @@ export function LandingPage() {
             <p className="mt-3 text-center text-[13px] text-muted">
               The editor above is the real one — same preview, same autosave.
             </p>
+          </div>
+        </section>
+
+        <section className="border-t border-border py-16">
+          <div className="mx-auto flex max-w-[1120px] flex-col gap-10 px-6 md:flex-row md:items-center">
+            <div className="max-w-[400px] flex-1">
+              <h2 className="text-[32px] font-semibold leading-tight tracking-heading">
+                Every link becomes an edge
+              </h2>
+              <p className="mt-4 text-[16px] leading-relaxed text-muted">
+                Write <code className="rounded-[4px] bg-surface px-1 py-0.5 font-mono text-[14px]">[[Feedback Loops]]</code>{" "}
+                and the connection is real: clickable in the preview, an edge in
+                the graph, a backlink waiting on the other side.
+              </p>
+              <ul className="mt-5 space-y-2 text-[14px] text-muted">
+                <li className="flex items-start gap-2.5">
+                  <span
+                    aria-hidden="true"
+                    className="mt-[6px] inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-accent"
+                  />
+                  <span>A note that exists</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span
+                    aria-hidden="true"
+                    className="mt-[6px] inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-dashed border-broken"
+                  />
+                  <span>
+                    A link to a note you haven't written yet — click to create it
+                  </span>
+                </li>
+              </ul>
+            </div>
+            <div className="flex-1">
+              <LinkGraphIllustration />
+            </div>
           </div>
         </section>
 
@@ -176,6 +245,36 @@ export function LandingPage() {
                 </div>
               ))}
             </dl>
+          </div>
+        </section>
+
+        <section className="border-t border-border py-16">
+          <div className="mx-auto max-w-[1120px] px-6">
+            <h2 className="text-[28px] font-semibold leading-tight tracking-heading">
+              What Nexus doesn't do
+            </h2>
+            <p className="mt-3 max-w-[560px] text-[16px] leading-relaxed text-muted">
+              Worth knowing before you move your notes in. These are deliberate
+              omissions, not gaps waiting to be patched next week.
+            </p>
+            <ul className="mt-8 grid gap-x-10 gap-y-4 sm:grid-cols-2">
+              {[
+                "No real-time co-editing — one vault, one person",
+                "No native mobile or desktop app — the browser is the app",
+                "No image or file hosting — media is referenced by URL",
+                "No offline-first mode — the server is the system of record",
+              ].map((item) => (
+                <li
+                  key={item}
+                  className="flex items-start gap-3 border-t border-border pt-4 text-[15px] text-muted"
+                >
+                  <span aria-hidden="true" className="mt-[2px] text-mist">
+                    —
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 

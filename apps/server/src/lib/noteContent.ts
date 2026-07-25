@@ -46,15 +46,28 @@ export async function readVersionContent(
  * 'simple' config: no stemming surprises, CJK strings kept as whole tokens
  * (matched via prefix queries).
  */
+/**
+ * Characters `to_tsvector` throws away: anything that is not a letter, digit,
+ * whitespace, or ASCII-ish punctuation — i.e. emoji, arrows, currency marks.
+ * Storing the distinct set keeps emoji searchable (PRD §4) at a few bytes.
+ */
+export function extractSymbols(content: string): string {
+  const matches = content.match(/[^\p{L}\p{N}\s\p{P}]/gu);
+  if (!matches) return "";
+  return [...new Set(matches)].join("").slice(0, 500);
+}
+
 export async function updateSearchIndex(
   noteId: string,
   content: string,
 ): Promise<void> {
   const tags = [...new Set(extractTags(content).map((t) => t.name))];
+  const symbols = extractSymbols(content);
   await prisma.$executeRaw`
     UPDATE "Note"
     SET "contentTsv" = to_tsvector('simple', LEFT(${content}, 200000)),
-        "tags" = ${tags}
+        "tags" = ${tags},
+        "contentSymbols" = ${symbols}
     WHERE id = ${noteId}::uuid`;
 }
 

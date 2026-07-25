@@ -23,6 +23,13 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
 
   const [missingLink, setMissingLink] = useState<string | null>(null);
 
+  // Stable identities: an inline handler here would defeat MarkdownPreview's
+  // memo and re-parse the whole document on every render.
+  const openTag = useCallback(
+    (tag: string) => navigate({ to: "/tags/$tagName", params: { tagName: tag } }),
+    [navigate],
+  );
+
   const openWikilink = useCallback(
     (title: string, resolvedId: string | null) => {
       if (resolvedId) {
@@ -36,7 +43,13 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
   );
 
   const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  // Seeds the editor: only changes when a different note loads or a conflict
+  // reloads it — never on every keystroke, so a large document is not copied
+  // through React state on each input (PRD §4).
+  const [editorSeed, setEditorSeed] = useState("");
+  // Drives the preview. Kept separate from the editor seed so a keystroke
+  // never re-seeds CodeMirror with the whole document.
+  const [previewContent, setPreviewContent] = useState("");
   const [saveState, setSaveState] = useState<"saved" | "dirty" | "saving">(
     "saved",
   );
@@ -52,7 +65,8 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
     if (loadedNoteRef.current === data.note.id) return;
     loadedNoteRef.current = data.note.id;
     setTitle(data.note.title);
-    setContent(data.note.content);
+    setEditorSeed(data.note.content);
+    setPreviewContent(data.note.content);
     baseRef.current = data.note.updatedAt;
     latestRef.current = { title: data.note.title, content: data.note.content };
     setSaveState("saved");
@@ -71,7 +85,7 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
       const { title, content } = latestRef.current;
       setSaveState("saving");
       try {
-        const note = await update.mutateAsync({
+        const { note } = await update.mutateAsync({
           noteId,
           title,
           content,
@@ -86,7 +100,7 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
             "This note was changed in another session. Your latest edit replaced that version.",
             "warning",
           );
-          const note = await update.mutateAsync({
+          const { note } = await update.mutateAsync({
             noteId,
             ...latestRef.current, // freshest state at retry time
           });
@@ -217,23 +231,21 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
       <div className="grid min-h-0 flex-1 grid-cols-2 border-t border-border">
         <div className="min-h-0 border-r border-border">
           <Editor
-            value={content}
+            value={editorSeed}
             extensions={editorExtensions}
             onChange={(v) => {
-              setContent(v);
               latestRef.current.content = v;
+              setPreviewContent(v);
               scheduleSave();
             }}
           />
         </div>
         <div className="min-h-0 bg-surface/40" data-testid="preview">
           <MarkdownPreview
-            content={content}
+            content={previewContent}
             links={data.links}
             onOpenWikilink={openWikilink}
-            onTagClick={(tag) =>
-              navigate({ to: "/tags/$tagName", params: { tagName: tag } })
-            }
+            onTagClick={openTag}
           />
         </div>
       </div>

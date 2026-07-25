@@ -23,6 +23,13 @@ export const MarkdownPreview = memo(function MarkdownPreview({
   onOpenWikilink?: (title: string, resolvedId: string | null) => void;
   onTagClick?: (tag: string) => void;
 }) {
+  // Past this size, rendering the whole document would build tens of
+  // thousands of DOM nodes on every pass. The note is stored and exported in
+  // full — only this preview stops early, and says so.
+  const PREVIEW_CHAR_LIMIT = 80_000;
+  const truncated = content.length > PREVIEW_CHAR_LIMIT;
+  const rendered = truncated ? content.slice(0, PREVIEW_CHAR_LIMIT) : content;
+
   const linkMap = useMemo(() => {
     const map = new Map<string, string | null>();
     for (const l of links) map.set(l.targetTitle, l.targetNoteId);
@@ -62,7 +69,13 @@ export const MarkdownPreview = memo(function MarkdownPreview({
         if (e.key === "Enter") handleClick(e as unknown as MouseEvent<HTMLElement>);
       }}
     >
-      <ReactMarkdown remarkPlugins={plugins}>{content}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={plugins}>{rendered}</ReactMarkdown>
+      {truncated && (
+        <p className="mt-6 rounded-control border border-border bg-surface px-4 py-3 text-[13px] text-muted">
+          Preview stops here to stay responsive. The full note is saved and
+          exports complete.
+        </p>
+      )}
     </div>
   );
 });

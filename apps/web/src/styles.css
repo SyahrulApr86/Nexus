@@ -96,6 +96,55 @@ body {
   border-radius: var(--radius-control);
 }
 
+/* Landing atmosphere: soft colour fields behind the hero. Purely decorative,
+   sized in vw so they scale with the viewport instead of clipping. */
+.blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(72px);
+  opacity: 0.5;
+  will-change: transform;
+}
+[data-theme="dark"] .blob {
+  opacity: 0.34;
+  filter: blur(88px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .blob-drift-a {
+    animation: blob-drift-a 26s ease-in-out infinite alternate;
+  }
+  .blob-drift-b {
+    animation: blob-drift-b 32s ease-in-out infinite alternate;
+  }
+  .blob-drift-c {
+    animation: blob-drift-c 38s ease-in-out infinite alternate;
+  }
+}
+@keyframes blob-drift-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4vw, 3vh, 0) scale(1.12);
+  }
+}
+@keyframes blob-drift-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  to {
+    transform: translate3d(-5vw, 4vh, 0) scale(0.95);
+  }
+}
+@keyframes blob-drift-c {
+  from {
+    transform: translate3d(0, 0, 0) scale(0.95);
+  }
+  to {
+    transform: translate3d(3vw, -4vh, 0) scale(1.1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

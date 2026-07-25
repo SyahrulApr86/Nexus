@@ -60,6 +60,27 @@ describe("FR-013 full-text fuzzy search", () => {
     expect(results.map((r) => r.id)).toContain(note.id);
   });
 
+  it("finds emoji and other symbols tsvector drops (PRD §4)", async () => {
+    const { cookie } = await registerAndLogin();
+    const party = await createNote(cookie, {
+      title: "Launch",
+      content: "ship it 🎉 today",
+    });
+    await createNote(cookie, { title: "Plain", content: "no symbols here" });
+
+    const results = await search(cookie, "🎉");
+    expect(results.map((r) => r.id)).toEqual([party.id]);
+  });
+
+  it("handles Cyrillic and Arabic content", async () => {
+    const { cookie } = await registerAndLogin();
+    const ru = await createNote(cookie, { title: "RU", content: "Привет мир" });
+    const ar = await createNote(cookie, { title: "AR", content: "مرحبا بالعالم" });
+
+    expect((await search(cookie, "Привет")).map((r) => r.id)).toContain(ru.id);
+    expect((await search(cookie, "مرحبا")).map((r) => r.id)).toContain(ar.id);
+  });
+
   it("handles regex-reserved characters safely", async () => {
     const { cookie } = await registerAndLogin();
     const note = await createNote(cookie, {

@@ -68,6 +68,8 @@ model Note {
   contentTsv       Unsupported("tsvector")?
   // Derived #tag names (FR-017/018), extracted at write time
   tags             String[]  @default([])
+  // Distinct symbol characters (emoji, arrows, currency) that tsvector drops
+  contentSymbols   String    @default("")
   position         Int       @default(0)
   isTrashed        Boolean   @default(false)
   trashedAt        DateTime?

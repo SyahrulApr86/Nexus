@@ -61,18 +61,21 @@ export function useUpdateNote() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ noteId, ...body }: UpdateNoteInput) =>
-      api<{ note: NoteDto }>(`/notes/${noteId}`, {
+      api<{ note: NoteDto; links: NoteLinkDto[] }>(`/notes/${noteId}`, {
         method: "PATCH",
         body: JSON.stringify(body),
-      }).then((r) => r.note),
-    onSuccess: (note) => {
+      }),
+    onSuccess: ({ note, links }) => {
+      // Patch the cache in place. Refetching here would re-download and
+      // re-decrypt the whole note after every autosave — brutal on long notes.
       qc.setQueryData(
         ["note", note.id],
-        (old: { note: NoteDto; versions: NoteVersionDto[] } | undefined) =>
-          old ? { ...old, note } : old,
+        (
+          old:
+            | { note: NoteDto; versions: NoteVersionDto[]; links: NoteLinkDto[] }
+            | undefined,
+        ) => (old ? { ...old, note, links } : old),
       );
-      // Refetch links/versions (local editor state is preserved by NotePage)
-      qc.invalidateQueries({ queryKey: ["note", note.id] });
       qc.invalidateQueries({ queryKey: ["notes"] });
       qc.invalidateQueries({ queryKey: ["tags"] });
     },

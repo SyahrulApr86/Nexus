@@ -180,7 +180,13 @@ export const noteRoutes = new Hono()
       ...toSummary(updated),
       content: content ?? (await readNoteContent(note.id)) ?? "",
     };
-    return c.json({ note: dto });
+    // Return the refreshed link set so the client never has to refetch the
+    // whole note (and re-decrypt it) just to redraw wikilink states.
+    const links = await prisma.wikilinkRef.findMany({
+      where: { sourceNoteId: note.id },
+      select: { targetTitle: true, targetNoteId: true },
+    });
+    return c.json({ note: dto, links });
   })
 
   .delete("/:id", async (c) => {
