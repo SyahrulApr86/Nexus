@@ -12,6 +12,7 @@ import { FolderTree } from "../components/FolderTree.js";
 import { SearchPanel } from "../components/SearchPanel.js";
 import { TagsSection } from "../components/TagsSection.js";
 import { useRealtime } from "../lib/realtime.js";
+import { ImportExport } from "../components/ImportExport.js";
 import {
   CommandPalette,
   type Command,
@@ -67,6 +68,13 @@ export function WorkspacePage() {
       },
       { id: "trash", label: "Open trash", run: () => navigate({ to: "/trash" }) },
       { id: "graph", label: "Open graph", run: () => navigate({ to: "/graph" }) },
+      {
+        id: "export",
+        label: "Export vault as ZIP",
+        run: () => {
+          window.location.href = "/api/export";
+        },
+      },
       {
         id: "theme-dark",
         label: "Theme: Dark",
@@ -141,6 +149,7 @@ export function WorkspacePage() {
           onCreateNote={newNote}
         />
         <TagsSection />
+        <ImportExport />
         <div className="border-t border-border px-2 py-2">
           <Link
             to="/graph"

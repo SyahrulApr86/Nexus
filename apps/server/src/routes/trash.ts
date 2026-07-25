@@ -4,7 +4,7 @@ import type { TrashedItemDto } from "@nexus/shared";
 import { prisma } from "../db.js";
 import { readVersionContent } from "../lib/noteContent.js";
 import { requireAuth } from "../middleware/auth.js";
-import { relinkTargetsForTitles } from "./notes.js";
+import { relinkTargetsForTitles } from "../lib/wikilinkIndex.js";
 import { broadcastToVault } from "../lib/realtime.js";
 
 const uuid = z.string().uuid();

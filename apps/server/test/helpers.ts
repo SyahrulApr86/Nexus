@@ -16,7 +16,11 @@ export async function api(
   init: RequestInit & { cookie?: string } = {},
 ) {
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has("content-type")) {
+  if (
+    init.body &&
+    !(init.body instanceof FormData) &&
+    !headers.has("content-type")
+  ) {
     headers.set("content-type", "application/json");
   }
   if (init.cookie) headers.set("cookie", init.cookie);

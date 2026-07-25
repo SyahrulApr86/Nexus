@@ -5,6 +5,24 @@ import { prisma } from "../db.js";
  * Server-side wikilink index (powers graph view + broken-link resolution).
  * Uses the same shared parser as the editor/preview (PRD §13 consistency).
  */
+/** Re-resolve wikilink targets when a note title appears/disappears (FR-012). */
+export async function relinkTargetsForTitles(
+  vaultId: string,
+  titles: string[],
+  _changedNoteId: string,
+) {
+  for (const title of titles) {
+    const target = await prisma.note.findFirst({
+      where: { vaultId, title, isTrashed: false },
+      orderBy: { createdAt: "asc" },
+    });
+    await prisma.wikilinkRef.updateMany({
+      where: { targetTitle: title, source: { vaultId } },
+      data: { targetNoteId: target?.id ?? null },
+    });
+  }
+}
+
 export async function reindexNoteLinks(
   noteId: string,
   vaultId: string,

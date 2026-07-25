@@ -16,10 +16,12 @@ import {
   updateSearchIndex,
 } from "../lib/noteContent.js";
 import { requireAuth } from "../middleware/auth.js";
-import { reindexNoteLinks } from "../lib/wikilinkIndex.js";
+import {
+  reindexNoteLinks,
+  relinkTargetsForTitles,
+} from "../lib/wikilinkIndex.js";
 import { broadcastToVault } from "../lib/realtime.js";
-
-const MAX_VERSIONS = 100;
+import { createNoteFull, snapshotVersion } from "../lib/noteOps.js";
 
 function toSummary(n: {
   id: string;
@@ -44,25 +46,6 @@ async function findOwnedNote(vaultId: string, id: string) {
   const parsed = z.string().uuid().safeParse(id);
   if (!parsed.success) return null;
   return prisma.note.findFirst({ where: { id, vaultId } });
-}
-
-async function snapshotVersion(
-  noteId: string,
-  contentEnc: Uint8Array<ArrayBuffer>,
-) {
-  await prisma.noteVersion.create({ data: { noteId, contentEnc } });
-  const count = await prisma.noteVersion.count({ where: { noteId } });
-  if (count > MAX_VERSIONS) {
-    const oldest = await prisma.noteVersion.findMany({
-      where: { noteId },
-      orderBy: { createdAt: "asc" },
-      take: count - MAX_VERSIONS,
-      select: { id: true },
-    });
-    await prisma.noteVersion.deleteMany({
-      where: { id: { in: oldest.map((v) => v.id) } },
-    });
-  }
 }
 
 export const noteRoutes = new Hono()
@@ -95,26 +78,7 @@ export const noteRoutes = new Hono()
       });
       if (!folder) return c.json({ error: "Folder not found" }, 404);
     }
-    const contentEnc = await encryptContent(content);
-    const max = await prisma.note.aggregate({
-      where: { vaultId, folderId },
-      _max: { position: true },
-    });
-    const note = await prisma.note.create({
-      data: {
-        vaultId,
-        folderId,
-        title,
-        contentEnc,
-        position: (max._max.position ?? -1) + 1,
-      },
-    });
-    await snapshotVersion(note.id, contentEnc);
-    await updateSearchIndex(note.id, content);
-    await reindexNoteLinks(note.id, vaultId, content);
-    // A new title may resolve previously broken links elsewhere (FR-012)
-    if (title) await relinkTargetsForTitles(vaultId, [title], note.id);
-    broadcastToVault(vaultId, { type: "note:created", noteId: note.id });
+    const note = await createNoteFull(vaultId, { title, content, folderId });
     const dto: NoteDto = { ...toSummary(note), content };
     return c.json({ note: dto }, 201);
   })
@@ -291,21 +255,3 @@ export const noteRoutes = new Hono()
     broadcastToVault(vaultId, { type: "folder:changed" });
     return c.json({ ok: true });
   });
-
-/** Re-resolve wikilink targets when a note title appears/disappears (FR-012). */
-export async function relinkTargetsForTitles(
-  vaultId: string,
-  titles: string[],
-  _changedNoteId: string,
-) {
-  for (const title of titles) {
-    const target = await prisma.note.findFirst({
-      where: { vaultId, title, isTrashed: false },
-      orderBy: { createdAt: "asc" },
-    });
-    await prisma.wikilinkRef.updateMany({
-      where: { targetTitle: title, source: { vaultId } },
-      data: { targetNoteId: target?.id ?? null },
-    });
-  }
-}
