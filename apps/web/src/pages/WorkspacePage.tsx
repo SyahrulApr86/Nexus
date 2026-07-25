@@ -18,6 +18,7 @@ import {
   CommandPalette,
   type Command,
 } from "../components/CommandPalette.js";
+import { SettingsDialog } from "../components/SettingsDialog.js";
 
 /**
  * Authenticated app shell: sidebar (notes, folders, search, trash) + main pane.
@@ -31,6 +32,7 @@ export function WorkspacePage() {
   const createNote = useCreateNote();
   const updatePrefs = useUpdatePreferences();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const connection = useRealtime();
 
   const newNote = (folderId: string | null = null) =>
@@ -75,6 +77,11 @@ export function WorkspacePage() {
         run: () => {
           window.location.href = "/api/export";
         },
+      },
+      {
+        id: "settings",
+        label: "Open settings",
+        run: () => setSettingsOpen(true),
       },
       {
         id: "theme-dark",
@@ -177,6 +184,13 @@ export function WorkspacePage() {
           >
             <Icon name="trash" className="text-muted" /> Trash
           </Link>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className={`${railLink} w-full`}
+          >
+            <Icon name="settings" className="text-muted" /> Settings
+          </button>
           <p className="flex items-center gap-2 truncate px-2 pt-1.5 text-[12px] text-muted">
             <span
               aria-hidden="true"
@@ -206,6 +220,10 @@ export function WorkspacePage() {
         open={paletteOpen}
         commands={commands}
         onClose={() => setPaletteOpen(false)}
+      />
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
       />
     </div>
   );
