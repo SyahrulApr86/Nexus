@@ -33,6 +33,9 @@ export function Editor({
       state: EditorState.create({
         doc: value,
         extensions: [
+          // Custom extensions first — their keymaps (e.g. autocomplete Enter)
+          // must take precedence over defaultKeymap's Enter
+          ...extensions,
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           markdown({ base: markdownLanguage }),
@@ -48,7 +51,6 @@ export function Editor({
               onChangeRef.current(update.state.doc.toString());
             }
           }),
-          ...extensions,
         ],
       }),
     });

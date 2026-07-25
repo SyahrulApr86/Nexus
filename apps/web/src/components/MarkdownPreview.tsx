@@ -34,7 +34,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
       remarkGfm,
       remarkNexus({
         resolve: (title) => (linkMap.get(title) ?? null) !== null,
-      })(),
+      }),
     ],
     [linkMap],
   );
