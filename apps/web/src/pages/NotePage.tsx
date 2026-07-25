@@ -62,37 +62,47 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
     setSaveState("saved");
   }, [data]);
 
-  const flush = useCallback(async () => {
+  // Serialize flushes: overlapping saves must never race each other, and a
+  // conflict retry must send the LATEST content, not the snapshot that lost.
+  const flushChainRef = useRef<Promise<void>>(Promise.resolve());
+
+  const flush = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    const { title, content } = latestRef.current;
-    setSaveState("saving");
-    try {
-      const note = await update.mutateAsync({
-        noteId,
-        title,
-        content,
-        baseUpdatedAt: baseRef.current ?? undefined,
-      });
-      baseRef.current = note.updatedAt;
-      setSaveState("saved");
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        // US2-S5: last-write-wins with notification, never silent
-        toast(
-          "This note was changed in another session. Your latest edit replaced that version.",
-          "warning",
-        );
-        const note = await update.mutateAsync({ noteId, title, content });
+    flushChainRef.current = flushChainRef.current.then(async () => {
+      const { title, content } = latestRef.current;
+      setSaveState("saving");
+      try {
+        const note = await update.mutateAsync({
+          noteId,
+          title,
+          content,
+          baseUpdatedAt: baseRef.current ?? undefined,
+        });
         baseRef.current = note.updatedAt;
         setSaveState("saved");
-      } else {
-        setSaveState("dirty");
-        toast("Autosave failed. Retrying on next change.", "warning");
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409) {
+          // US2-S5: last-write-wins with notification, never silent
+          toast(
+            "This note was changed in another session. Your latest edit replaced that version.",
+            "warning",
+          );
+          const note = await update.mutateAsync({
+            noteId,
+            ...latestRef.current, // freshest state at retry time
+          });
+          baseRef.current = note.updatedAt;
+          setSaveState("saved");
+        } else {
+          setSaveState("dirty");
+          toast("Autosave failed. Retrying on next change.", "warning");
+        }
       }
-    }
+    });
+    return flushChainRef.current;
   }, [noteId, toast, update]);
 
   const scheduleSave = useCallback(() => {
