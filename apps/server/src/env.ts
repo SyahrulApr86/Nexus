@@ -21,6 +21,11 @@ const envSchema = z.object({
     .string()
     .default("true")
     .transform((v) => v !== "false"),
+  RATE_LIMIT_SCALE: z.coerce.number().min(1).default(1),
+  ENABLE_DEV_SEED: z
+    .string()
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 export type Env = z.infer<typeof envSchema>;

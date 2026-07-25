@@ -67,10 +67,10 @@ export function LoginPage() {
         </Button>
       </form>
       <div className="mt-4 flex justify-between text-[14px]">
-        <Link to="/register" className="text-accent hover:underline">
+        <Link to="/register" className="text-accent underline">
           Create an account
         </Link>
-        <Link to="/forgot-password" className="text-accent hover:underline">
+        <Link to="/forgot-password" className="text-accent underline">
           Forgot password?
         </Link>
       </div>

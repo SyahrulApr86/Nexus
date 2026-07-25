@@ -40,11 +40,25 @@ jobs:
       - run: pnpm --filter @nexus/server db:generate
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
+      # Coverage gates (PRD §8.3): ≥80% line / ≥70% branch enforced by vitest thresholds
+      - run: pnpm --filter @nexus/shared test
+      - run: pnpm --filter @nexus/server exec vitest run --coverage
       - name: Apply migrations for e2e
         run: pnpm --filter @nexus/server db:deploy
         env:
           DATABASE_URL: postgresql://nexus:nexus_dev@localhost:5433/nexus
+      - name: Write server .env for e2e webServer
+        run: |
+          cat > apps/server/.env <<'ENV'
+          DATABASE_URL="postgresql://nexus:nexus_dev@localhost:5433/nexus"
+          REDIS_URL="redis://localhost:6380"
+          CONTENT_ENCRYPTION_KEY="ci-content-key"
+          APP_ORIGIN="http://localhost:5173"
+          PORT="3001"
+          COOKIE_SECURE="false"
+          RATE_LIMIT_SCALE="100"
+          ENABLE_DEV_SEED="true"
+          ENV
       - name: Install Playwright browsers
         run: pnpm --filter e2e exec playwright install --with-deps chromium
       - name: E2E + accessibility audit

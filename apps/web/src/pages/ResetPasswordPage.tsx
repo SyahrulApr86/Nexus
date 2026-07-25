@@ -29,7 +29,7 @@ export function ResetPasswordPage() {
       <AuthLayout title="Reset your password">
         <p className="text-[16px] text-ink">
           This reset link is invalid or has expired.{" "}
-          <Link to="/forgot-password" className="text-accent hover:underline">
+          <Link to="/forgot-password" className="text-accent underline">
             Request a new one
           </Link>
           .
@@ -68,7 +68,7 @@ export function ResetPasswordPage() {
         />
         {serverError && (
           <p className="text-[14px]">
-            <Link to="/forgot-password" className="text-accent hover:underline">
+            <Link to="/forgot-password" className="text-accent underline">
               Request a new link
             </Link>
           </p>

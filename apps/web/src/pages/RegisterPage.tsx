@@ -62,7 +62,7 @@ export function RegisterPage() {
         />
         {duplicate && (
           <p className="text-[14px]">
-            <Link to="/login" className="text-accent hover:underline">
+            <Link to="/login" className="text-accent underline">
               Go to login
             </Link>
           </p>
@@ -98,7 +98,7 @@ export function RegisterPage() {
       </form>
       <p className="mt-4 text-[14px]">
         Already have an account?{" "}
-        <Link to="/login" className="text-accent hover:underline">
+        <Link to="/login" className="text-accent underline">
           Log in
         </Link>
       </p>

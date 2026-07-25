@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type DragEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+} from "react";
 import { Link } from "@tanstack/react-router";
 import type { FolderDto, NoteSummaryDto } from "@nexus/shared";
 import {
@@ -64,6 +70,9 @@ export function FolderTree({
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [sortModes, setSortModes] = useState<Record<string, SortMode>>({});
+  // Windowing state for very large root note lists (SC-005)
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
   const [dialog, setDialog] = useState<FolderDialog | null>(null);
 
@@ -148,10 +157,31 @@ export function FolderTree({
     return () => window.removeEventListener("nexus:new-folder", onNewFolder);
   }, []);
 
+  const VIRTUAL_THRESHOLD = 400;
+  const ROW_HEIGHT = 26;
+
   const renderNotes = (folderId: string | null, depth: number) => {
-    const list = sortNotes(notesByFolder.get(folderId) ?? [], sortFor(folderId));
+    const all = sortNotes(notesByFolder.get(folderId) ?? [], sortFor(folderId));
     const manualList = sortNotes(notesByFolder.get(folderId) ?? [], "manual");
-    return list.map((n) => (
+
+    // Virtualize huge flat lists: render only the visible window plus
+    // spacers, keeping DOM size bounded (SC-005). Small lists render fully.
+    let list = all;
+    let topPad = 0;
+    let bottomPad = 0;
+    if (folderId === null && all.length > VIRTUAL_THRESHOLD) {
+      const viewportH = scrollRef.current?.clientHeight ?? 800;
+      const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 20);
+      const end = Math.min(
+        all.length,
+        Math.ceil((scrollTop + viewportH) / ROW_HEIGHT) + 20,
+      );
+      list = all.slice(start, end);
+      topPad = start * ROW_HEIGHT;
+      bottomPad = (all.length - end) * ROW_HEIGHT;
+    }
+
+    const rows = list.map((n) => (
       <li key={n.id}>
         <div
           role="none"
@@ -212,6 +242,13 @@ export function FolderTree({
         </div>
       </li>
     ));
+
+    if (topPad === 0 && bottomPad === 0) return rows;
+    return [
+      <li key="vpad-top" aria-hidden="true" style={{ height: topPad }} />,
+      ...rows,
+      <li key="vpad-bottom" aria-hidden="true" style={{ height: bottomPad }} />,
+    ];
   };
 
   const renderFolder = (folder: FolderDto, depth: number) => {
@@ -302,9 +339,16 @@ export function FolderTree({
 
   return (
     <div
+      ref={scrollRef}
       className="min-h-0 flex-1 overflow-auto px-2 pb-2"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => onFolderDrop(e, null)}
+      onScroll={(e) => {
+        // Only track scroll when the root list is actually windowed
+        if ((notesByFolder.get(null)?.length ?? 0) > VIRTUAL_THRESHOLD) {
+          setScrollTop(e.currentTarget.scrollTop);
+        }
+      }}
     >
       <div className="flex items-center justify-between px-2 py-1">
         <span className="text-[12px] font-medium uppercase tracking-wide text-muted">

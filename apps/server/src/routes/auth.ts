@@ -17,6 +17,7 @@ import { sendMail } from "../lib/mail.js";
 import { clearFailures, isLocked, recordFailure } from "../lib/lockout.js";
 import { createSession, destroySession } from "../lib/session.js";
 import { requireAuth, SESSION_COOKIE } from "../middleware/auth.js";
+import { rateLimit } from "../middleware/rateLimit.js";
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 60 min (FR-002a)
 
@@ -48,6 +49,15 @@ function setSessionCookie(c: Parameters<typeof setCookie>[0], token: string) {
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
 export const authRoutes = new Hono()
+  .use(
+    "/register",
+    rateLimit({ name: "register", limit: 20, windowSeconds: 60 }),
+  )
+  .use("/login", rateLimit({ name: "login", limit: 30, windowSeconds: 60 }))
+  .use(
+    "/request-password-reset",
+    rateLimit({ name: "reset", limit: 10, windowSeconds: 60 }),
+  )
   .post("/register", zValidator("json", registerSchema), async (c) => {
     const { email, password, displayName } = c.req.valid("json");
     const existing = await prisma.user.findUnique({ where: { email } });

@@ -13,6 +13,7 @@ import { trashRoutes } from "./routes/trash.js";
 import { tagRoutes } from "./routes/tags.js";
 import { graphRoutes } from "./routes/graph.js";
 import { importExportRoutes } from "./routes/importExport.js";
+import { devRoutes } from "./routes/dev.js";
 
 export function buildApp() {
   const app = new Hono();
@@ -60,7 +61,8 @@ export function buildApp() {
     .route("/api/trash", trashRoutes)
     .route("/api/tags", tagRoutes)
     .route("/api/graph", graphRoutes)
-    .route("/api", importExportRoutes);
+    .route("/api", importExportRoutes)
+    .route("/api/dev", devRoutes);
 
   return { app, injectWebSocket };
 }

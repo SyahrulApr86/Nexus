@@ -8,6 +8,8 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**"],
+      // PRD §8.3: ≥80% line / ≥70% branch
+      thresholds: { lines: 80, branches: 70 },
     },
   },
 });
