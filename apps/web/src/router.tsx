@@ -15,6 +15,7 @@ import { ResetPasswordPage } from "./pages/ResetPasswordPage.js";
 import { WorkspaceHome, WorkspacePage } from "./pages/WorkspacePage.js";
 import { NoteEditorScreen } from "./pages/NotePage.js";
 import { TrashPage } from "./pages/TrashPage.js";
+import { TagPage } from "./pages/TagPage.js";
 import { applyTheme, type Theme } from "./theme.js";
 
 export interface RouterContext {
@@ -82,6 +83,17 @@ export const trashRoute = createRoute({
   component: TrashPage,
 });
 
+function TagRouteComponent() {
+  const { tagName } = tagRoute.useParams();
+  return <TagPage key={tagName} tagName={tagName} />;
+}
+
+export const tagRoute = createRoute({
+  getParentRoute: () => workspaceRoute,
+  path: "/tags/$tagName",
+  component: TagRouteComponent,
+});
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
@@ -116,7 +128,12 @@ const resetPasswordRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
-  workspaceRoute.addChildren([workspaceHomeRoute, noteRoute, trashRoute]),
+  workspaceRoute.addChildren([
+    workspaceHomeRoute,
+    noteRoute,
+    trashRoute,
+    tagRoute,
+  ]),
   loginRoute,
   registerRoute,
   forgotPasswordRoute,

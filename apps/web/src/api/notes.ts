@@ -45,6 +45,7 @@ export function useCreateNote() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notes"] });
       qc.invalidateQueries({ queryKey: ["folders"] });
+      qc.invalidateQueries({ queryKey: ["tags"] });
     },
   });
 }
@@ -73,6 +74,7 @@ export function useUpdateNote() {
       // Refetch links/versions (local editor state is preserved by NotePage)
       qc.invalidateQueries({ queryKey: ["note", note.id] });
       qc.invalidateQueries({ queryKey: ["notes"] });
+      qc.invalidateQueries({ queryKey: ["tags"] });
     },
   });
 }
@@ -85,6 +87,7 @@ export function useDeleteNote() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notes"] });
       qc.invalidateQueries({ queryKey: ["folders"] });
+      qc.invalidateQueries({ queryKey: ["tags"] });
       qc.invalidateQueries({ queryKey: ["trash"] });
     },
   });

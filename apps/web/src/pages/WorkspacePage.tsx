@@ -10,6 +10,7 @@ import { useFolderTree } from "../api/folders.js";
 import { Button } from "../components/ui.js";
 import { FolderTree } from "../components/FolderTree.js";
 import { SearchPanel } from "../components/SearchPanel.js";
+import { TagsSection } from "../components/TagsSection.js";
 import {
   CommandPalette,
   type Command,
@@ -136,6 +137,7 @@ export function WorkspacePage() {
           notes={notes ?? []}
           onCreateNote={newNote}
         />
+        <TagsSection />
         <div className="border-t border-border px-2 py-2">
           <Link
             to="/trash"

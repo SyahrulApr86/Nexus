@@ -66,6 +66,8 @@ model Note {
   contentEnc       Bytes
   // Derived lexeme index for search (SC-003); leaks vocabulary only, not full text
   contentTsv       Unsupported("tsvector")?
+  // Derived #tag names (FR-017/018), extracted at write time
+  tags             String[]  @default([])
   position         Int       @default(0)
   isTrashed        Boolean   @default(false)
   trashedAt        DateTime?

@@ -194,6 +194,9 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
             content={content}
             links={data.links}
             onOpenWikilink={openWikilink}
+            onTagClick={(tag) =>
+              navigate({ to: "/tags/$tagName", params: { tagName: tag } })
+            }
           />
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { extractTags } from "@nexus/shared";
 import { prisma } from "../db.js";
 import { env } from "../env.js";
 
@@ -49,9 +50,11 @@ export async function updateSearchIndex(
   noteId: string,
   content: string,
 ): Promise<void> {
+  const tags = [...new Set(extractTags(content).map((t) => t.name))];
   await prisma.$executeRaw`
     UPDATE "Note"
-    SET "contentTsv" = to_tsvector('simple', LEFT(${content}, 200000))
+    SET "contentTsv" = to_tsvector('simple', LEFT(${content}, 200000)),
+        "tags" = ${tags}
     WHERE id = ${noteId}::uuid`;
 }
 
