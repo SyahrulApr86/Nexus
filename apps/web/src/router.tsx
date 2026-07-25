@@ -18,6 +18,7 @@ import { TrashPage } from "./pages/TrashPage.js";
 import { TagPage } from "./pages/TagPage.js";
 import { GraphPage } from "./pages/GraphPage.js";
 import { LandingPage } from "./pages/LandingPage.js";
+import { NotFoundPage } from "./pages/NotFoundPage.js";
 import { applyTheme, type Theme } from "./theme.js";
 
 export interface RouterContext {
@@ -162,6 +163,7 @@ export function buildRouter(queryClient: QueryClient) {
     routeTree,
     context: { queryClient },
     defaultPreload: "intent",
+    defaultNotFoundComponent: NotFoundPage,
   });
 }
 

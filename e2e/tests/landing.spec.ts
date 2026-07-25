@@ -13,6 +13,7 @@ test.describe("Landing page", () => {
     await page
       .getByRole("main")
       .getByRole("link", { name: "Create your vault" })
+      .first()
       .click();
     await expect(page).toHaveURL(/\/register/);
   });

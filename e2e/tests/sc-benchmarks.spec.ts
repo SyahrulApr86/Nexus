@@ -16,7 +16,7 @@ test("SC-001: register → login → create note → see preview in under 2 minu
   const t0 = Date.now();
 
   await page.goto("/welcome");
-  await page.getByRole("main").getByRole("link", { name: "Create your vault" }).click();
+  await page.getByRole("main").getByRole("link", { name: "Create your vault" }).first().click();
   await page.getByLabel("Username").fill("firstuser");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(GOOD_PW);

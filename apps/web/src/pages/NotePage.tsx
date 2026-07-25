@@ -8,11 +8,12 @@ import { MarkdownPreview } from "../components/MarkdownPreview.js";
 import { useToast } from "../components/Toast.js";
 import { wikilinkAutocomplete } from "../components/wikilinkAutocomplete.js";
 import { ConfirmDialog } from "../components/Dialogs.js";
+import { Button } from "../components/ui.js";
 
 const AUTOSAVE_DEBOUNCE_MS = 1000; // FR-006
 
 export function NoteEditorScreen({ noteId }: { noteId: string }) {
-  const { data, isLoading } = useNote(noteId);
+  const { data, isLoading, error } = useNote(noteId);
   const update = useUpdateNote();
   const createNote = useCreateNote();
   const toast = useToast();
@@ -149,6 +150,30 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
   }, [flush]);
+
+  if (error) {
+    // A deleted, purged, or foreign note id lands here (the API answers 404
+    // rather than confirming the note exists).
+    return (
+      <div className="flex h-full items-center justify-center px-6">
+        <div className="max-w-sm text-center">
+          <p className="text-[15px] font-medium text-ink">Note not available</p>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted">
+            This note was deleted or the link is out of date. Check the trash to
+            restore it.
+          </p>
+          <div className="mt-5 flex justify-center gap-2">
+            <Button onClick={() => navigate({ to: "/" })}>
+              Back to workspace
+            </Button>
+            <Button variant="ghost" onClick={() => navigate({ to: "/trash" })}>
+              Open trash
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !data) {
     return (
