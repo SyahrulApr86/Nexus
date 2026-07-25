@@ -16,17 +16,28 @@ const transport = nodemailer.createTransport({
 const sentForTests: OutgoingMail[] = [];
 const isTest = process.env.NODE_ENV === "test" || !!process.env.VITEST;
 
+/** Lets a test exercise the real failure path against a fake transport. */
+type Deliver = (mail: OutgoingMail) => Promise<unknown>;
+let deliverOverrideForTests: Deliver | null = null;
+
+export function setMailDeliveryForTests(deliver: Deliver | null): void {
+  deliverOverrideForTests = deliver;
+}
+
 /**
  * PRD edge case: delivery failure must not break the acknowledge-to-user
  * contract — send is fire-and-forget with retry left to the provider queue.
  */
 export async function sendMail(mail: OutgoingMail): Promise<void> {
-  if (isTest) {
-    sentForTests.push(mail);
-    return;
-  }
+  const deliver: Deliver =
+    deliverOverrideForTests ??
+    (isTest
+      ? async (m) => {
+          sentForTests.push(m);
+        }
+      : (m) => transport.sendMail({ from: env.MAIL_FROM, ...m }));
   try {
-    await transport.sendMail({ from: env.MAIL_FROM, ...mail });
+    await deliver(mail);
   } catch (err) {
     console.error("mail delivery failed (acknowledged anyway):", err);
   }

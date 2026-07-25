@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { api, GOOD_PW, registerAndLogin, resetDb } from "./helpers.js";
-import { getSentMailForTests, clearSentMailForTests } from "../src/lib/mail.js";
+import {
+  clearSentMailForTests,
+  getSentMailForTests,
+  setMailDeliveryForTests,
+} from "../src/lib/mail.js";
 import { prisma } from "../src/db.js";
 
 beforeEach(async () => {
@@ -92,6 +96,28 @@ describe("FR-002a password reset", () => {
       body: JSON.stringify({ token, password: "weak" }),
     });
     expect(res.status).toBe(400);
+  });
+
+  it("acknowledges the request even when mail delivery fails (PRD §4)", async () => {
+    let attempted = false;
+    setMailDeliveryForTests(async () => {
+      attempted = true;
+      throw new Error("smtp unreachable");
+    });
+
+    const res = await requestReset("reset@example.com");
+    setMailDeliveryForTests(null);
+
+    expect(attempted).toBe(true);
+    expect(res.status).toBe(200);
+    expect((await res.json() as any).message).toMatch(/if that email/i);
+
+    // The token was still issued, so the link stays valid for its full window
+    const token = await prisma.passwordResetToken.findFirst({
+      where: { usedAt: null },
+    });
+    expect(token).not.toBeNull();
+    expect(token!.expiresAt.getTime()).toBeGreaterThan(Date.now());
   });
 
   it("reset clears an active lockout (PRD edge case)", async () => {

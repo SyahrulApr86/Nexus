@@ -125,6 +125,23 @@ describe("FR-002b account lockout", () => {
     expect(correct.status).toBe(423);
   });
 
+  it("auto-unlocks once the 15-minute lock expires (PRD §4)", async () => {
+    await failLogin(5);
+    expect(await redis.exists("lock:lock@example.com")).toBe(1);
+    // The lock is a TTL key: when it lapses, the account is usable again
+    // without any operator action.
+    const ttl = await redis.ttl("lock:lock@example.com");
+    expect(ttl).toBeGreaterThan(0);
+    expect(ttl).toBeLessThanOrEqual(15 * 60);
+
+    await redis.del("lock:lock@example.com");
+    const afterExpiry = await api("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: "lock@example.com", password: GOOD_PW }),
+    });
+    expect(afterExpiry.status).toBe(200);
+  });
+
   it("does not lock at 4 failures and resets counter on success", async () => {
     await failLogin(4);
     const ok = await api("/auth/login", {

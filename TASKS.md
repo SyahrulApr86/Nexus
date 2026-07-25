@@ -4,7 +4,8 @@ Rule: a requirement is checked ONLY when its tests pass (unit/integration +
 e2e where applicable), the flow is keyboard-operable, and axe WCAG 2.1 AA
 passes on the touched UI.
 
-**Suite status**: 30 shared · 85 server (91.5% line / 85% branch) · 59 e2e — all green.
+**Suite status**: 30 shared · 89 server (91.6% line / 85.1% branch) · 74 e2e — all green.
+Full e2e run: ~44s (4 parallel workers).
 
 ## Phase 0 — Foundation ✅
 
@@ -94,6 +95,12 @@ passes on the touched UI.
 - [x] FR-027 TLS deployment documented (README security notes)
 - [x] Coverage gates enforced in vitest config + CI (≥80% line / ≥70% branch)
 - [x] Full regression: all 13 user-story independent tests pass
+- [x] Routing: 404 page for unknown URLs, graceful state for a deleted/foreign
+      note id, deep-link auth guard, History API back/forward — `routing.spec.ts`
+- [x] PRD §4 edge cases in the browser: 50,000-word note stays typable, tab
+      close inside the autosave debounce keeps the edit, duplicate titles stay
+      distinct, unicode search (CJK, Cyrillic, emoji, regex chars) — `edge-cases.spec.ts`
+- [x] Resilience: a Redis outage degrades requests instead of killing the API
 
 ### Measured success criteria
 
@@ -115,6 +122,16 @@ passes on the touched UI.
 SC-009 (user-rated editing experience) is a post-launch survey metric, not a
 CI-verifiable gate — per PRD §6.
 
+## Extras beyond the PRD
+
+- **Landing page** (`/welcome`): WebGL constellation backdrop (Three.js, lazy
+  loaded, skipped under reduced motion), drifting colour fields, a hero that
+  types into the real editor + preview, a self-drawing link graph, and an
+  explicit "what Nexus doesn't do" section drawn from PRD §1.3 non-goals.
+- **Settings dialog**: theme and idle timeout (FR-003's 5–120 minute range had
+  no UI otherwise), with serialized preference writes.
+- **404 page** that routes guests and signed-in users somewhere useful.
+
 ## Design decisions worth knowing
 
 - **Search vs. encryption**: decrypt-in-SQL scanning measured 2.7 s at 5k notes,
@@ -123,5 +140,12 @@ CI-verifiable gate — per PRD §6.
   *vocabulary*; the content column itself stays pgp-encrypted (FR-026).
 - **Tags**: extracted at write time into an indexed `text[]`, so aggregation
   never decrypts.
+- **Emoji search**: `to_tsvector` discards emoji and symbols, so the distinct
+  symbol characters of each note live in a small trigram-indexed column —
+  searchable without a full decrypt scan.
+- **Large notes**: the editor is seeded once per note rather than on every
+  keystroke (typing a 50k-word document measures ~80ms), autosave no longer
+  refetches the note, and the preview stops rendering past 80k characters and
+  says so — the stored and exported note is always complete.
 - **Dark theme**: derived from the DESIGN.md palette (midnight surfaces, light
   ink, blue accent), contrast-verified in both directions by the axe sweep.
