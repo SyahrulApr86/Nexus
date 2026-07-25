@@ -1,0 +1,216 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens from DESIGN.md (Clearbit reference, light) with a derived
+ * dark palette (same hue family: midnight surfaces, light ink, blue accent).
+ * Semantic variables flip on [data-theme]; Tailwind utilities map onto them.
+ */
+:root,
+[data-theme="light"] {
+  --t-bg: #ffffff; /* Paper */
+  --t-surface: #f5f3ff; /* Lavender Wash */
+  --t-card: #ffffff;
+  --t-ink: #091135; /* Midnight Ink */
+  --t-muted: #36394a; /* Slate */
+  --t-border: #e1e9f0; /* Frost Border */
+  --t-mist: #b1bbcd;
+  /* Electric Blue (#0f77ff) fails 4.5:1 on white — darkened for AA text/CTA;
+     the original hue survives in the focus ring (non-text, 3:1). */
+  --t-accent: #0b5cd6;
+  --t-accent-fill: #0b5cd6;
+  --t-accent-fill-hover: #0a58cc;
+  --t-on-accent: #ffffff;
+  --t-ring: #0f77ff;
+  --t-danger: #c92a3c;
+  --t-tag-bg: #f5f3ff;
+  --t-broken: #c92a3c;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --t-bg: #0b1022;
+  --t-surface: #111731;
+  --t-card: #151c3a;
+  --t-ink: #e8ecf7;
+  --t-muted: #a3adc9;
+  --t-border: #26305a;
+  --t-mist: #4a5578;
+  --t-accent: #5ba3ff;
+  --t-accent-fill: #2a86f0;
+  --t-accent-fill-hover: #4d9fff;
+  --t-on-accent: #06122b;
+  --t-ring: #5ba3ff;
+  --t-danger: #ff7b8a;
+  --t-tag-bg: #1a2246;
+  --t-broken: #ff7b8a;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--t-bg);
+  --color-surface: var(--t-surface);
+  --color-card: var(--t-card);
+  --color-ink: var(--t-ink);
+  --color-muted: var(--t-muted);
+  --color-border: var(--t-border);
+  --color-mist: var(--t-mist);
+  --color-accent: var(--t-accent);
+  --color-accent-fill: var(--t-accent-fill);
+  --color-accent-fill-hover: var(--t-accent-fill-hover);
+  --color-on-accent: var(--t-on-accent);
+  --color-danger: var(--t-danger);
+  --color-tag-bg: var(--t-tag-bg);
+  --color-broken: var(--t-broken);
+
+  --font-sans: "InterVar", "Inter", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+
+  --radius-card: 12px;
+  --radius-control: 8px;
+
+  --tracking-display: 0.018em;
+  --tracking-heading: 0.016em;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--t-bg);
+  color: var(--t-ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0.008em;
+}
+
+*:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--t-ring),
+    0 1px 2px 0 rgba(12, 43, 100, 0.32),
+    0 6px 16px 0 rgba(12, 43, 100, 0.32);
+  border-radius: var(--radius-control);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Markdown preview typography */
+.md-preview {
+  overflow-wrap: anywhere;
+}
+.md-preview h1,
+.md-preview h2,
+.md-preview h3,
+.md-preview h4 {
+  font-weight: 600;
+  letter-spacing: var(--tracking-heading);
+  margin: 1.2em 0 0.5em;
+  line-height: 1.25;
+}
+.md-preview h1 {
+  font-size: 1.75rem;
+}
+.md-preview h2 {
+  font-size: 1.4rem;
+}
+.md-preview h3 {
+  font-size: 1.2rem;
+}
+.md-preview p,
+.md-preview ul,
+.md-preview ol,
+.md-preview blockquote,
+.md-preview pre {
+  margin: 0.6em 0;
+}
+.md-preview ul {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+.md-preview ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+}
+.md-preview code {
+  background: var(--t-surface);
+  border: 1px solid var(--t-border);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+.md-preview pre {
+  background: var(--t-surface);
+  border: 1px solid var(--t-border);
+  border-radius: var(--radius-card);
+  padding: 12px 16px;
+  overflow-x: auto;
+}
+.md-preview pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+.md-preview blockquote {
+  border-left: 3px solid var(--t-accent);
+  padding-left: 1em;
+  color: var(--t-muted);
+}
+.md-preview a {
+  color: var(--t-accent);
+  text-decoration: underline;
+}
+.md-preview a.wikilink {
+  color: var(--t-accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--t-accent);
+  cursor: pointer;
+}
+.md-preview a.wikilink-broken {
+  color: var(--t-broken);
+  border-bottom: 1px dashed var(--t-broken);
+  text-decoration: none;
+  cursor: pointer;
+}
+.md-preview .tag-chip {
+  background: var(--t-tag-bg);
+  color: var(--t-ink);
+  border-radius: 9999px;
+  padding: 0.05em 0.6em;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+.md-preview table {
+  border-collapse: collapse;
+}
+.md-preview th,
+.md-preview td {
+  border: 1px solid var(--t-border);
+  padding: 4px 10px;
+}
+
+/* CodeMirror host */
+.cm-editor {
+  height: 100%;
+  font-size: 15px;
+}
+.cm-editor .cm-content {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  caret-color: var(--t-ink);
+}
+.cm-editor.cm-focused {
+  outline: none;
+}
+.cm-editor .cm-placeholder {
+  color: var(--t-muted);
+}
