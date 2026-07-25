@@ -210,7 +210,7 @@ export function GraphPage() {
                     className="flex items-center justify-between px-4 py-1.5 text-[14px] text-ink hover:bg-card"
                   >
                     <span className="truncate">{n.title}</span>
-                    <span className="ml-2 shrink-0 text-[12px] text-muted">
+                    <span className="count ml-2 shrink-0 text-[12px] text-muted">
                       {n.linkCount}
                     </span>
                   </Link>

@@ -40,6 +40,21 @@ async function setTheme(page: Page, theme: "Dark" | "Light") {
   );
 }
 
+test("workspace passes axe at a narrow viewport (SC-010)", async ({
+  browser,
+}) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  await register(page, uniqueEmail("narrow-a11y"));
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await expectNoA11yViolations(page);
+  await page.getByRole("button", { name: /^new note$/i }).click();
+  await expect(page.getByLabel("Note title")).toHaveValue("");
+  await page.getByLabel("Note title").fill("Narrow audit");
+  await expectNoA11yViolations(page);
+  await ctx.close();
+});
+
 for (const theme of ["Light", "Dark"] as const) {
   test(`authenticated routes pass axe in ${theme.toLowerCase()} mode`, async ({
     page,

@@ -64,7 +64,7 @@ export function Menu({
             setOpen(true);
           }
         }}
-        className="rounded-control px-1.5 py-0.5 text-[14px] text-muted hover:bg-card hover:text-ink"
+        className="icon-button rounded-control px-1.5 py-0.5 text-[14px] text-muted hover:bg-card hover:text-ink"
       >
         {children ?? <Icon name="dots" size={15} />}
       </button>

@@ -22,6 +22,9 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
   const editorExtensions = useMemo(() => [wikilinkAutocomplete()], []);
 
   const [missingLink, setMissingLink] = useState<string | null>(null);
+  // Two panes need room. Under lg the note shows one at a time and this
+  // chooses which; at lg and up both are visible and the control is hidden.
+  const [pane, setPane] = useState<"write" | "preview">("write");
 
   // Stable identities: an inline handler here would defeat MarkdownPreview's
   // memo and re-parse the whole document on every render.
@@ -199,7 +202,7 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mx-auto w-full max-w-5xl px-8 pb-2 pt-6">
+      <div className="mx-auto w-full max-w-5xl px-4 pb-2 pt-5 sm:px-8 sm:pt-6">
         <div className="flex items-baseline gap-3">
           <label htmlFor="note-title" className="sr-only">
             Note title
@@ -228,8 +231,29 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
           </span>
         </div>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-2 border-t border-border">
-        <div className="min-h-0 border-r border-border">
+      <div className="flex gap-1 border-t border-border px-4 pt-2 lg:hidden">
+        {(["write", "preview"] as const).map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setPane(p)}
+            aria-pressed={pane === p}
+            className={`rounded-control px-3 py-1.5 text-[13px] capitalize ${
+              pane === p
+                ? "bg-card font-medium text-ink"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-1 border-t border-border lg:grid-cols-2">
+        <div
+          className={`min-h-0 border-border lg:block lg:border-r ${
+            pane === "write" ? "block" : "hidden"
+          }`}
+        >
           <Editor
             value={editorSeed}
             extensions={editorExtensions}
@@ -240,7 +264,12 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
             }}
           />
         </div>
-        <div className="min-h-0 bg-surface/40" data-testid="preview">
+        <div
+          className={`min-h-0 bg-surface/40 lg:block ${
+            pane === "preview" ? "block" : "hidden"
+          }`}
+          data-testid="preview"
+        >
           <MarkdownPreview
             content={previewContent}
             links={data.links}

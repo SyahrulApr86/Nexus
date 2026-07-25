@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Outlet, useNavigate } from "@tanstack/react-router";
+import {
+  Link,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "@tanstack/react-router";
 import {
   useCurrentUser,
   useLogout,
@@ -118,14 +123,36 @@ export function WorkspacePage() {
     return [...base, ...noteJumps];
   }, [notes, navigate]);
 
+  // Below lg the sidebar becomes an overlay drawer: at 768px and under, a
+  // fixed 256px rail plus a split editor left the panes unusable.
+  const [navOpen, setNavOpen] = useState(false);
+  const closeNav = () => setNavOpen(false);
+  const { pathname } = useLocation();
+
+  // Any navigation dismisses the drawer — creating a note, opening trash,
+  // jumping from the palette — rather than leaving it over the content.
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
+
   const railLink =
     "flex items-center gap-2 rounded-control px-2 py-1.5 text-[13px] text-ink hover:bg-card";
 
   return (
     <div className="flex h-full">
+      {navOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          onClick={closeNav}
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+        />
+      )}
       <aside
         aria-label="Vault navigation"
-        className="flex w-64 shrink-0 flex-col border-r border-border bg-surface"
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-border bg-surface transition-transform duration-150 lg:static lg:translate-x-0 ${
+          navOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
       >
         <div className="flex items-center justify-between px-3 py-3">
           <span className="flex items-center gap-2">
@@ -213,9 +240,23 @@ export function WorkspacePage() {
           </p>
         </div>
       </aside>
-      <main className="min-w-0 flex-1">
-        <Outlet />
-      </main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2 lg:hidden">
+          <button
+            type="button"
+            aria-label="Open navigation"
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen(true)}
+            className="icon-button rounded-control border border-border px-2 py-1 text-ink"
+          >
+            <Icon name="menu" size={16} />
+          </button>
+          <span className="text-[13px] font-medium text-ink">Nexus</span>
+        </div>
+        <main className="min-h-0 flex-1">
+          <Outlet />
+        </main>
+      </div>
       <CommandPalette
         open={paletteOpen}
         commands={commands}

@@ -104,6 +104,27 @@ body {
   border-radius: var(--radius-control);
 }
 
+/* Icon-only controls stay compact for mouse users and grow to the 44px touch
+   minimum on touch devices, instead of forcing one size on both. */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+}
+@media (pointer: coarse) {
+  .icon-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Counts sit in a column; tabular figures stop them nudging the layout. */
+.count {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Section eyebrow: the label a section would carry in an outline, set in the
    product's own syntax voice. */
 .eyebrow {

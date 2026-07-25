@@ -32,7 +32,7 @@ export function TagsSection() {
                 activeProps={{ className: "bg-card font-medium" }}
               >
                 <span className="truncate">#{t.name}</span>
-                <span className="ml-2 shrink-0 text-[12px] text-muted">
+                <span className="count ml-2 shrink-0 text-[12px] text-muted">
                   {t.noteCount}
                 </span>
               </Link>

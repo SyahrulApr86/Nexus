@@ -276,7 +276,7 @@ export function FolderTree({
             />
             <Icon name="folder" size={14} className="shrink-0 text-muted" />
             <span className="truncate">{folder.name}</span>
-            <span className="ml-1 shrink-0 text-[12px] text-muted">
+            <span className="count ml-1 shrink-0 text-[12px] text-muted">
               {folder.noteCount}
             </span>
           </button>
@@ -368,7 +368,7 @@ export function FolderTree({
             type="button"
             onClick={() => newFolder(null)}
             aria-label="New folder"
-            className="rounded-control px-1.5 py-0.5 text-[14px] text-muted hover:bg-card hover:text-ink"
+            className="icon-button rounded-control px-1.5 py-0.5 text-[14px] text-muted hover:bg-card hover:text-ink"
           >
             <Icon name="folder" size={14} />
           </button>

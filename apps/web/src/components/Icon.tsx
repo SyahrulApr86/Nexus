@@ -28,6 +28,7 @@ const paths: Record<string, string | string[]> = {
     "M19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z",
   ],
   sort: ["M7 4v13m0 0-3-3m3 3 3-3", "M17 20V7m0 0-3 3m3-3 3 3"],
+  menu: ["M4 6h16", "M4 12h16", "M4 18h16"],
   download: ["M12 4v11m0 0-4-4m4 4 4-4", "M5 20h14"],
   upload: ["M12 15V4m0 0L8 8m4-4 4 4", "M5 20h14"],
   tag: [

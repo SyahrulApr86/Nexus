@@ -30,7 +30,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((t) => [...t, { id, message, tone }]);
     setTimeout(() => {
       setToasts((t) => t.filter((x) => x.id !== id));
-    }, 6000);
+    }, 4500);
   }, []);
 
   return (
