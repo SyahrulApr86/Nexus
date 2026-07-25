@@ -13,6 +13,7 @@ import { SearchPanel } from "../components/SearchPanel.js";
 import { TagsSection } from "../components/TagsSection.js";
 import { useRealtime } from "../lib/realtime.js";
 import { ImportExport } from "../components/ImportExport.js";
+import { Icon } from "../components/Icon.js";
 import {
   CommandPalette,
   type Command,
@@ -108,38 +109,49 @@ export function WorkspacePage() {
           navigate({ to: "/notes/$noteId", params: { noteId: n.id } }),
       })) ?? [];
     return [...base, ...noteJumps];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notes, navigate]);
+
+  const railLink =
+    "flex items-center gap-2 rounded-control px-2 py-1.5 text-[13px] text-ink hover:bg-card";
 
   return (
     <div className="flex h-full">
       <aside
         aria-label="Vault navigation"
-        className="flex w-72 shrink-0 flex-col border-r border-border bg-surface"
+        className="flex w-64 shrink-0 flex-col border-r border-border bg-surface"
       >
-        <div className="flex items-center justify-between px-4 py-3">
-          <span className="text-[18px] font-semibold tracking-heading">
-            Nexus
+        <div className="flex items-center justify-between px-3 py-3">
+          <span className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-accent-fill text-[13px] font-semibold text-on-accent"
+            >
+              N
+            </span>
+            <span className="text-[15px] font-semibold tracking-heading">
+              Nexus
+            </span>
           </span>
-          <Button
-            variant="ghost"
-            className="!px-3 !py-1.5 text-[14px]"
+          <button
+            type="button"
             onClick={() =>
               logout.mutate(undefined, {
                 onSuccess: () => navigate({ to: "/login" }),
               })
             }
+            className="rounded-control px-2 py-1 text-[12px] text-muted hover:bg-card hover:text-ink"
           >
             Log out
-          </Button>
+          </button>
         </div>
         <SearchPanel />
-        <div className="px-4 pb-2">
+        <div className="px-3 pb-2">
           <Button
             onClick={() => newNote(null)}
             disabled={createNote.isPending}
-            className="w-full !py-2 text-[14px]"
+            className="w-full !gap-1.5 !py-1.5 text-[13px]"
           >
+            <Icon name="plus" size={14} />
             New note
           </Button>
         </div>
@@ -153,19 +165,19 @@ export function WorkspacePage() {
         <div className="border-t border-border px-2 py-2">
           <Link
             to="/graph"
-            className="block rounded-control px-2 py-1.5 text-[14px] text-ink hover:bg-card"
-            activeProps={{ className: "bg-card font-medium" }}
+            className={railLink}
+            activeProps={{ className: `${railLink} bg-card font-medium` }}
           >
-            🕸 Graph
+            <Icon name="graph" className="text-muted" /> Graph
           </Link>
           <Link
             to="/trash"
-            className="block rounded-control px-2 py-1.5 text-[14px] text-ink hover:bg-card"
-            activeProps={{ className: "bg-card font-medium" }}
+            className={railLink}
+            activeProps={{ className: `${railLink} bg-card font-medium` }}
           >
-            🗑 Trash
+            <Icon name="trash" className="text-muted" /> Trash
           </Link>
-          <p className="flex items-center gap-2 truncate px-2 pt-1 text-[13px] text-muted">
+          <p className="flex items-center gap-2 truncate px-2 pt-1.5 text-[12px] text-muted">
             <span
               aria-hidden="true"
               className={`inline-block h-2 w-2 shrink-0 rounded-full ${
@@ -201,8 +213,29 @@ export function WorkspacePage() {
 
 export function WorkspaceHome() {
   return (
-    <div className="flex h-full items-center justify-center text-muted">
-      <p>Select or create a note to get started.</p>
+    <div className="flex h-full items-center justify-center">
+      <div className="w-80 text-center">
+        <p className="text-[15px] font-medium text-ink">No note open</p>
+        <p className="mt-1 text-[13px] text-muted">
+          Pick a note from the sidebar, or create one.
+        </p>
+        <dl className="mt-6 space-y-2 text-left text-[13px] text-muted">
+          {[
+            ["Open command palette", "Ctrl+P"],
+            ["Link a note while writing", "[[title"],
+            ["Tag a note", "#topic"],
+          ].map(([label, keys]) => (
+            <div key={label} className="flex items-center justify-between">
+              <dt>{label}</dt>
+              <dd>
+                <kbd className="rounded-[5px] border border-border bg-surface px-1.5 py-0.5 font-mono text-[11px] text-ink">
+                  {keys}
+                </kbd>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
     </div>
   );
 }

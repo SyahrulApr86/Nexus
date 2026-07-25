@@ -73,7 +73,6 @@ export function MoveDialog({
               className="block w-full px-4 py-1.5 text-left text-[14px] hover:bg-surface"
               style={{ paddingLeft: `${16 + d.depth * 16}px` }}
             >
-              {d.depth > 0 ? "📁 " : ""}
               {d.name}
             </button>
           </li>

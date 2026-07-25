@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "./Toast.js";
+import { Icon } from "./Icon.js";
 
 async function uploadForm(path: string, form: FormData) {
   const res = await fetch(`/api${path}`, {
@@ -60,26 +61,26 @@ export function ImportExport() {
   });
 
   const linkClass =
-    "block w-full rounded-control px-2 py-1.5 text-left text-[14px] text-ink hover:bg-card";
+    "flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-left text-[13px] text-ink hover:bg-card";
 
   return (
     <div className="border-t border-border px-2 py-2">
       <a href="/api/export" download className={linkClass}>
-        ⬇ Export vault (.zip)
+        <Icon name="download" className="text-muted" /> Export vault (.zip)
       </a>
       <button
         type="button"
         className={linkClass}
         onClick={() => filesRef.current?.click()}
       >
-        ⬆ Import Markdown files
+        <Icon name="upload" className="text-muted" /> Import Markdown files
       </button>
       <button
         type="button"
         className={linkClass}
         onClick={() => zipRef.current?.click()}
       >
-        ⬆ Import ZIP archive
+        <Icon name="upload" className="text-muted" /> Import ZIP archive
       </button>
       <input
         ref={filesRef}

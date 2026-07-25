@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTags } from "../api/tags.js";
+import { Icon } from "./Icon.js";
 
 /** FR-018: sidebar tag list with counts; click filters (FR-019). */
 export function TagsSection() {
@@ -17,9 +18,7 @@ export function TagsSection() {
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-1 rounded-control px-2 py-1 text-[12px] font-medium uppercase tracking-wide text-muted hover:text-ink"
       >
-        <span aria-hidden="true" className="inline-block w-3">
-          {open ? "▾" : "▸"}
-        </span>
+        <Icon name={open ? "chevron-down" : "chevron-right"} size={12} />
         Tags
       </button>
       {open && (
@@ -29,7 +28,7 @@ export function TagsSection() {
               <Link
                 to="/tags/$tagName"
                 params={{ tagName: t.name }}
-                className="flex items-center justify-between rounded-control px-2 py-1 text-[14px] text-ink hover:bg-card"
+                className="flex items-center justify-between rounded-control px-2 py-1 text-[13px] text-ink hover:bg-card"
                 activeProps={{ className: "bg-card font-medium" }}
               >
                 <span className="truncate">#{t.name}</span>

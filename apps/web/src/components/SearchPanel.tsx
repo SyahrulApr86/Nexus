@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { SearchResultDto } from "@nexus/shared";
 import { api } from "../api/client.js";
+import { Icon } from "./Icon.js";
 
 const DEBOUNCE_MS = 200;
 
@@ -54,10 +55,15 @@ export function SearchPanel() {
   };
 
   return (
-    <div ref={rootRef} className="relative px-4 pb-2">
+    <div ref={rootRef} className="relative px-3 pb-2">
       <label htmlFor="vault-search" className="sr-only">
         Search notes
       </label>
+      <Icon
+        name="search"
+        size={14}
+        className="pointer-events-none absolute left-6 top-1/2 -translate-y-[13px] text-mist"
+      />
       <input
         id="vault-search"
         type="search"
@@ -89,10 +95,10 @@ export function SearchPanel() {
             setOpen(false);
           }
         }}
-        className="w-full rounded-control border border-border bg-card px-3 py-2 text-[14px] text-ink placeholder:text-muted"
+        className="w-full rounded-control border border-border bg-card py-1.5 pl-8 pr-3 text-[13px] text-ink placeholder:text-muted"
       />
       {showPanel && (
-        <div className="absolute left-4 right-4 z-20 mt-1 max-h-80 overflow-auto rounded-card border border-border bg-card shadow-lg">
+        <div className="absolute left-3 right-3 z-20 mt-1 max-h-80 overflow-auto rounded-card border border-border bg-card shadow-lg">
           {data?.tooShort && (
             <p className="border-b border-border px-3 py-1.5 text-[12px] text-muted">
               Short query — keep typing for better ranking
@@ -100,7 +106,6 @@ export function SearchPanel() {
           )}
           <ul id={listId} role="listbox" aria-label="Search results">
             {results.map((r, i) => (
-              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
               <li
                 key={r.id}
                 id={`${listId}-${i}`}

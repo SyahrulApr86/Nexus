@@ -10,6 +10,7 @@ import {
   useReorderNote,
 } from "../api/folders.js";
 import { useDeleteNote } from "../api/notes.js";
+import { Icon } from "./Icon.js";
 import { Menu } from "./Menu.js";
 import { MoveDialog } from "./MoveDialog.js";
 import { ConfirmDialog, PromptDialog } from "./Dialogs.js";
@@ -164,7 +165,7 @@ export function FolderTree({
             to="/notes/$noteId"
             params={{ noteId: n.id }}
            
-            className="block min-w-0 flex-1 truncate rounded-control px-2 py-1.5 text-[14px] text-ink hover:bg-card"
+            className="flex min-w-0 flex-1 items-center gap-1.5 truncate rounded-control px-2 py-1 text-[13px] text-ink hover:bg-card"
             activeProps={{ className: "bg-card font-medium" }}
             style={{ paddingLeft: `${8 + depth * 14}px` }}
             onKeyDown={(e) => {
@@ -178,7 +179,8 @@ export function FolderTree({
               }
             }}
           >
-            {n.title || "Untitled"}
+            <Icon name="file" size={13} className="shrink-0 text-mist" />
+            <span className="truncate">{n.title || "Untitled"}</span>
           </Link>
           <span
             role="none"
@@ -227,12 +229,15 @@ export function FolderTree({
            
             aria-expanded={isOpen}
             onClick={() => toggle(folder.id)}
-            className="flex min-w-0 flex-1 items-center gap-1 rounded-control px-2 py-1.5 text-left text-[14px] font-medium text-ink hover:bg-card"
+            className="flex min-w-0 flex-1 items-center gap-1.5 rounded-control px-2 py-1 text-left text-[13px] font-medium text-ink hover:bg-card"
             style={{ paddingLeft: `${8 + depth * 14}px` }}
           >
-            <span aria-hidden="true" className="inline-block w-3 text-muted">
-              {isOpen ? "▾" : "▸"}
-            </span>
+            <Icon
+              name={isOpen ? "chevron-down" : "chevron-right"}
+              size={13}
+              className="shrink-0 text-muted"
+            />
+            <Icon name="folder" size={14} className="shrink-0 text-muted" />
             <span className="truncate">{folder.name}</span>
             <span className="ml-1 shrink-0 text-[12px] text-muted">
               {folder.noteCount}
@@ -313,7 +318,7 @@ export function FolderTree({
               onSelect: () => setSortFor(null, m),
             }))}
           >
-            <span aria-hidden="true">⇅</span>
+            <Icon name="sort" size={14} />
           </Menu>
           <button
             type="button"
@@ -321,7 +326,7 @@ export function FolderTree({
             aria-label="New folder"
             className="rounded-control px-1.5 py-0.5 text-[14px] text-muted hover:bg-card hover:text-ink"
           >
-            +📁
+            <Icon name="folder" size={14} />
           </button>
         </div>
       </div>

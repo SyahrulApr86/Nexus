@@ -160,33 +160,36 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-border px-4 py-2">
-        <label htmlFor="note-title" className="sr-only">
-          Note title
-        </label>
-        <input
-          id="note-title"
-          value={title}
-          onChange={(e) => {
-            setTitle(e.target.value);
-            latestRef.current.title = e.target.value;
-            scheduleSave();
-          }}
-          className="min-w-0 flex-1 bg-transparent text-[18px] font-semibold text-ink outline-none"
-          placeholder="Untitled"
-        />
-        <span
-          className="shrink-0 text-[14px] text-muted"
-          data-testid="save-state"
-        >
-          {saveState === "saved"
-            ? "Saved"
-            : saveState === "saving"
-              ? "Saving…"
-              : "Unsaved changes"}
-        </span>
+      <div className="mx-auto w-full max-w-5xl px-8 pb-2 pt-6">
+        <div className="flex items-baseline gap-3">
+          <label htmlFor="note-title" className="sr-only">
+            Note title
+          </label>
+          <input
+            id="note-title"
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              latestRef.current.title = e.target.value;
+              scheduleSave();
+            }}
+            className="min-w-0 flex-1 bg-transparent text-[28px] font-semibold tracking-heading text-ink outline-none placeholder:text-mist"
+            placeholder="Untitled"
+          />
+          <span
+            className="shrink-0 text-[12px] text-muted"
+            data-testid="save-state"
+            role="status"
+          >
+            {saveState === "saved"
+              ? "Saved"
+              : saveState === "saving"
+                ? "Saving…"
+                : "Unsaved changes"}
+          </span>
+        </div>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-2">
+      <div className="grid min-h-0 flex-1 grid-cols-2 border-t border-border">
         <div className="min-h-0 border-r border-border">
           <Editor
             value={content}
@@ -198,7 +201,7 @@ export function NoteEditorScreen({ noteId }: { noteId: string }) {
             }}
           />
         </div>
-        <div className="min-h-0" data-testid="preview">
+        <div className="min-h-0 bg-surface/40" data-testid="preview">
           <MarkdownPreview
             content={content}
             links={data.links}

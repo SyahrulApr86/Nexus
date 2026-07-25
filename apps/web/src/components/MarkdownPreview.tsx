@@ -55,7 +55,6 @@ export const MarkdownPreview = memo(function MarkdownPreview({
   return (
     // Click delegation for embedded interactive nodes; keyboard path exists
     // via editor + command palette, links are real <a> for keyboard focus.
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       className="md-preview h-full overflow-auto px-6 py-4 text-[16px] text-ink"
       onClick={handleClick}

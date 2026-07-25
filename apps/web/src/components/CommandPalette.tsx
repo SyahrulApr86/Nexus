@@ -125,7 +125,6 @@ export function CommandPalette({
         className="max-h-72 overflow-auto py-1"
       >
         {filtered.map((cmd, i) => (
-          // eslint-disable-next-line jsx-a11y/click-events-have-key-events
           <li
             key={cmd.id}
             id={`${listId}-${i}`}

@@ -1,3 +1,4 @@
+import { Icon } from "./Icon.js";
 import {
   useEffect,
   useId,
@@ -65,7 +66,7 @@ export function Menu({
         }}
         className="rounded-control px-1.5 py-0.5 text-[14px] text-muted hover:bg-card hover:text-ink"
       >
-        {children ?? "⋯"}
+        {children ?? <Icon name="dots" size={15} />}
       </button>
       {open && (
         <ul
