@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
-import { fetchResetLink, GOOD_PW, register, uniqueEmail } from "./helpers.js";
+import {
+  fetchResetLink,
+  GOOD_PW,
+  register,
+  uniqueEmail,
+  usernameFor,
+} from "./helpers.js";
 
 const sidebar = (page: Page) => page.locator('[aria-label="Folders and notes"]');
 
@@ -17,7 +23,7 @@ test("SC-001: register → login → create note → see preview in under 2 minu
 
   await page.goto("/welcome");
   await page.getByRole("main").getByRole("link", { name: "Create your vault" }).first().click();
-  await page.getByLabel("Username").fill("firstuser");
+  await page.getByLabel("Username").fill(usernameFor(email));
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(GOOD_PW);
   await page.getByLabel("Confirm password").fill(GOOD_PW);
@@ -55,7 +61,7 @@ test("SC-001a: password reset request → new password → login in under 3 minu
   await page.getByLabel("New password").fill(NEW_PW);
   await page.getByRole("button", { name: /update password/i }).click();
   await expect(page).toHaveURL(/\/login/);
-  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Username or email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(NEW_PW);
   await page.getByRole("button", { name: /^log in$/i }).click();
   await expect(page.getByText(email.split("@")[0]!)).toBeVisible();
@@ -145,7 +151,7 @@ test("SC-007: a save on device A is visible on device B within 5 seconds", async
   const ctxB = await browser.newContext();
   const pageB = await ctxB.newPage();
   await pageB.goto("/login");
-  await pageB.getByLabel("Email").fill(email);
+  await pageB.getByLabel("Username or email").fill(email);
   await pageB.getByLabel("Password", { exact: true }).fill(GOOD_PW);
   await pageB.getByRole("button", { name: /^log in$/i }).click();
   await expect(pageB.getByText(email.split("@")[0]!)).toBeVisible();

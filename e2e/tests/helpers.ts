@@ -21,14 +21,19 @@ export async function expectNoA11yViolations(page: Page) {
   ).toEqual([]);
 }
 
+/** The username derived here is unique because the email is. */
+export function usernameFor(email: string) {
+  return email.split("@")[0]!.replace(/[^a-z0-9_-]/gi, "").toLowerCase();
+}
+
 export async function register(page: Page, email: string, password = GOOD_PW) {
   await page.goto("/register");
-  await page.getByLabel("Username").fill(email.split("@")[0]!);
+  await page.getByLabel("Username").fill(usernameFor(email));
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByLabel("Confirm password").fill(password);
   await page.getByRole("button", { name: /create account/i }).click();
-  await expect(page.getByText(email.split("@")[0]!)).toBeVisible();
+  await expect(page.getByText(usernameFor(email)).first()).toBeVisible();
 }
 
 /** Fetch the newest Mailpit message for a recipient and extract the reset URL. */

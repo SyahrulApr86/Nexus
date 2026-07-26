@@ -5,7 +5,7 @@ import { ApiError } from "../api/client.js";
 import { AuthLayout, Button, Field } from "../components/ui.js";
 
 export function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const login = useLogin();
   const navigate = useNavigate();
@@ -40,18 +40,17 @@ export function LoginPage() {
         onSubmit={(e) => {
           e.preventDefault();
           login.mutate(
-            { email, password },
+            { identifier, password },
             { onSuccess: () => navigate({ to: "/" }) },
           );
         }}
       >
         <Field
-          label="Email"
-          type="email"
-          autoComplete="email"
+          label="Username or email"
+          autoComplete="username"
           required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
           error={error}
         />
         <Field

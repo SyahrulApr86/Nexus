@@ -27,7 +27,7 @@ export function useCurrentUser() {
 export function useLogin() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { email: string; password: string }) =>
+    mutationFn: (input: { identifier: string; password: string }) =>
       api<{ user: UserDto }>("/auth/login", {
         method: "POST",
         body: JSON.stringify(input),
@@ -44,8 +44,8 @@ export function useRegister() {
   return useMutation({
     mutationFn: (input: {
       email: string;
+      username: string;
       password: string;
-      displayName?: string;
     }) =>
       api<{ user: UserDto }>("/auth/register", {
         method: "POST",

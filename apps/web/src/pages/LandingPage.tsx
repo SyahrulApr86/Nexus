@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Link } from "@tanstack/react-router";
 import { HeroDemo } from "../components/HeroDemo.js";
 import { Mark } from "../components/Mark.js";
+import { useCurrentUser } from "../api/auth.js";
 import { LinkGraphIllustration } from "../components/LinkGraphIllustration.js";
 
 // Three.js only ships to visitors who actually land here.
@@ -113,24 +114,69 @@ const NOT_DOING = [
 ] as const;
 
 export function LandingPage() {
+  const { data: user, isPending } = useCurrentUser();
+  // Signed in: the page still explains the product, but the calls to action
+  // point at the workspace instead of asking for an account again.
+  const signedIn = Boolean(user);
+
+  const primaryCta = signedIn ? (
+    <Link
+      to="/"
+      className="rounded-control bg-accent-fill px-6 py-3 text-[16px] font-medium text-on-accent hover:bg-accent-fill-hover"
+    >
+      Open your workspace
+    </Link>
+  ) : (
+    <>
+      <Link
+        to="/register"
+        className="rounded-control bg-accent-fill px-6 py-3 text-[16px] font-medium text-on-accent hover:bg-accent-fill-hover"
+      >
+        Create your vault
+      </Link>
+      <Link
+        to="/login"
+        className="rounded-control border border-border bg-bg/70 px-6 py-3 text-[16px] font-medium text-ink hover:bg-surface"
+      >
+        Log in
+      </Link>
+    </>
+  );
+
   return (
     <div className="min-h-full bg-bg text-ink">
       <header className="sticky top-0 z-30 border-b border-transparent backdrop-blur supports-[backdrop-filter]:bg-bg/80">
         <div className="mx-auto flex max-w-[1120px] items-center justify-between px-6 py-4">
           <Wordmark />
           <nav aria-label="Account" className="flex items-center gap-2">
-            <Link
-              to="/login"
-              className="rounded-control border border-border px-4 py-2 text-[14px] font-medium text-ink hover:bg-surface"
-            >
-              Log in
-            </Link>
-            <Link
-              to="/register"
-              className="rounded-control bg-accent-fill px-4 py-2 text-[14px] font-medium text-on-accent hover:bg-accent-fill-hover"
-            >
-              Create your vault
-            </Link>
+            {isPending ? null : signedIn ? (
+              <>
+                <span className="hidden text-[14px] text-muted sm:inline">
+                  Signed in as {user!.username}
+                </span>
+                <Link
+                  to="/"
+                  className="rounded-control bg-accent-fill px-4 py-2 text-[14px] font-medium text-on-accent hover:bg-accent-fill-hover"
+                >
+                  Open workspace
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="rounded-control border border-border px-4 py-2 text-[14px] font-medium text-ink hover:bg-surface"
+                >
+                  Log in
+                </Link>
+                <Link
+                  to="/register"
+                  className="rounded-control bg-accent-fill px-4 py-2 text-[14px] font-medium text-on-accent hover:bg-accent-fill-hover"
+                >
+                  Create your vault
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>
@@ -152,22 +198,13 @@ export function LandingPage() {
                 backlink, and an edge in your graph.
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                <Link
-                  to="/register"
-                  className="rounded-control bg-accent-fill px-6 py-3 text-[16px] font-medium text-on-accent hover:bg-accent-fill-hover"
-                >
-                  Create your vault
-                </Link>
-                <Link
-                  to="/login"
-                  className="rounded-control border border-border bg-bg/70 px-6 py-3 text-[16px] font-medium text-ink hover:bg-surface"
-                >
-                  Log in
-                </Link>
+                {primaryCta}
               </div>
-              <p className="mt-4 font-mono text-[12px] text-muted">
-                free while in development · export anytime · no lock-in
-              </p>
+              {!signedIn && (
+                <p className="mt-4 font-mono text-[12px] text-muted">
+                  free while in development · export anytime · no lock-in
+                </p>
+              )}
             </div>
 
             <div className="mx-auto mt-14 max-w-[880px]">
@@ -303,12 +340,9 @@ export function LandingPage() {
               Import your existing Markdown in one step. If you ever want out,
               export gives you the same files back.
             </p>
-            <Link
-              to="/register"
-              className="mt-7 inline-block rounded-control bg-accent-fill px-6 py-3 text-[16px] font-medium text-on-accent hover:bg-accent-fill-hover"
-            >
-              Create your vault
-            </Link>
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+              {primaryCta}
+            </div>
           </div>
         </section>
       </main>

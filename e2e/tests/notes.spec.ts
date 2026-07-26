@@ -97,7 +97,7 @@ test.describe("US2 — create, edit, preview (independent test)", () => {
     const ctxB = await browser.newContext();
     const pageB = await ctxB.newPage();
     await pageB.goto("/login");
-    await pageB.getByLabel("Email").fill(email);
+    await pageB.getByLabel("Username or email").fill(email);
     await pageB.getByLabel("Password", { exact: true }).fill("Sup3r$ecret");
     await pageB.getByRole("button", { name: /^log in$/i }).click();
     await expect(

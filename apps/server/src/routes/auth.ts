@@ -24,6 +24,7 @@ const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 60 min (FR-002a)
 function toUserDto(user: {
   id: string;
   email: string;
+  username: string;
   displayName: string | null;
   theme: string;
   idleTimeoutMinutes: number;
@@ -31,6 +32,7 @@ function toUserDto(user: {
   return {
     id: user.id,
     email: user.email,
+    username: user.username,
     displayName: user.displayName,
     theme: user.theme as UserDto["theme"],
     idleTimeoutMinutes: user.idleTimeoutMinutes,
@@ -48,6 +50,23 @@ function setSessionCookie(c: Parameters<typeof setCookie>[0], token: string) {
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
+/**
+ * Pick a free username derived from the email local part, e.g. "dana",
+ * then "dana2". Only used when the person did not choose one.
+ */
+async function deriveUsername(email: string): Promise<string> {
+  const base =
+    email.split("@")[0]!.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 24) ||
+    "user";
+  const padded = base.length >= 3 ? base : `${base}user`.slice(0, 24);
+  for (let suffix = 1; suffix < 1000; suffix++) {
+    const candidate = suffix === 1 ? padded : `${padded}${suffix}`;
+    const taken = await prisma.user.findUnique({ where: { username: candidate } });
+    if (!taken) return candidate;
+  }
+  return `user${randomBytes(4).toString("hex")}`;
+}
+
 export const authRoutes = new Hono()
   .use(
     "/register",
@@ -59,7 +78,7 @@ export const authRoutes = new Hono()
     rateLimit({ name: "reset", limit: 10, windowSeconds: 60 }),
   )
   .post("/register", zValidator("json", registerSchema), async (c) => {
-    const { email, password, displayName } = c.req.valid("json");
+    const { email, username, password, displayName } = c.req.valid("json");
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       return c.json(
@@ -67,10 +86,20 @@ export const authRoutes = new Hono()
         409,
       );
     }
+    if (username) {
+      const taken = await prisma.user.findUnique({ where: { username } });
+      if (taken) {
+        return c.json(
+          { error: "That username is taken. Pick another one." },
+          409,
+        );
+      }
+    }
     const passwordHash = await hash(password);
     const user = await prisma.user.create({
       data: {
         email,
+        username: username ?? (await deriveUsername(email)),
         passwordHash,
         displayName: displayName ?? null,
         vault: { create: {} },
@@ -86,8 +115,22 @@ export const authRoutes = new Hono()
   })
 
   .post("/login", zValidator("json", loginSchema), async (c) => {
-    const { email, password } = c.req.valid("json");
-    if (await isLocked(email)) {
+    const { identifier, password } = c.req.valid("json");
+    // Resolve first: the lockout counter must key on the account, not on
+    // whichever identifier was typed, or an attacker could reset it by
+    // alternating between username and email.
+    const user = identifier.includes("@")
+      ? await prisma.user.findUnique({
+          where: { email: identifier },
+          include: { vault: true },
+        })
+      : await prisma.user.findUnique({
+          where: { username: identifier },
+          include: { vault: true },
+        });
+    const lockKey = user?.email ?? identifier;
+
+    if (await isLocked(lockKey)) {
       return c.json(
         {
           error:
@@ -97,14 +140,10 @@ export const authRoutes = new Hono()
         423,
       );
     }
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { vault: true },
-    });
     const valid =
       user !== null && (await verify(user.passwordHash, password));
     if (!user || !valid) {
-      const nowLocked = await recordFailure(email);
+      const nowLocked = await recordFailure(lockKey);
       if (nowLocked) {
         return c.json(
           {
@@ -115,10 +154,10 @@ export const authRoutes = new Hono()
           423,
         );
       }
-      // Generic error — identical for unknown email and wrong password (US1-S4)
+      // Generic error — identical for unknown account and wrong password (US1-S4)
       return c.json({ error: "Invalid email or password" }, 401);
     }
-    await clearFailures(email);
+    await clearFailures(lockKey);
     const token = await createSession(
       { userId: user.id, vaultId: user.vault!.id },
       user.idleTimeoutMinutes,

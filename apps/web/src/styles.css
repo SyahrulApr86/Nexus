@@ -1,8 +1,29 @@
 @import "tailwindcss";
-/* Bundled locally: DESIGN.md specifies InterVar, and nothing here should
-   depend on a third-party font CDN. JetBrains Mono carries the syntax voice. */
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/jetbrains-mono";
+/* Self-hosted so the files can be preloaded from a stable path and start
+   downloading with the document, rather than after the CSS @import chain
+   resolves — that chain was delaying first paint (SC-005).
+   swap: text renders immediately in the fallback and upgrades in place. */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/inter-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url("/fonts/jetbrains-mono-latin-wght-normal.woff2")
+    format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 /*
  * Design tokens from DESIGN.md (Clearbit reference, light) with a derived

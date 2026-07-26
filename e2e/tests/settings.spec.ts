@@ -31,7 +31,7 @@ test.describe("Settings (FR-003 idle timeout, FR-021/022 theme)", () => {
 
     // Persists across a fresh login
     await page.getByRole("button", { name: /log out/i }).click();
-    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Username or email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill(GOOD_PW);
     await page.getByRole("button", { name: /^log in$/i }).click();
     await page.getByRole("button", { name: "Settings" }).click();

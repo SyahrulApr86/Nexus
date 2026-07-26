@@ -3,6 +3,7 @@
 export interface UserDto {
   id: string;
   email: string;
+  username: string;
   displayName: string | null;
   theme: "light" | "dark" | "system";
   idleTimeoutMinutes: number;

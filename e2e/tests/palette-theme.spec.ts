@@ -88,7 +88,7 @@ test.describe("US9 — dark/light theme (independent test)", () => {
 
     // Persists across a fresh login session
     await page.getByRole("button", { name: /log out/i }).click();
-    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Username or email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill(GOOD_PW);
     await page.getByRole("button", { name: /^log in$/i }).click();
     await expect(page.getByText(email.split("@")[0]!)).toBeVisible();

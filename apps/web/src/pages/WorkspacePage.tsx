@@ -156,12 +156,16 @@ export function WorkspacePage() {
         }`}
       >
         <div className="flex items-center justify-between px-3 py-3">
-          <span className="flex items-center gap-2">
+          <Link
+            to="/welcome"
+            aria-label="Nexus home"
+            className="flex items-center gap-2 rounded-control px-1 py-0.5 hover:bg-card"
+          >
             <Mark size={22} className="text-accent" />
             <span className="text-[15px] font-semibold tracking-heading">
               Nexus
             </span>
-          </span>
+          </Link>
           <button
             type="button"
             onClick={() =>
@@ -247,7 +251,14 @@ export function WorkspacePage() {
           >
             <Icon name="menu" size={16} />
           </button>
-          <span className="text-[13px] font-medium text-ink">Nexus</span>
+          <Link
+            to="/welcome"
+            aria-label="Nexus home"
+            className="flex items-center gap-1.5 rounded-control px-1 py-0.5 text-[13px] font-medium text-ink hover:bg-surface"
+          >
+            <Mark size={16} className="text-accent" />
+            Nexus
+          </Link>
         </div>
         <main className="min-h-0 flex-1">
           <Outlet />

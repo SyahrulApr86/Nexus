@@ -5,7 +5,7 @@ const sidebar = (page: Page) => page.locator('[aria-label="Folders and notes"]')
 
 async function login(page: Page, email: string) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Username or email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(GOOD_PW);
   await page.getByRole("button", { name: /^log in$/i }).click();
   await expect(page.getByText(email.split("@")[0]!)).toBeVisible();

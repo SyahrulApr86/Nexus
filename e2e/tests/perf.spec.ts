@@ -36,10 +36,13 @@ test.describe("performance criteria", () => {
     // Client render cost after data arrival stays within SC-005's 500ms;
     // full reload (network + hydrate + fetch) is bounded generously.
     const renderMs = await page.evaluate(() => {
-      const notesReq = performance
-        .getEntriesByType("resource")
-        .find((e) => e.name.includes("/api/notes"));
-      return notesReq ? performance.now() - notesReq.responseEnd : -1;
+      // React StrictMode issues the list query twice in dev; the render can
+      // only start once the LAST response has landed, so measure from that.
+      const notesReqs = (
+        performance.getEntriesByType("resource") as PerformanceResourceTiming[]
+      ).filter((e) => e.name.includes("/api/notes"));
+      const last = notesReqs.at(-1);
+      return last ? performance.now() - last.responseEnd : -1;
     });
     expect(renderMs).toBeGreaterThan(0);
     expect(renderMs).toBeLessThan(500);

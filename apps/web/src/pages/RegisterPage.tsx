@@ -7,7 +7,7 @@ import { AuthLayout, Button, Field } from "../components/ui.js";
 
 export function RegisterPage() {
   const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [touched, setTouched] = useState(false);
@@ -25,6 +25,10 @@ export function RegisterPage() {
     register.error instanceof ApiError ? register.error.message : null;
   const duplicate =
     register.error instanceof ApiError && register.error.status === 409;
+  // A 409 can be either identifier; route the message to the right field
+  const usernameError =
+    duplicate && /username/i.test(serverError ?? "") ? serverError : null;
+  const emailError = usernameError ? null : serverError;
 
   return (
     <AuthLayout title="Create your account">
@@ -38,7 +42,7 @@ export function RegisterPage() {
             return;
           }
           register.mutate(
-            { email, password, displayName: displayName.trim() },
+            { email, password, username: username.trim() },
             { onSuccess: () => navigate({ to: "/" }) },
           );
         }}
@@ -47,9 +51,13 @@ export function RegisterPage() {
           label="Username"
           autoComplete="username"
           required
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          hint="How you'll appear in the app."
+          minLength={3}
+          maxLength={30}
+          pattern="[A-Za-z0-9_\-]+"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          hint="You can sign in with this or your email. Letters, digits, _ and - only."
+          error={usernameError}
         />
         <Field
           label="Email"
@@ -58,9 +66,9 @@ export function RegisterPage() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          error={serverError}
+          error={emailError}
         />
-        {duplicate && (
+        {duplicate && !usernameError && (
           <p className="text-[14px]">
             <Link to="/login" className="text-accent underline">
               Go to login

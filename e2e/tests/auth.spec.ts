@@ -5,6 +5,7 @@ import {
   GOOD_PW,
   register,
   uniqueEmail,
+  usernameFor,
 } from "./helpers.js";
 
 test.describe("US1 — registration & login (independent test)", () => {
@@ -24,7 +25,7 @@ test.describe("US1 — registration & login (independent test)", () => {
     await expect(page).toHaveURL(/\/welcome/);
 
     await page.getByRole("navigation", { name: "Account" }).getByRole("link", { name: "Log in" }).click();
-    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Username or email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill(GOOD_PW);
     await page.getByRole("button", { name: /^log in$/i }).click();
     await expect(page.getByText(email.split("@")[0]!)).toBeVisible();
@@ -34,8 +35,9 @@ test.describe("US1 — registration & login (independent test)", () => {
     page,
   }) => {
     await page.goto("/register");
-    await page.getByLabel("Username").fill("weakpw");
-    await page.getByLabel("Email").fill(uniqueEmail());
+    const weakEmail = uniqueEmail("weak");
+    await page.getByLabel("Username").fill(usernameFor(weakEmail));
+    await page.getByLabel("Email").fill(weakEmail);
     await page.getByLabel("Password", { exact: true }).fill("abcdefgh");
     await page.getByLabel("Confirm password").fill("abcdefgh");
     await page.getByRole("button", { name: /create account/i }).click();
@@ -48,7 +50,7 @@ test.describe("US1 — registration & login (independent test)", () => {
     page,
   }) => {
     await page.goto("/login");
-    await page.getByLabel("Email").fill(uniqueEmail("ghost"));
+    await page.getByLabel("Username or email").fill(uniqueEmail("ghost"));
     await page.getByLabel("Password", { exact: true }).fill("Wrong1!xx");
     await page.getByRole("button", { name: /^log in$/i }).click();
     await expect(page.getByRole("alert")).toContainText(
@@ -61,10 +63,11 @@ test.describe("US1 — registration & login (independent test)", () => {
     page,
   }) => {
     const email = uniqueEmail("kbd");
+    const username = usernameFor(email);
     await page.goto("/register");
     // Tab into the form and drive it with keys only
     await page.getByLabel("Username").focus();
-    await page.keyboard.type("kbduser");
+    await page.keyboard.type(username);
     await page.keyboard.press("Tab");
     await page.keyboard.type(email);
     await page.keyboard.press("Tab");
@@ -72,7 +75,7 @@ test.describe("US1 — registration & login (independent test)", () => {
     await page.keyboard.press("Tab");
     await page.keyboard.type(GOOD_PW);
     await page.keyboard.press("Enter");
-    await expect(page.getByText("kbduser")).toBeVisible();
+    await expect(page.getByText(username).first()).toBeVisible();
   });
 
   test("login page passes WCAG 2.1 AA audit (SC-010)", async ({ page }) => {
@@ -110,7 +113,7 @@ test.describe("US1b — password reset (independent test)", () => {
     await expect(page.getByRole("status")).toContainText("Password updated");
 
     // Old password rejected
-    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Username or email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill(GOOD_PW);
     await page.getByRole("button", { name: /^log in$/i }).click();
     await expect(page.getByRole("alert")).toContainText(
