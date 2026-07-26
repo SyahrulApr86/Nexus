@@ -9,3 +9,8 @@ coverage/
 playwright-report/
 test-results/
 .DS_Store
+
+# Local planning and brief documents, kept out of the repo
+PRD.md
+DESIGN.md
+TASKS.md

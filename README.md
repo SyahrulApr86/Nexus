@@ -2,8 +2,6 @@
 
 Browser-based Markdown note-taking with server-side sync, wikilink knowledge
 graph, full-text fuzzy search, versioned trash, and a keyboard-first workflow.
-Built against [PRD.md](./PRD.md) with the visual system from
-[DESIGN.md](./DESIGN.md).
 
 ## Stack
 
@@ -11,58 +9,120 @@ pnpm + Turborepo monorepo:
 
 | Package | What |
 |---|---|
-| `apps/web` | React 18 + Vite SPA — TanStack Router/Query, CodeMirror 6, D3 graph, Tailwind v4 |
-| `apps/server` | Hono (Node) API + WebSocket — Prisma/PostgreSQL, Redis sessions, pgcrypto content encryption |
+| `apps/web` | React 18 + Vite SPA. TanStack Router/Query, CodeMirror 6, D3 graph, Tailwind v4 |
+| `apps/server` | Hono (Node) API + WebSocket. Prisma/PostgreSQL, Redis sessions, pgcrypto content encryption |
 | `packages/shared` | Wikilink/tag parser (single source of truth) + zod schemas + DTO types |
 | `e2e` | Playwright end-to-end + axe-core WCAG 2.1 AA audits |
 
-## Development
+## Requirements
+
+- Node 20 or newer
+- pnpm 9 or newer (`corepack enable` is enough)
+- Docker with Compose, for PostgreSQL, Redis, and a local mail catcher
+
+## Setup
+
+### 1. Start the services
 
 ```bash
-docker compose up -d          # PostgreSQL :5433, Redis :6380, Mailpit :8025
-pnpm install
-pnpm --filter @nexus/server db:generate
-pnpm --filter @nexus/server db:deploy
-pnpm dev                      # web on :5173, api on :3001
+docker compose up -d
 ```
 
-Open http://localhost:5173. Password-reset emails land in Mailpit
-(http://localhost:8025).
+This brings up PostgreSQL on `:5433`, Redis on `:6380`, and Mailpit on `:8025`
+(web UI) and `:1025` (SMTP). The ports are deliberately non-standard so they do
+not collide with anything already running locally.
 
-Server config lives in `apps/server/.env` (see `.env.example`).
+### 2. Install dependencies
+
+```bash
+pnpm install
+```
+
+### 3. Configure the server
+
+```bash
+cp apps/server/.env.example apps/server/.env
+```
+
+The defaults match the Docker services above. For local development set
+`COOKIE_SECURE="false"`, otherwise the browser refuses to store the session
+cookie over plain HTTP.
+
+### 4. Create the database schema
+
+```bash
+pnpm --filter @nexus/server db:generate
+pnpm --filter @nexus/server db:deploy
+```
+
+### 5. Run it
+
+```bash
+pnpm dev
+```
+
+The app is at http://localhost:5173 and the API at http://localhost:3001.
+Register an account and you are in. Password reset emails are caught by
+Mailpit, so open http://localhost:8025 to read them.
+
+## Configuration
+
+All server settings live in `apps/server/.env`.
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis connection, used for sessions, lockouts and rate limits |
+| `CONTENT_ENCRYPTION_KEY` | Key for the pgcrypto column encryption on note content. Changing it makes existing notes unreadable |
+| `SMTP_HOST` / `SMTP_PORT` / `MAIL_FROM` | Outgoing mail for password resets |
+| `APP_ORIGIN` | Where the web app is served from. Used for CORS and reset links |
+| `PORT` | API port, `3001` by default |
+| `COOKIE_SECURE` | `true` in production so session cookies are `Secure`. Set `false` for local HTTP |
+| `RATE_LIMIT_SCALE` | Multiplier on the auth rate limits. Keep at `1` in production; raise it locally if you trip them |
+| `ENABLE_DEV_SEED` | Exposes a bulk seeding endpoint used by the performance tests. Must stay unset or `false` in production |
 
 ## Tests
 
 ```bash
-pnpm test                                        # unit + integration (shared + server)
+pnpm test                                                # shared + server
 pnpm --filter @nexus/server exec vitest run --coverage   # with 80/70 coverage gates
-pnpm test:e2e                                    # Playwright + axe (needs docker services)
+pnpm test:e2e                                            # Playwright + axe
 ```
 
-Integration tests use the `nexus_test` database and Redis db 1 — safe to run
-next to a dev session.
+The integration tests use a separate `nexus_test` database and Redis database
+1, so they are safe to run next to a dev session. The end-to-end suite starts
+the web and API servers itself, but it does need Docker running.
 
-## Security notes
+## Deploying
 
-- **Transport (FR-027)**: the app must be served over TLS in production.
-  Terminate HTTPS at your proxy (Caddy/nginx/traefik), proxy `/api` and the
-  `/api/ws` WebSocket upgrade to the server port, and set
-  `COOKIE_SECURE="true"` (default) so session cookies are `Secure`.
-  HSTS at the proxy is recommended.
-- **At rest (FR-026)**: note content is encrypted column-level via pgcrypto
-  (`pgp_sym_encrypt`) with `CONTENT_ENCRYPTION_KEY`. Search runs on a derived
-  tsvector lexeme index and plaintext titles — documented tradeoff: the index
-  leaks content vocabulary, never the full text. Rotate the key by
-  re-encrypting the `contentEnc` columns.
-- **Sessions**: opaque tokens in Redis, httpOnly/SameSite=Lax cookies, rolling
-  idle timeout (5–120 min, user-configurable). Account lockout: 5 failed
-  logins / 15 min. Auth endpoints are IP rate-limited
-  (`RATE_LIMIT_SCALE=1` in production).
-- **Isolation (FR-025)**: every query is vault-scoped; cross-user access is
-  covered by dedicated tests per endpoint.
-- `ENABLE_DEV_SEED` must stay **unset/false** in production — it exposes a
-  bulk seeding endpoint used only by performance tests.
+```bash
+pnpm build
+pnpm --filter @nexus/server db:deploy
+```
 
-## Requirement traceability
+Serve `apps/web/dist` as static files and run the API behind a TLS-terminating
+proxy. The proxy needs to forward `/api` to the API port, including the
+WebSocket upgrade on `/api/ws` that powers live sync between devices. Serve
+everything over HTTPS and leave `COOKIE_SECURE="true"` so the session cookie
+keeps its `Secure` flag.
 
-`TASKS.md` maps every FR/US/SC in the PRD to its implementation and tests.
+## How the pieces fit
+
+- **Note content is encrypted at the column level.** Search runs against a
+  derived lexeme index and the plaintext titles, so note bodies are never
+  decrypted to answer a query.
+- **Wikilinks and tags are parsed by one module** in `packages/shared`, used by
+  the editor, the preview, and the server indexer alike. They cannot drift
+  apart.
+- **Every query is scoped to the signed-in person's vault.** No code path reads
+  notes without that filter, and each endpoint has a test proving a second
+  account cannot reach the first one's data.
+- **Sessions are opaque tokens in Redis** with a rolling idle timeout that each
+  person can set between 5 and 120 minutes.
+
+## Tests as the specification
+
+Every user-facing requirement has a test that names it. Server behaviour lives
+in `apps/server/test`, browser flows in `e2e/tests`, and the parser rules in
+`packages/shared/test`. Read those first if you want to know what the app
+promises.

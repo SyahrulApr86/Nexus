@@ -107,10 +107,10 @@ const SHORTCUTS = [
 ] as const;
 
 const NOT_DOING = [
-  "Real-time co-editing — one vault, one person",
-  "Native mobile or desktop apps — the browser is the app",
-  "Image and file hosting — media is referenced by URL",
-  "Offline-first sync — the server is the system of record",
+  "Real-time co-editing. A vault belongs to one person.",
+  "Native mobile or desktop apps. The browser is the app.",
+  "Image and file hosting. Media is referenced by URL.",
+  "Offline-first sync. The server is the system of record.",
 ] as const;
 
 export function LandingPage() {
@@ -210,7 +210,7 @@ export function LandingPage() {
             <div className="mx-auto mt-14 max-w-[880px]">
               <HeroDemo />
               <p className="mt-3 text-center font-mono text-[12px] text-muted">
-                the editor above is the real one — same preview, same autosave
+                that is the real editor, with the same preview and autosave
               </p>
             </div>
           </div>
@@ -241,8 +241,8 @@ export function LandingPage() {
                     className="mt-[6px] inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-dashed border-broken"
                   />
                   <span>
-                    A link to a note you haven't written yet — click it to
-                    create it
+                    A link to a note you haven't written yet. Click it to
+                    create one.
                   </span>
                 </li>
               </ul>
@@ -284,9 +284,9 @@ export function LandingPage() {
                 Hands stay where you type
               </h2>
               <p className="mt-4 text-[16px] leading-relaxed text-muted">
-                Creating, linking, searching, reordering, restoring — every core
-                action has a key path, and the palette is one keystroke away
-                from anywhere in the app.
+                Every core action has a key path: creating, linking, searching,
+                reordering, restoring. The palette is one keystroke away from
+                anywhere in the app.
               </p>
             </div>
             <dl className="flex-1">
