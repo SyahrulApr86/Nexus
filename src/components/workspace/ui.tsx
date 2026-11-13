@@ -1,10 +1,38 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
+
+/** The X that clears a search or filter field, inside the field's border (28px, 40px on touch). */
+export const CLEAR_BUTTON =
+  "grid size-7 shrink-0 place-items-center rounded-md text-faint transition-colors hover:bg-hover hover:text-fg focus-visible:outline-offset-[-2px] md:size-6 pointer-coarse:size-10";
+
+/** One number format for counts across the workspace views. */
+export const nf = new Intl.NumberFormat("en");
+
+/**
+ * Whether the element is on screen: false while its sidebar is collapsed (display: none), a phone
+ * drawer is closed (moved off screen) or its tab group is hidden. Views use it to skip fetching
+ * until someone can see the result. Without IntersectionObserver it reports true.
+ */
+export function useShown<T extends Element>() {
+  const [shown, setShown] = useState(false);
+  const io = useRef<IntersectionObserver | null>(null);
+  const ref = useCallback((el: T | null) => {
+    io.current?.disconnect();
+    io.current = null;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") return setShown(true);
+    io.current = new IntersectionObserver((entries) => setShown(entries[entries.length - 1].isIntersecting));
+    io.current.observe(el);
+  }, []);
+  useEffect(() => () => io.current?.disconnect(), []);
+  return [ref, shown] as const;
+}
 
 /* ------------------------------------------------------------------ */
-/* Icon button: 32px for a mouse, 44px for touch, themed tooltip       */
+/* Icon button: 32px, 44px on a coarse pointer, themed tooltip         */
 /* ------------------------------------------------------------------ */
 
 export function IconButton({
@@ -395,31 +423,110 @@ export function Modal({
 
 export type Toast = { id: number; message: string; action?: { label: string; run: () => void } };
 
+/** How long a toast stays after the pointer or focus leaves, if its time ran out meanwhile. */
+const RESUME_MS = 2000;
+
+/**
+ * The store removes a toast when its time is up. While the pointer is over the toasts or focus is
+ * in them, a toast that times out stays on screen (WCAG 2.2.1), and leaves a moment after the
+ * pointer and focus have gone. Every toast has its own Dismiss button.
+ */
 export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: number) => void }) {
+  const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
+  const paused = hover || focus;
+  // Toasts the store has removed while paused, still shown here. Worked out during render, so a
+  // held toast never unmounts for a frame (no flicker, no second entrance).
+  const [held, setHeld] = useState<Toast[]>([]);
+  const [prev, setPrev] = useState(toasts);
+  if (prev !== toasts) {
+    setPrev(toasts);
+    // Error toasts carry the store's "Dismiss" action and never time out: when one goes, the
+    // store meant it (saving works again), so it is not held.
+    const gone = prev.filter((t) => t.action?.label !== "Dismiss" && !toasts.some((x) => x.id === t.id));
+    if (paused && gone.length) setHeld((h) => [...h, ...gone]);
+  }
+
+  useEffect(() => {
+    if (paused || !held.length) return;
+    const t = setTimeout(() => setHeld([]), RESUME_MS);
+    return () => clearTimeout(t);
+  }, [paused, held.length]);
+
+  const region = useRef<HTMLDivElement>(null);
+  const close = (id: number, el: HTMLElement) => {
+    // A removed node fires no pointerleave or blur, so end the pause here. Keyboard focus moves to
+    // the next toast's Dismiss button, or back to the note.
+    const toast = el.closest("[data-toast]");
+    if (toast?.contains(document.activeElement)) {
+      const others = [...(region.current?.querySelectorAll<HTMLElement>("[data-toast]") ?? [])].filter((x) => x !== toast);
+      const next = others.find((x) => x.compareDocumentPosition(toast) & Node.DOCUMENT_POSITION_PRECEDING) ?? others[others.length - 1];
+      const targets = [next?.querySelector<HTMLElement>('[aria-label="Dismiss"]'), document.querySelector<HTMLElement>('[aria-modal="true"]'), document.getElementById("workbench")];
+      // An open drawer makes the workbench inert, so the first target that takes focus wins.
+      for (const t of targets) {
+        t?.focus({ preventScroll: true });
+        if (t && document.activeElement === t) break;
+      }
+    }
+    setHover(false);
+    setHeld((h) => h.filter((x) => x.id !== id));
+    dismiss(id);
+  };
+
+  // Keep the store's order; held toasts slot back where they were (lower ids are older).
+  const shown = [...toasts, ...held.filter((h) => !toasts.some((t) => t.id === h.id))].sort((a, b) => a.id - b.id);
+  // Nothing left to hover or focus (the store removed the last one): end any pause.
+  const none = shown.length === 0;
+  useEffect(() => {
+    if (!none) return;
+    setHover(false); // eslint-disable-line react-hooks/set-state-in-effect -- removed nodes fire no leave or blur
+    setFocus(false);
+  }, [none]);
+
   return (
     <div
+      ref={region}
       role="status"
       aria-live="polite"
       className="pointer-events-none fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-50 flex flex-col items-center gap-2 px-4 md:bottom-10"
+      onFocus={() => setFocus(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocus(false);
+      }}
     >
-      {toasts.map((t) => (
+      {shown.map((t) => (
         <div
           key={t.id}
-          className="pointer-events-auto flex max-w-[min(32rem,100%)] animate-[rise_200ms_var(--ease-out-quint)] items-center gap-3 rounded-lg bg-[var(--toast-bg)] px-4 py-2.5 text-[14px] text-[var(--toast-fg)] shadow-[var(--shadow-float)]"
+          data-toast=""
+          onPointerEnter={() => setHover(true)}
+          onPointerLeave={() => setHover(false)}
+          className="pointer-events-auto flex max-w-[min(32rem,100%)] animate-[rise_200ms_var(--ease-out-quint)] items-center gap-3 rounded-lg bg-[var(--toast-bg)] py-1.5 pl-4 pr-1.5 text-[14px] text-[var(--toast-fg)] shadow-[var(--shadow-float)]"
         >
-          <span className="min-w-0 wrap-anywhere">{t.message}</span>
-          {t.action && (
+          <span className="min-w-0 py-1 wrap-anywhere">{t.message}</span>
+          {/* The store gives error toasts a no-op "Dismiss" action; the close button covers it. */}
+          {t.action && t.action.label !== "Dismiss" && (
             <button
               type="button"
-              onClick={() => {
+              onClick={(e) => {
                 t.action!.run();
-                dismiss(t.id);
+                close(t.id, e.currentTarget);
               }}
-              className="font-medium text-[var(--toast-link)] underline-offset-2 hover:underline"
+              className="shrink-0 rounded font-medium text-[var(--toast-link)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--toast-link)]"
             >
               {t.action.label}
             </button>
           )}
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={(e) => {
+              if (t.action?.label === "Dismiss") t.action.run();
+              close(t.id, e.currentTarget);
+            }}
+            className="grid size-8 shrink-0 place-items-center rounded-md text-[var(--toast-fg)] opacity-80 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--toast-link)] pointer-coarse:size-11"
+          >
+            <X aria-hidden="true" className="size-4 stroke-[1.5]" />
+          </button>
         </div>
       ))}
     </div>
