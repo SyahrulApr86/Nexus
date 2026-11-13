@@ -1,35 +1,60 @@
-import Link from "next/link";
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { connection } from "next/server";
+import { Landing } from "@/components/landing/landing";
 
-// Interim landing page. The real one is being designed (Round 1 typography directions A–J).
+const TITLE = "Nexus: notes that link to each other, in plain markdown";
+const DESCRIPTION =
+  "Linked markdown notes in any browser: [[links]] and backlinks, a graph, search with operators and live preview. Your vault stays plain .md files, and you can run it on your own server.";
+
+/**
+ * The public origin is read when a request arrives, not when the app is built: a Docker image is
+ * built without .env, so a build-time value would bake http://localhost:3000 into canonical and
+ * og:* URLs. BETTER_AUTH_URL is required at runtime anyway. NEXT_PUBLIC_APP_URL is read with a
+ * computed key so the bundler does not inline its build-time value. The Host header is not used, so
+ * a forged header cannot change the canonical URL. The page body stays prerendered; only this
+ * metadata (and the session-aware vault link) is resolved per request.
+ */
+function publicOrigin(): URL {
+  const env = process.env;
+  const candidates = [env.BETTER_AUTH_URL, env["NEXT_PUBLIC_" + "APP_URL"]];
+  for (const value of candidates) {
+    if (!value) continue;
+    try {
+      return new URL(new URL(value).origin);
+    } catch {
+      // Ignore a malformed value and try the next one.
+    }
+  }
+  return new URL("http://localhost:3000");
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  await connection();
+  return {
+    metadataBase: publicOrigin(),
+    title: { absolute: TITLE },
+    description: DESCRIPTION,
+    alternates: { canonical: "/" },
+    robots: { index: true, follow: true },
+    openGraph: { type: "website", siteName: "Nexus", url: "/", title: TITLE, description: DESCRIPTION, locale: "en" },
+    twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
+  };
+}
+
+/** Renders nothing; tells Next.js that resolving this route at request time is intentional. */
+async function RequestTime() {
+  await connection();
+  return null;
+}
+
 export default function Home() {
   return (
-    <main className="flex min-h-dvh flex-col justify-center bg-frame px-6 py-16">
-      <div className="mx-auto w-full max-w-2xl">
-        <p className="text-[17px] font-semibold tracking-[-0.01em]" translate="no">
-          <span aria-hidden="true" className="text-accent-ink">
-            [[
-          </span>
-          Nexus
-          <span aria-hidden="true" className="text-accent-ink">
-            ]]
-          </span>
-        </p>
-        <h1 className="mt-6 text-[40px] font-semibold leading-[1.1] tracking-[-0.02em] text-balance sm:text-[52px]">
-          Notes that link to each other, in plain markdown.
-        </h1>
-        <p className="mt-5 max-w-xl text-[18px] leading-7 text-muted">
-          Open your vault in any browser, on any device. Type [[ to connect one note to another, and every link shows
-          up as a backlink on the other side. Your notes stay .md files you can export whenever you want.
-        </p>
-        <div className="mt-8 flex flex-wrap items-center gap-4">
-          <Link href="/vault" className="inline-flex h-11 items-center rounded-lg bg-accent px-5 font-medium text-navy transition-[filter] hover:brightness-95">
-            Open your vault
-          </Link>
-          <Link href="/signup" className="font-medium text-accent-ink underline-offset-2 hover:underline">
-            Create an account
-          </Link>
-        </div>
-      </div>
-    </main>
+    <>
+      <Landing />
+      <Suspense>
+        <RequestTime />
+      </Suspense>
+    </>
   );
 }
