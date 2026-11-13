@@ -24,7 +24,7 @@ import {
   SquareTerminal,
   Waypoints,
 } from "lucide-react";
-import { WorkspaceProvider, useWorkspace, type User, type RightView, type LeftView, type SettingsSection } from "./store";
+import { WorkspaceProvider, useWorkspace, type User, type RightView, type LeftView } from "./store";
 import { FileExplorer } from "./file-explorer";
 import { SearchView } from "./search-view";
 import { BacklinksView, OutgoingView, OutlineView, TagsView } from "./right-views";
@@ -34,8 +34,6 @@ import { SettingsDialog } from "./settings";
 import { Bar, IconButton, Menu, Toasts, useMenu } from "./ui";
 import { splitFrontmatter } from "@/lib/markdown/parse";
 
-// Contract with settings.tsx: it takes the section to open at ("hotkeys" scrolls to and focuses that heading).
-const SettingsAt = SettingsDialog as React.ComponentType<{ section?: SettingsSection }>;
 
 export function Workspace({ user }: { user: User }) {
   return (
@@ -674,7 +672,7 @@ function Shell() {
           onClose={() => a.setPalette(null)}
         />
       )}
-      {w.settingsOpen && <SettingsAt section={w.settingsOpen} />}
+      {w.settingsOpen && <SettingsDialog section={w.settingsOpen} />}
       <Toasts toasts={w.toasts} dismiss={a.dismissToast} />
     </div>
   );
