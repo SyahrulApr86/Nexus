@@ -267,3 +267,31 @@ export const linkRelations = relations(link, ({ one }) => ({
 export const tagRelations = relations(tag, ({ one }) => ({
   note: one(note, { fields: [tag.noteId], references: [note.id] }),
 }));
+
+/* ------------------------------------------------------------------ */
+/* Real-time collaboration (collab/ service) — collab-server track     */
+/* ------------------------------------------------------------------ */
+
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
+/**
+ * The Yjs document of a note (an encoded update holding its whole state), kept so a client that
+ * reconnects with its own copy syncs incrementally instead of merging a fresh, unrelated history.
+ * `note.content` stays the source of truth: the collab service reconciles the two on load.
+ * The migration also adds a trigger that NOTIFYs `nexus_note_content` with the note id whenever
+ * note.content changes or a note is deleted, so REST writes reach a live document.
+ */
+export const noteYdoc = pgTable("note_ydoc", {
+  noteId: uuid("note_id")
+    .primaryKey()
+    .references(() => note.id, { onDelete: "cascade" }),
+  state: bytea("state").notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
