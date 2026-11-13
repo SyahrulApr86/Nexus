@@ -23,6 +23,7 @@ import type { EditorHandle } from "./editor";
 import { basename, dirname, extractTags, extractWikiLinks, linkKey } from "@/lib/markdown/parse";
 import { signOut } from "@/lib/auth-client";
 import { writePrefsCookie, type LayoutPrefs, type LeftView, type RightView, type SortOrder } from "./prefs-cookie";
+import { exportActiveVault } from "./vaults-export";
 
 /* ------------------------------------------------------------------ */
 /* Layout model: tab groups (max two, side by side), tabs with history */
@@ -1645,8 +1646,8 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
   );
 
   // A file download from an API route, not a page navigation.
-  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-  const exportVault = useCallback(() => window.location.assign("/api/vault/export"), []);
+  // vaults-ui: export the vault on screen (a plain navigation would drop the vault header).
+  const exportVault = useCallback(() => void exportActiveVault(notify), [notify]);
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
