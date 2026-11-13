@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { HttpError, assertSameOrigin, logError, rateLimit, readBody, readJson } from "@/lib/session";
+import { HttpError, assertSameOrigin, handle, logError, rateLimit, readBody, readJson } from "@/lib/session";
 import { assertSecureBaseUrl, authOptions, trustedProxies } from "@/lib/auth";
 import nextConfig, { contentSecurityPolicy } from "../../next.config";
 
@@ -214,5 +214,24 @@ describe("security headers (next.config.ts)", () => {
     expect(csp).toContain("connect-src 'self'");
     expect(csp).not.toContain("unsafe-eval");
     expect(csp).not.toMatch(/connect-src[^;]*ws:/);
+  });
+});
+
+describe("handle", () => {
+  it("sends an HttpError body as is, so a 409 can carry the current note", async () => {
+    const note = { id: "n1", content: "theirs", updatedAt: "2026-01-01T00:00:00.000Z" };
+    const res = await handle(async () => {
+      throw new HttpError(409, "conflict", { error: "conflict", note });
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "conflict", note });
+  });
+
+  it("keeps { error: message } for an HttpError without a body", async () => {
+    const res = await handle(async () => {
+      throw new HttpError(404, "Note not found");
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Note not found" });
   });
 });

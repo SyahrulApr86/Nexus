@@ -6,9 +6,11 @@ import { db } from "@/db";
 import { vault } from "@/db/schema";
 
 export class HttpError extends Error {
+  /** `body`: sent as the JSON response instead of { error: message } (e.g. a 409 with the current note). */
   constructor(
     public status: number,
     message: string,
+    public body?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -207,7 +209,7 @@ export async function handle<T>(fn: () => Promise<T>): Promise<Response> {
     if (data instanceof Response) return data;
     return Response.json(data ?? { ok: true });
   } catch (err) {
-    if (err instanceof HttpError) return Response.json({ error: err.message }, { status: err.status });
+    if (err instanceof HttpError) return Response.json(err.body ?? { error: err.message }, { status: err.status });
     if (err && typeof err === "object" && "issues" in err)
       return Response.json({ error: "Invalid input", issues: (err as { issues: unknown }).issues }, { status: 400 });
     logError("api", err);
