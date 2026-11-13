@@ -11,15 +11,15 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
+import { X } from "lucide-react";
 import { api, type GraphData } from "./api";
 import { useWorkspace } from "./store";
+import { CLEAR_BUTTON, nf, useShown } from "./ui";
 
 type N = SimulationNodeDatum & { id: string; name: string; ghost: boolean; degree: number; tagged: boolean };
 type L = SimulationLinkDatum<N>;
 type ViewData = { nodes: GraphData["nodes"]; edges: GraphData["edges"]; tagFilter: string | null };
 type Scene = { setView: (v: ViewData) => void; draw: () => void };
-
-const nf = new Intl.NumberFormat("en");
 
 /** Theme tokens, read again whenever the theme changes. */
 const readColors = () => {
@@ -64,6 +64,7 @@ export function GraphView() {
   const [filter, setFilter] = useState("");
   const [asList, setAsList] = useState(false);
   const filterId = useId();
+  const filterRef = useRef<HTMLInputElement>(null);
   const activeId = useMemo(() => {
     // Highlight the note shown in the other tab group, if any.
     for (const g of w.layout.groups) {
@@ -84,13 +85,23 @@ export function GraphView() {
     openRef.current = w.actions.open;
   });
 
+  // Refetch only when links, tags or the set of notes changed, and only while the graph is on screen
+  // (a hidden split group keeps it mounted). linksVersion and tagsVersion fall back to version on
+  // stores that do not have them yet.
+  const [rootRef, onScreen] = useShown<HTMLDivElement>();
+  const sig = w as { linksVersion?: number; tagsVersion?: number };
+  const notesKey = useMemo(() => w.tree.notes.map((n) => `${n.id}:${n.path}`).join("\n"), [w.tree.notes]);
+  const want = `${sig.linksVersion ?? w.version}:${sig.tagsVersion ?? w.version}:${attempt}:${notesKey}`;
+  const done = useRef("");
   useEffect(() => {
+    if (!onScreen || done.current === want) return;
     let live = true;
     api
       .graph()
       .then((d) => {
         if (!live) return;
-        // Autosaves bump the version on every pause in typing; most change nothing here.
+        done.current = want;
+        // Most refreshes change nothing here: keep the old object so the simulation is not touched.
         setData((prev) => (prev && JSON.stringify(prev) === JSON.stringify(d) ? prev : d));
         setError(false);
       })
@@ -98,7 +109,7 @@ export function GraphView() {
     return () => {
       live = false;
     };
-  }, [w.version, attempt]);
+  }, [want, onScreen]);
 
   const view = useMemo<ViewData | null>(() => {
     if (!data) return null;
@@ -456,21 +467,44 @@ export function GraphView() {
   }, [activeId]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div ref={rootRef} className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pb-3 pt-1" role="toolbar" aria-label="Graph options">
         <label htmlFor={filterId} className="sr-only">
           Filter notes
         </label>
-        <input
-          id={filterId}
-          type="search"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter by name or #tag…"
-          autoComplete="off"
-          spellCheck={false}
-          className="h-8 w-56 rounded-lg border border-control bg-sheet px-2.5 text-[16px] outline-none placeholder:text-faint focus-visible:outline-2 focus-visible:outline-[var(--focus)] md:text-[13px]"
-        />
+        <div className="flex h-9 w-full items-center gap-1 rounded-lg border border-control bg-sheet pl-2.5 pr-1 focus-within:outline focus-within:outline-2 focus-within:outline-[var(--focus)] sm:w-64 md:h-8 pointer-coarse:h-11">
+          <input
+            ref={filterRef}
+            id={filterId}
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={(e) => {
+              // Escape clears the filter, like the browser's own search field did.
+              if (e.key === "Escape" && filter) {
+                e.preventDefault();
+                setFilter("");
+              }
+            }}
+            placeholder="Filter by name or #tag…"
+            autoComplete="off"
+            spellCheck={false}
+            className="h-full min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-faint md:text-[13px] [&::-webkit-search-cancel-button]:hidden"
+          />
+          {filter && (
+            <button
+              type="button"
+              aria-label="Clear filter"
+              onClick={() => {
+                setFilter("");
+                filterRef.current?.focus();
+              }}
+              className={CLEAR_BUTTON}
+            >
+              <X aria-hidden="true" className="size-4 stroke-[1.5]" />
+            </button>
+          )}
+        </div>
         <label className="flex items-center gap-2 text-[13px] text-muted">
           <input type="checkbox" checked={showGhost} onChange={(e) => setShowGhost(e.target.checked)} className="size-4 accent-[var(--accent)]" />
           Show notes not created yet

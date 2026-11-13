@@ -1,27 +1,37 @@
 "use client";
 
-import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { api, type Mention, type TagCount, type NoteRef } from "./api";
 import { useWorkspace } from "./store";
-import { Bar } from "./ui";
+import { Bar, nf, useShown } from "./ui";
 import { extractHeadings, extractWikiLinks } from "@/lib/markdown/parse";
 
-const nf = new Intl.NumberFormat("en");
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 function Section({
   title,
   count,
   defaultOpen = true,
+  open: openProp,
+  onOpenChange,
   children,
 }: {
   title: string;
   count?: number;
   defaultOpen?: boolean;
+  /** Controlled open state; leave out to let the section keep its own. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [openState, setOpenState] = useState(defaultOpen);
+  const open = openProp ?? openState;
+  const setOpen = (f: (o: boolean) => boolean) => {
+    const next = f(open);
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   return (
     <section className="mb-4">
       <h3>
@@ -103,20 +113,42 @@ export function BacklinksView() {
   const noteId = note?.id;
   const key = note ? `${note.id}:${note.name}` : "";
   const mentions = res?.key === key ? res.items : null;
+  // Refetch when links changed, not on every autosave, and only while the panel is on screen.
+  // A plain-text mention changes no links, so while Unlinked mentions is open every save
+  // refetches too; opening it after edits refetches once.
+  const [rootRef, shown] = useShown<HTMLDivElement>();
+  const [unlinkedOpen, setUnlinkedOpen] = useState(false);
+  const linksVersion = (w as { linksVersion?: number }).linksVersion ?? w.version;
+  const contentVersion = unlinkedOpen ? w.version : null;
+  const done = useRef<{ key: string; links: number; content: number } | null>(null);
 
   useEffect(() => {
-    if (!noteId) return;
+    if (!noteId || !shown) return;
+    const d = done.current;
+    if (d && d.key === key && d.links === linksVersion && (contentVersion === null || d.content === contentVersion)) return;
+    const stamp = { key, links: linksVersion, content: w.version };
     let live = true;
     api
       .mentions(noteId)
-      .then((m) => live && setRes((r) => (r?.key === key && same(r.items, m) ? r : { key, items: m })))
+      .then((m) => {
+        if (!live) return;
+        done.current = stamp;
+        setRes((r) => (r?.key === key && same(r.items, m) ? r : { key, items: m }));
+      })
       .catch(() => live && setRes((r) => (r?.key === key ? r : { key, items: [] })));
     return () => {
       live = false;
     };
-  }, [key, noteId, w.version]);
+    // w.version is read through contentVersion, which tracks it only while Unlinked is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, linksVersion, contentVersion, noteId, shown]);
 
-  if (!note) return <NoteMissing />;
+  if (!note)
+    return (
+      <div ref={rootRef}>
+        <NoteMissing />
+      </div>
+    );
 
   const link = async (m: Mention) => {
     setLinking(m.id);
@@ -134,7 +166,7 @@ export function BacklinksView() {
   };
 
   return (
-    <div>
+    <div ref={rootRef}>
       <Section title="Linked mentions" count={note.backlinks.length}>
         {note.backlinks.length === 0 ? (
           <Empty>
@@ -159,7 +191,7 @@ export function BacklinksView() {
           </ul>
         )}
       </Section>
-      <Section title="Unlinked mentions" count={mentions?.length} defaultOpen={false}>
+      <Section title="Unlinked mentions" count={mentions?.length} open={unlinkedOpen} onOpenChange={setUnlinkedOpen}>
         {mentions === null ? (
           <div className="space-y-2 px-2 py-1">
             <Bar w="60%" h={10} />
@@ -272,33 +304,48 @@ export function TagsView() {
   const [byTag, setByTag] = useState<{ tag: string; items: NoteRef[] } | null>(null);
   const selected = w.selectedTag;
   const notes = selected && byTag?.tag === selected ? byTag.items : null;
+  // Refetch when tags changed (not on every autosave), and only while the panel is on screen.
+  const [rootRef, shown] = useShown<HTMLElement>();
+  const tagsVersion = (w as { tagsVersion?: number }).tagsVersion ?? w.version;
+  const doneTags = useRef(-1);
+  const doneByTag = useRef("");
 
   useEffect(() => {
+    if (!shown || doneTags.current === tagsVersion) return;
     let live = true;
     api
       .tags()
-      .then((t) => live && setTags((prev) => (same(prev, t) ? prev : t)))
+      .then((t) => {
+        if (!live) return;
+        doneTags.current = tagsVersion;
+        setTags((prev) => (same(prev, t) ? prev : t));
+      })
       .catch(() => live && setTags((prev) => prev ?? []));
     return () => {
       live = false;
     };
-  }, [w.version]);
+  }, [tagsVersion, shown]);
 
   useEffect(() => {
-    if (!selected) return;
+    const want = `${selected}:${tagsVersion}`;
+    if (!selected || !shown || doneByTag.current === want) return;
     let live = true;
     api
       .byTag(selected)
-      .then((n) => live && setByTag((r) => (r?.tag === selected && same(r.items, n) ? r : { tag: selected, items: n })))
+      .then((n) => {
+        if (!live) return;
+        doneByTag.current = want;
+        setByTag((r) => (r?.tag === selected && same(r.items, n) ? r : { tag: selected, items: n }));
+      })
       .catch(() => live && setByTag((r) => (r?.tag === selected ? r : { tag: selected, items: [] })));
     return () => {
       live = false;
     };
-  }, [selected, w.version]);
+  }, [selected, tagsVersion, shown]);
 
   if (selected)
     return (
-      <div>
+      <div ref={rootRef}>
         <button type="button" onClick={() => w.actions.setSelectedTag(null)} className="mb-2 rounded-md px-2 py-3 text-[13px] text-accent-ink hover:underline lg:py-1">
           All tags
         </button>
@@ -335,15 +382,20 @@ export function TagsView() {
 
   if (tags === null)
     return (
-      <div className="space-y-3 px-2 py-1">
+      <div ref={rootRef} className="space-y-3 px-2 py-1">
         {[50, 70, 40].map((x, i) => (
           <Bar key={i} w={`${x}%`} h={10} />
         ))}
       </div>
     );
-  if (!tags.length) return <Empty>No tags yet. Write #tag in a note to add one.</Empty>;
+  if (!tags.length)
+    return (
+      <div ref={rootRef}>
+        <Empty>No tags yet. Write #tag in a note to add one.</Empty>
+      </div>
+    );
   return (
-    <ul className="space-y-0.5">
+    <ul ref={rootRef} className="space-y-0.5">
       {tags.map((t) => (
         <li key={t.tag}>
           <button
