@@ -6,7 +6,6 @@ import {
   ArrowRight,
   BookOpen,
   CalendarDays,
-  ChevronsUpDown,
   FilePlus,
   FileSearch,
   Files,
@@ -42,8 +41,12 @@ import { BacklinksView, OutgoingView, OutlineView, TagsView } from "./right-view
 import { TabGroup } from "./tab-group";
 import { Palette, type Command } from "./palette";
 import { SettingsDialog } from "./settings";
-import { Bar, IconButton, Menu, Toasts, useMenu } from "./ui";
+import { IconButton, Toasts } from "./ui";
 import { splitFrontmatter } from "@/lib/markdown/parse";
+/* vaults-ui */
+import { VaultSwitcher, VaultsHost, openCreateVault, openVaults } from "./vaults";
+import { ShareHost, openShare } from "./share-dialog";
+/* end vaults-ui */
 
 
 export function Workspace({ user, initialPrefs }: { user: User; initialPrefs?: InitialPrefs }) {
@@ -191,42 +194,7 @@ const LEFT_VIEWS: { id: LeftView; label: string; Icon: typeof Files }[] = [
   { id: "search", label: "Search", Icon: Search },
 ];
 
-function VaultSwitcher() {
-  const actions = useWorkspaceActions();
-  const vaultName = useWorkspaceSelector((w) => w.vaultName);
-  const m = useMenu();
-  return (
-    <div className="shrink-0 px-2 pb-2 pt-1">
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={!!m.anchor}
-        aria-label={vaultName ? `Vault: ${vaultName}` : "Vault"}
-        onClick={(e) => m.openBelow(e.currentTarget)}
-        className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-hover pointer-coarse:h-11"
-      >
-        <span className="min-w-0 flex-1">
-          {vaultName ? <span className="block truncate font-medium">{vaultName}</span> : <Bar w="55%" h={12} />}
-        </span>
-        <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 stroke-[1.5] text-faint" />
-      </button>
-      {m.anchor && (
-        <Menu
-          anchor={m.anchor}
-          label="Vault"
-          onClose={m.close}
-          items={[
-            { label: "Settings", shortcut: "Mod+,", onSelect: () => actions.setSettingsOpen("general") },
-            { label: "Import notes…", onSelect: () => actions.setSettingsOpen("general") },
-            { label: "Export vault as .zip", onSelect: actions.exportVault },
-            "separator",
-            { label: "Sign out", onSelect: actions.logout },
-          ]}
-        />
-      )}
-    </div>
-  );
-}
+/* vaults-ui: the vault switcher lives in ./vaults (VaultSwitcher), at the foot of this sidebar. */
 
 function LeftSidebar() {
   const actions = useWorkspaceActions();
@@ -574,6 +542,7 @@ function Shell() {
             { id: "rename", label: "Rename current note", run: () => a.renameNote(note) },
             { id: "reveal", label: "Reveal current note in file explorer", run: () => a.reveal(note.path) },
             { id: "delete", label: "Delete current note", run: () => a.deleteNote(note) },
+            { id: "share", label: "Share note…", run: () => openShare(note) }, // vaults-ui
           ]
         : []),
       { id: "backlinks", label: "Show backlinks", run: () => a.showRight("backlinks") },
@@ -583,6 +552,10 @@ function Shell() {
       { id: "right", label: "Toggle right sidebar", run: () => a.showRight() },
       { id: "import", label: "Import notes", run: () => a.setSettingsOpen("general") },
       { id: "export", label: "Export vault as .zip", run: a.exportVault },
+      /* vaults-ui */
+      { id: "vault-switch", label: "Switch vault…", run: openVaults },
+      { id: "vault-create", label: "Create vault…", run: openCreateVault },
+      /* end vaults-ui */
       { id: "theme-system", label: "Theme: match system", run: () => a.setTheme("system") },
       { id: "theme-light", label: "Theme: light", run: () => a.setTheme("light") },
       { id: "theme-dark", label: "Theme: dark", run: () => a.setTheme("dark") },
@@ -732,6 +705,10 @@ function Shell() {
         />
       )}
       {w.settingsOpen && <SettingsDialog section={w.settingsOpen} />}
+      {/* vaults-ui */}
+      <VaultsHost />
+      <ShareHost />
+      {/* end vaults-ui */}
       <Toasts toasts={w.toasts} dismiss={a.dismissToast} />
     </div>
   );

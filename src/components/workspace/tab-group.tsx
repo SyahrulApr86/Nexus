@@ -28,6 +28,7 @@ import { Reader } from "./reader";
 import { GraphView } from "./graph-view";
 import { Bar, IconButton, Menu, Shortcut, useMenu, type MenuItem } from "./ui";
 import { dirname } from "@/lib/markdown/parse";
+import { openShare } from "./share-dialog"; // vaults-ui
 
 /** Focus an element once it exists (checked each frame, for up to half a second). */
 function focusWhenReady(find: () => HTMLElement | null | undefined, tries = 30) {
@@ -257,6 +258,7 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
         },
         { label: "Reveal in file explorer", onSelect: () => actions.reveal(note.path) },
         { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(`${note.path}.md`).then(() => actions.notify("Path copied")) },
+        { label: "Share…", onSelect: () => openShare(note) }, // vaults-ui
         "separator",
         { label: "Delete note", danger: true, onSelect: () => actions.deleteNote(note) },
       ]
