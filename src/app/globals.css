@@ -745,3 +745,304 @@
     font-size: 0.8em;
   }
 }
+
+/* --- canvas track: JSON Canvas view (src/components/workspace/canvas) --- */
+/*
+ * Card and connection colours: Obsidian's six presets. Each --canvas-N edge is >= 3:1 on the sheet
+ * and on its own wash (light 4.6-5.8:1, dark 5.7-9.0:1); --fg, --muted, --faint, link and tag ink
+ * on every wash stay >= 4.5:1 (lowest: --faint on the dark yellow wash, 5.1:1).
+ */
+:root {
+  --canvas-1: #c4242a; /* red */
+  --canvas-1-wash: #fdecec;
+  --canvas-2: #c2410c; /* orange */
+  --canvas-2-wash: #fff0e8;
+  --canvas-3: #946200; /* yellow */
+  --canvas-3-wash: #fdf5dc;
+  --canvas-4: #247b50; /* green */
+  --canvas-4-wash: #e6f4ec;
+  --canvas-5: #0e7490; /* cyan */
+  --canvas-5-wash: #e2f4f8;
+  --canvas-6: #7546b8; /* purple */
+  --canvas-6-wash: #f2ecfa;
+}
+:root[data-theme="dark"] {
+  --canvas-1: #ef6a73;
+  --canvas-1-wash: #2a1519;
+  --canvas-2: #ff8a66;
+  --canvas-2-wash: #2b1b15;
+  --canvas-3: #d9ad3c;
+  --canvas-3-wash: #262010;
+  --canvas-4: #3fc07a;
+  --canvas-4-wash: #0f261b;
+  --canvas-5: #3cb6d3;
+  --canvas-5-wash: #0b232c;
+  --canvas-6: #b394f0;
+  --canvas-6-wash: #1d1830;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas-1: #ef6a73;
+    --canvas-1-wash: #2a1519;
+    --canvas-2: #ff8a66;
+    --canvas-2-wash: #2b1b15;
+    --canvas-3: #d9ad3c;
+    --canvas-3-wash: #262010;
+    --canvas-4: #3fc07a;
+    --canvas-4-wash: #0f261b;
+    --canvas-5: #3cb6d3;
+    --canvas-5-wash: #0b232c;
+    --canvas-6: #b394f0;
+    --canvas-6-wash: #1d1830;
+  }
+}
+
+@layer components {
+  .canvas-root {
+    --canvas-zoom: 1;
+    background: var(--sheet);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: default;
+  }
+  .canvas-root:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+    border-radius: 0;
+  }
+  @media (min-width: 768px) {
+    /* Follow the sheet's rounded bottom corners. */
+    .canvas-root:focus-visible {
+      border-radius: 0 0 15px 15px;
+    }
+  }
+  .canvas-dot {
+    fill: color-mix(in srgb, var(--control) 45%, transparent);
+  }
+
+  /* Cards and groups. Strokes and rings are divided by the zoom so they stay the same on screen. */
+  .canvas-node {
+    box-sizing: border-box;
+  }
+  .canvas-card {
+    background: var(--cv-wash, var(--sheet));
+    border: calc(1px / var(--canvas-zoom)) solid var(--cv-edge, var(--control));
+    border-radius: 12px;
+    color: var(--fg);
+  }
+  .canvas-card-body {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 11px;
+  }
+  .canvas-group {
+    background: var(--cv-wash, color-mix(in srgb, var(--hover) 55%, transparent));
+    border: calc(1px / var(--canvas-zoom)) solid var(--cv-edge, var(--control));
+    border-radius: 14px;
+  }
+  .canvas-node[data-selected] {
+    border-color: var(--accent);
+    outline: calc(1px / var(--canvas-zoom)) solid var(--accent);
+    outline-offset: 0;
+  }
+  .canvas-node:focus-visible {
+    outline: calc(2px / var(--canvas-zoom)) solid var(--focus);
+    outline-offset: calc(3px / var(--canvas-zoom));
+    border-radius: 12px;
+  }
+  .canvas-group:focus-visible {
+    border-radius: 14px;
+  }
+  .canvas-card.is-editing {
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
+  }
+
+  /* Card text: the note's own reading style, a step smaller to suit a card. */
+  .canvas-card .reading,
+  .canvas-editor .cm-editor {
+    font-size: 15px;
+  }
+  .canvas-card .reading > :first-child {
+    margin-top: 0;
+  }
+  .canvas-card .reading > :last-child {
+    margin-bottom: 0;
+  }
+  .canvas-editor .cm-content {
+    padding: 0 !important;
+  }
+  .canvas-editor .cm-editor.cm-focused {
+    outline: none;
+  }
+
+  .canvas-group-label {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    max-width: 100%;
+    margin-bottom: calc(6px / var(--canvas-zoom));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-ui);
+    font-size: max(14px, calc(14px / var(--canvas-zoom)));
+    line-height: 1.4;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .canvas-group-input {
+    min-width: 12ch;
+    padding: 2px 8px;
+    border: 1px solid var(--control);
+    border-radius: 6px;
+    background: var(--sheet);
+    color: var(--fg);
+    user-select: text;
+  }
+
+  /* Side handles: drag one to another card to connect them. */
+  .canvas-handle {
+    position: absolute;
+    z-index: 2;
+    width: calc(12px / var(--canvas-zoom));
+    height: calc(12px / var(--canvas-zoom));
+    border: calc(1.5px / var(--canvas-zoom)) solid var(--accent);
+    border-radius: 9999px;
+    background: var(--sheet);
+    transform: translate(-50%, -50%);
+    cursor: crosshair;
+    opacity: 0;
+  }
+  .canvas-handle::after {
+    content: "";
+    position: absolute;
+    inset: calc(-6px / var(--canvas-zoom));
+    border-radius: inherit;
+  }
+  .canvas-handle-top { left: 50%; top: 0; }
+  .canvas-handle-bottom { left: 50%; top: 100%; }
+  .canvas-handle-left { left: 0; top: 50%; }
+  .canvas-handle-right { left: 100%; top: 50%; }
+  .canvas-node[data-selected] > .canvas-handle {
+    opacity: 1;
+  }
+  @media (hover: hover) {
+    .canvas-node:hover > .canvas-handle {
+      opacity: 1;
+    }
+  }
+  @media (pointer: coarse) {
+    .canvas-handle {
+      width: calc(20px / var(--canvas-zoom));
+      height: calc(20px / var(--canvas-zoom));
+    }
+    .canvas-node:not([data-selected]) > .canvas-handle {
+      display: none;
+    }
+  }
+  .canvas-resize {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    width: calc(14px / var(--canvas-zoom));
+    height: calc(14px / var(--canvas-zoom));
+    border-right: calc(2px / var(--canvas-zoom)) solid var(--accent);
+    border-bottom: calc(2px / var(--canvas-zoom)) solid var(--accent);
+    border-bottom-right-radius: 10px;
+    cursor: nwse-resize;
+  }
+  .canvas-resize::after {
+    content: "";
+    position: absolute;
+    inset: calc(-8px / var(--canvas-zoom));
+  }
+  @media (pointer: coarse) {
+    .canvas-resize::after {
+      inset: calc(-16px / var(--canvas-zoom));
+    }
+  }
+
+  /* Connections. */
+  .canvas-edge-line {
+    fill: none;
+    stroke: var(--cv-edge, var(--control));
+    stroke-width: 2px;
+    vector-effect: non-scaling-stroke;
+  }
+  .canvas-edge-head {
+    fill: var(--cv-edge, var(--control));
+  }
+  .canvas-edge-hit {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 16px;
+    vector-effect: non-scaling-stroke;
+    pointer-events: stroke;
+    cursor: pointer;
+  }
+  .canvas-edge[data-selected] .canvas-edge-line {
+    stroke: var(--accent);
+    stroke-width: 3px;
+  }
+  .canvas-edge[data-selected] .canvas-edge-head {
+    fill: var(--accent);
+  }
+  .canvas-edge-dot {
+    display: block;
+    width: calc(14px / var(--canvas-zoom));
+    height: calc(14px / var(--canvas-zoom));
+    border: calc(2px / var(--canvas-zoom)) solid var(--cv-edge, var(--control));
+    border-radius: 9999px;
+    background: var(--sheet);
+    opacity: 0;
+  }
+  .canvas-edge-dot:hover,
+  .canvas-edge-dot:focus-visible,
+  .canvas-edge-dot[data-selected] {
+    opacity: 1;
+  }
+  .canvas-edge-dot[data-selected] {
+    border-color: var(--accent);
+  }
+  .canvas-edge-label,
+  .canvas-edge-input {
+    display: block;
+    max-width: 320px;
+    padding: 2px 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid var(--cv-edge, var(--control));
+    border-radius: 6px;
+    background: var(--sheet);
+    color: var(--fg);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    line-height: 20px;
+  }
+  .canvas-edge-label[data-selected] {
+    border-color: var(--accent);
+    outline: 1px solid var(--accent);
+  }
+  .canvas-edge-input {
+    user-select: text;
+  }
+  .canvas-marquee {
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .canvas-handle,
+    .canvas-edge-dot {
+      transition: opacity 150ms var(--ease-out-quint);
+    }
+  }
+}
+/* --- end canvas track --- */

@@ -28,6 +28,15 @@ import { Reader } from "./reader";
 import { GraphView } from "./graph-view";
 import { Bar, IconButton, Menu, Shortcut, useMenu, type MenuItem } from "./ui";
 import { dirname } from "@/lib/markdown/parse";
+// --- canvas track: .canvas notes open in the canvas view ---
+import { isCanvasPath } from "@/lib/canvas";
+import { CanvasView } from "./canvas/canvas-view";
+
+/** True when the note `id` is a .canvas file (the tree knows the path before the note loads). */
+function isCanvasNote(w: WorkspaceValue, id: string) {
+  return isCanvasPath(w.notes[id]?.path ?? w.tree.notes.find((n) => n.id === id)?.path ?? "");
+}
+// --- end canvas track ---
 
 /** Focus an element once it exists (checked each frame, for up to half a second). */
 function focusWhenReady(find: () => HTMLElement | null | undefined, tries = 30) {
@@ -222,6 +231,7 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
   const path = note?.path ?? known?.path;
   const folders = path ? dirname(path).split("/").filter(Boolean) : [];
   const current = view.type !== "note" || note || known ? w.title : "";
+  const canvas = !!path && isCanvasPath(path); // canvas track: no reading/editing toggle, path keeps its extension
 
   /** Destination folders for "Move to…": the vault root, then every folder. */
   const moveItems = (n: { id: string; path: string }): MenuItem[] => {
@@ -256,9 +266,9 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
           },
         },
         { label: "Reveal in file explorer", onSelect: () => actions.reveal(note.path) },
-        { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(`${note.path}.md`).then(() => actions.notify("Path copied")) },
+        { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(canvas ? note.path : `${note.path}.md`).then(() => actions.notify("Path copied")) },
         "separator",
-        { label: "Delete note", danger: true, onSelect: () => actions.deleteNote(note) },
+        { label: canvas ? "Delete canvas" : "Delete note", danger: true, onSelect: () => actions.deleteNote(note) },
       ]
     : [{ label: "Close tab", onSelect: () => actions.closeTab(gi, w.layout.groups[gi].active) }];
 
@@ -292,7 +302,7 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
           </li>
         </ol>
       </nav>
-      {view.type === "note" && (
+      {view.type === "note" && !canvas && (
         <IconButton
           label={view.mode === "edit" ? "Switch to reading view" : "Switch to editing view"}
           shortcut="Mod+E"
@@ -590,6 +600,7 @@ export function TabGroup({ gi }: { gi: number }) {
   const last = gi === layout.groups.length - 1;
   // The pane is the transition boundary, so a note switch is clipped to the sheet.
   const viewKey = view.type === "note" ? `note:${view.id}` : view.type;
+  const canvas = useWorkspaceSelector((s) => view.type === "note" && isCanvasNote(s, view.id)); // canvas track
 
   return (
     <section
@@ -610,8 +621,11 @@ export function TabGroup({ gi }: { gi: number }) {
       >
         <ViewHeader gi={gi} tab={tab} view={view} />
         <ViewTransition key={viewKey} enter="note-in" exit="note-out" default="none">
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-scroll-root>
-            {view.type === "note" ? (
+          <div className={`min-h-0 flex-1 overscroll-contain ${canvas ? "flex flex-col overflow-clip" : "overflow-y-auto"}`} data-scroll-root>
+            {/* --- canvas track --- */}
+            {view.type === "note" && canvas ? (
+              <CanvasView id={view.id} focused={focused} onClose={() => actions.closeTab(gi, g.active)} />
+            ) : /* --- end canvas track --- */ view.type === "note" ? (
               <NoteView
                 id={view.id}
                 mode={view.mode}

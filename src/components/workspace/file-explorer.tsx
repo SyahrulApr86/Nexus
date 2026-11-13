@@ -5,6 +5,11 @@ import { ArrowDownUp, ChevronRight, ChevronsDownUp, EllipsisVertical, FilePen, F
 import type { TreeNote } from "./api";
 import { shallowEqual, useWorkspaceActions, useWorkspaceSelector, type SortOrder } from "./store";
 import { Bar, IconButton, Menu, useMenu, type MenuItem } from "./ui";
+// --- canvas track: .canvas files get their own icon and a "New canvas" command ---
+import { LayoutDashboard } from "lucide-react";
+import { canvasTitle, isCanvasPath } from "@/lib/canvas";
+import { newCanvas } from "./canvas/create";
+// --- end canvas track ---
 
 type Dir = { name: string; path: string; dirs: Map<string, Dir>; notes: TreeNote[] };
 type Row =
@@ -91,6 +96,7 @@ const TreeRow = memo(function TreeRow({
   active,
   tabbable,
   dropTarget,
+  canvas = false,
 }: {
   rowKey: string;
   kind: "dir" | "note";
@@ -100,6 +106,8 @@ const TreeRow = memo(function TreeRow({
   active: boolean;
   tabbable: boolean;
   dropTarget: boolean;
+  /** canvas track: the row is a .canvas file. */
+  canvas?: boolean;
 }) {
   const more = (
     <button
@@ -117,7 +125,7 @@ const TreeRow = memo(function TreeRow({
     "data-key": rowKey,
     "data-kind": kind,
     role: "treeitem",
-    "aria-label": name,
+    "aria-label": canvas ? `${canvasTitle(name)}, canvas` : name, // canvas track
     "aria-level": depth + 1,
     tabIndex: tabbable ? 0 : -1,
     style: { paddingLeft: 8 + depth * 16 },
@@ -152,9 +160,20 @@ const TreeRow = memo(function TreeRow({
         active ? "bg-active font-medium text-accent-ink" : "text-fg hover:bg-hover"
       }`}
     >
-      <span className="truncate pl-5" translate="no">
-        {name}
-      </span>
+      {/* --- canvas track --- */}
+      {canvas ? (
+        <>
+          <LayoutDashboard aria-hidden="true" className="ml-0.5 mr-1.5 size-3.5 shrink-0 stroke-[1.5] text-faint" />
+          <span className="truncate" translate="no">
+            {canvasTitle(name)}
+          </span>
+        </>
+      ) : (
+        /* --- end canvas track --- */
+        <span className="truncate pl-5" translate="no">
+          {name}
+        </span>
+      )}
       {more}
     </div>
   );
@@ -266,6 +285,7 @@ export function FileExplorer() {
         items: [
           { label: "New note", onSelect: () => actions.newNote(row.path) },
           { label: "New folder", onSelect: () => actions.newFolder(row.path) },
+          { label: "New canvas", onSelect: () => void newCanvas(actions, row.path) }, // canvas track
           "separator",
           { label: "Rename…", shortcut: "F2", onSelect: () => actions.renameFolder(row.path) },
           { label: "Delete", danger: true, onSelect: () => actions.deleteFolder(row.path) },
@@ -289,7 +309,7 @@ export function FileExplorer() {
             menu.openBelow(el);
           },
         },
-        { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(`${n.path}.md`).then(() => actions.notify("Path copied")) },
+        { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(isCanvasPath(n.path) ? n.path : `${n.path}.md`).then(() => actions.notify("Path copied")) }, // canvas track: keep .canvas
         "separator",
         { label: "Delete", danger: true, onSelect: () => actions.deleteNote(n) },
       ],
@@ -414,6 +434,20 @@ export function FileExplorer() {
         className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-6 ${dropTarget === "" ? "bg-hover" : ""}`}
         aria-busy={w.treeStatus === "loading" || undefined}
         {...dropProps}
+        // --- canvas track: right-click on blank space offers what a folder offers, at the vault root ---
+        onContextMenu={(e) => {
+          if ((e.target as Element).closest("[data-key]")) return;
+          setMenuItems({
+            label: "Vault root",
+            items: [
+              { label: "New note", onSelect: () => actions.newNote("") },
+              { label: "New folder", onSelect: () => actions.newFolder("") },
+              { label: "New canvas", onSelect: () => void newCanvas(actions, "") },
+            ],
+          });
+          menu.openAt(e);
+        }}
+        // --- end canvas track ---
       >
         {w.treeStatus === "loading" && (
           <div role="status">
@@ -482,6 +516,7 @@ export function FileExplorer() {
                 active={row.kind === "note" && row.note.id === activeId}
                 tabbable={row.key === tabbable}
                 dropTarget={row.kind === "dir" && dropTarget === row.path}
+                canvas={row.kind === "note" && isCanvasPath(row.note.path)} // canvas track
               />
             ))}
           </div>
