@@ -283,6 +283,28 @@ function signals(md: string) {
   const links = [...new Set(extractWikiLinks(md).map((l) => linkKey(l.target)))].sort().join("\n");
   return { links, tags: extractTags(md).sort().join("\n") };
 }
+/** The one contiguous change that turns `base` into `next`: [from, to) in `base` becomes `text`. */
+function splice(base: string, next: string) {
+  const max = Math.min(base.length, next.length);
+  let from = 0;
+  while (from < max && base[from] === next[from]) from++;
+  let tail = 0;
+  while (tail < max - from && base[base.length - 1 - tail] === next[next.length - 1 - tail]) tail++;
+  return { from, to: base.length - tail, text: next.slice(from, next.length - tail) };
+}
+/**
+ * Three-way merge of two versions of `base`, each treated as one contiguous change.
+ * Returns null when the changes touch or overlap: then only the user can decide.
+ */
+function mergeEdits(base: string, mine: string, theirs: string): string | null {
+  if (mine === base || theirs === mine) return theirs;
+  if (theirs === base) return mine;
+  const a = splice(base, mine);
+  const b = splice(base, theirs);
+  const [x, y] = a.to < b.from ? [a, b] : b.to < a.from ? [b, a] : [null, null];
+  if (!x || !y) return null;
+  return base.slice(0, x.from) + x.text + base.slice(x.to, y.from) + y.text + base.slice(y.to);
+}
 const isConflictNote = (d: unknown): d is ConflictNote =>
   !!d && typeof (d as ConflictNote).content === "string" && typeof (d as ConflictNote).updatedAt === "string";
 
@@ -426,6 +448,7 @@ function useWorkspaceState(user: User) {
   const conflictToasts = useRef(new Map<string, number[]>());
   const force = useRef(new Set<string>()); // "Keep mine": the next save overwrites without a base
   const deleted = useRef(new Set<string>()); // deleted from this device: late saves for these are moot
+  const renaming = useRef(0); // a rename is rewriting links on the server: saves wait so their base stays true
   const resolveRef = useRef<(id: string, keep: "mine" | "theirs") => void>(() => {});
   const focusRequest = useRef<FocusRequest | null>(null);
   const navSeq = useRef(0);
@@ -670,6 +693,8 @@ function useWorkspaceState(user: User) {
       }
       const p = pending.current.get(id);
       if (!p) return;
+      // A rename may be rewriting this note's links: the edit stays queued and is sent once it is done.
+      if (renaming.current) return;
       if (p.timer) clearTimeout(p.timer);
       pending.current.delete(id);
       // Deleted here, or waiting for the user to pick a version: nothing to send.
@@ -1174,6 +1199,38 @@ function useWorkspaceState(user: User) {
     for (const id of Object.keys(notesRef.current)) void loadNote(id);
   }, [loadNote]);
 
+  /**
+   * Edits queued while a rename ran were based on the text from before its link rewrite. Fetch each
+   * such note; when the server copy moved, merge both changes and take the server's updatedAt as the
+   * new base. Overlapping changes are left alone: their save answers 409 and the user picks.
+   */
+  const rebaseHeld = useCallback(async () => {
+    await Promise.all(
+      [...pending.current.keys()].map(async (id) => {
+        const fresh = await api.get(id).catch(() => null);
+        const base = serverText.current.get(id);
+        if (!fresh || base === undefined || !pending.current.has(id)) return;
+        if (fresh.updatedAt === baseAt.current.get(id)) return;
+        const mine = live.current.get(id) ?? pending.current.get(id)!.content;
+        const merged = mergeEdits(base, mine, fresh.content);
+        if (merged === null) return;
+        baseAt.current.set(id, fresh.updatedAt);
+        serverText.current.set(id, fresh.content);
+        if (merged === mine) return;
+        live.current.set(id, merged);
+        pending.current.get(id)!.content = merged;
+        writeDraft(id, merged);
+        setNotes((m) => (m[id] ? { ...m, [id]: { ...m[id], content: merged, updatedAt: fresh.updatedAt, rev: m[id].rev + 1 } } : m));
+      }),
+    );
+  }, []);
+
+  /** Send the edits a rename held back. */
+  const resumeHeld = useCallback(() => {
+    if (renaming.current) return;
+    for (const [id, p] of pending.current) if (!p.timer) schedule(id, 0);
+  }, [schedule]);
+
   /** Returns true when the note was renamed. */
   const renameNote = useCallback(
     async (n: { id: string; path: string }, nextPath?: string): Promise<boolean> => {
@@ -1187,9 +1244,24 @@ function useWorkspaceState(user: User) {
           hint: "Links to this note are updated everywhere.",
         }));
       if (!target || target === n.path) return false;
-      await flush(n.id);
+      // The server rewrites links in every note that points here, which moves their updatedAt. Save every
+      // edit first, so each base is current and the revalidate below moves it past the rewrite.
+      await flushAll();
+      await Promise.all([...savingNow.current.values()]);
+      renaming.current++;
+      let held = true;
+      const release = () => {
+        if (!held) return;
+        held = false;
+        renaming.current--;
+        resumeHeld();
+      };
       try {
         const res = await api.rename(n.id, target);
+        // Text typed while the rename ran was held back. Where the server rewrote that note, fold
+        // the rewrite into the local text and move the base, so the held save is not a false conflict.
+        if (res.updatedLinks) await rebaseHeld();
+        release();
         await refreshTree();
         setNotes((m) => (m[n.id] ? { ...m, [n.id]: { ...m[n.id], path: res.path, name: res.name } } : m));
         // Other notes may have had their links rewritten. The tag pane lists notes by name.
@@ -1200,11 +1272,12 @@ function useWorkspaceState(user: User) {
           notify(`Renamed. Updated links in ${res.updatedLinks} ${res.updatedLinks === 1 ? "note" : "notes"}`);
         return true;
       } catch (e) {
+        release();
         fail(e);
         return false;
       }
     },
-    [dialog, flush, refreshTree, revalidateCached, notify, fail, bumpSignals],
+    [dialog, flushAll, rebaseHeld, resumeHeld, refreshTree, revalidateCached, notify, fail, bumpSignals],
   );
 
   const forget = useCallback((ids: string[]) => {
