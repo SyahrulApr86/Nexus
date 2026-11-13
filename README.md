@@ -21,6 +21,14 @@ Antarmuka berbahasa Inggris dengan tata letak Obsidian: ribbon, file explorer da
 | Data | Impor vault Obsidian (`.zip` atau `.md`) dan ekspor `.zip` dari Settings |
 | Akun | Email + password (Better Auth), skema sudah multi-user dan multi-vault |
 
+### Markdown ala Obsidian di mode baca
+
+- Callout `> [!note]`, `> [!warning]+ Judul`, `> [!faq]- Judul` (bisa dilipat), semua tipe dan alias Obsidian
+- Matematika `$inline$` dan `$$blok$$` (KaTeX, `trust` mati); "$5 dan $10" tetap teks
+- Diagram Mermaid di blok ```` ```mermaid ```` (dimuat hanya bila dipakai, `securityLevel: strict`, warna ikut tema)
+- Embed catatan `![[Catatan]]` dan `![[Catatan#Heading]]` saat berdiri sendiri di satu baris (maksimal 2 tingkat, siklus dicegah)
+- Komentar `%%…%%` disembunyikan; footnote `[^1]` menggulir di dalam catatan
+
 ### Hotkey
 
 | Aksi | Tombol |
