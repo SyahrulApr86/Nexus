@@ -24,7 +24,17 @@ import {
   SquareTerminal,
   Waypoints,
 } from "lucide-react";
-import { WorkspaceProvider, useWorkspace, type User, type RightView, type LeftView } from "./store";
+import {
+  WorkspaceProvider,
+  sameNoteMeta,
+  shallowEqual,
+  useWorkspaceActions,
+  useWorkspaceSelector,
+  type User,
+  type RightView,
+  type LeftView,
+  type WorkspaceValue,
+} from "./store";
 import { FileExplorer } from "./file-explorer";
 import { SearchView } from "./search-view";
 import { BacklinksView, OutgoingView, OutlineView, TagsView } from "./right-views";
@@ -66,13 +76,13 @@ function Wordmark() {
 /* ------------------------------------------------------------------ */
 
 function Ribbon({ inert }: { inert: boolean }) {
-  const w = useWorkspace();
-  const a = w.actions;
+  const a = useWorkspaceActions();
+  const leftOpen = useWorkspaceSelector((w) => w.prefs.leftOpen);
   return (
     <nav aria-label="Ribbon" inert={inert} className="hidden w-11 shrink-0 flex-col items-center pb-2 md:flex">
       {/* The mark stays on screen when the left sidebar (which carries the full wordmark) is hidden. */}
       <div className="flex h-10 items-center">
-        {!w.prefs.leftOpen && (
+        {!leftOpen && (
           <span translate="no" className="select-none text-[15px] font-semibold tracking-[-0.01em]">
             <span aria-hidden="true" className="text-accent-ink">
               [[]]
@@ -82,7 +92,7 @@ function Ribbon({ inert }: { inert: boolean }) {
         )}
       </div>
       <div className="mt-2 flex flex-col items-center gap-1">
-        <IconButton label={w.prefs.leftOpen ? "Hide left sidebar" : "Show left sidebar"} onClick={() => a.showLeft()}>
+        <IconButton label={leftOpen ? "Hide left sidebar" : "Show left sidebar"} onClick={() => a.showLeft()}>
           <PanelLeft />
         </IconButton>
         <IconButton label="Open quick switcher" shortcut="Mod+O" onClick={() => a.setPalette("notes")}>
@@ -181,7 +191,8 @@ const LEFT_VIEWS: { id: LeftView; label: string; Icon: typeof Files }[] = [
 ];
 
 function VaultSwitcher() {
-  const w = useWorkspace();
+  const actions = useWorkspaceActions();
+  const vaultName = useWorkspaceSelector((w) => w.vaultName);
   const m = useMenu();
   return (
     <div className="shrink-0 px-2 pb-2 pt-1">
@@ -189,12 +200,12 @@ function VaultSwitcher() {
         type="button"
         aria-haspopup="menu"
         aria-expanded={!!m.anchor}
-        aria-label={w.vaultName ? `Vault: ${w.vaultName}` : "Vault"}
+        aria-label={vaultName ? `Vault: ${vaultName}` : "Vault"}
         onClick={(e) => m.openBelow(e.currentTarget)}
         className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-hover pointer-coarse:h-11"
       >
         <span className="min-w-0 flex-1">
-          {w.vaultName ? <span className="block truncate font-medium">{w.vaultName}</span> : <Bar w="55%" h={12} />}
+          {vaultName ? <span className="block truncate font-medium">{vaultName}</span> : <Bar w="55%" h={12} />}
         </span>
         <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 stroke-[1.5] text-faint" />
       </button>
@@ -204,11 +215,11 @@ function VaultSwitcher() {
           label="Vault"
           onClose={m.close}
           items={[
-            { label: "Settings", shortcut: "Mod+,", onSelect: () => w.actions.setSettingsOpen("general") },
-            { label: "Import notes…", onSelect: () => w.actions.setSettingsOpen("general") },
-            { label: "Export vault as .zip", onSelect: w.actions.exportVault },
+            { label: "Settings", shortcut: "Mod+,", onSelect: () => actions.setSettingsOpen("general") },
+            { label: "Import notes…", onSelect: () => actions.setSettingsOpen("general") },
+            { label: "Export vault as .zip", onSelect: actions.exportVault },
             "separator",
-            { label: "Sign out", onSelect: w.actions.logout },
+            { label: "Sign out", onSelect: actions.logout },
           ]}
         />
       )}
@@ -217,9 +228,12 @@ function VaultSwitcher() {
 }
 
 function LeftSidebar() {
-  const w = useWorkspace();
-  const view = w.prefs.leftView;
-  const open = w.drawer === "left";
+  const actions = useWorkspaceActions();
+  const { view, drawer, leftOpen } = useWorkspaceSelector(
+    (w) => ({ view: w.prefs.leftView, drawer: w.drawer, leftOpen: w.prefs.leftOpen }),
+    shallowEqual,
+  );
+  const open = drawer === "left";
   return (
     <aside
       id="left-sidebar"
@@ -227,11 +241,11 @@ function LeftSidebar() {
       role={open ? "dialog" : undefined}
       aria-modal={open || undefined}
       tabIndex={-1}
-      inert={!!w.drawer && !open}
+      inert={!!drawer && !open}
       className={`fixed inset-y-0 left-0 z-40 flex w-[85vw] max-w-80 flex-col border-r border-border bg-frame shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)]
         max-md:pl-[env(safe-area-inset-left)] md:static md:z-auto md:w-[260px] md:max-w-none md:shrink-0 md:translate-x-0 md:border-r-0 md:shadow-none md:visible
         ${open ? "visible translate-x-0" : "invisible -translate-x-full"}
-        ${w.prefs.leftOpen ? "md:flex" : "md:hidden"}`}
+        ${leftOpen ? "md:flex" : "md:hidden"}`}
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="flex h-10 shrink-0 items-center justify-between pl-3 pr-1 pointer-coarse:h-12">
@@ -242,7 +256,7 @@ function LeftSidebar() {
           prefix="left"
           views={LEFT_VIEWS}
           value={view}
-          onSelect={w.actions.setLeftView}
+          onSelect={actions.setLeftView}
           manual
           className="flex items-center gap-0.5"
         />
@@ -262,14 +276,20 @@ const RIGHT_VIEWS: { id: RightView; label: string; Icon: typeof Link2 }[] = [
   { id: "outline", label: "Outline", Icon: ListTree },
 ];
 
-function RightSidebar() {
-  const w = useWorkspace();
-  const view = w.prefs.rightView;
-  const open = w.drawer === "right";
-  const current = RIGHT_VIEWS.find((v) => v.id === view)!;
-  // The tree knows the name before the note body loads, so the heading does not change mid-load.
+/** The focused note's name. The tree knows it before the note body loads, so a heading does not change mid-load. */
+function focusedNoteName(w: WorkspaceValue) {
   const fv = w.focusView;
-  const noteName = w.activeNote?.name ?? (fv.type === "note" ? w.tree.notes.find((n) => n.id === fv.id)?.name : undefined);
+  return w.activeNote?.name ?? (fv.type === "note" ? w.tree.notes.find((n) => n.id === fv.id)?.name : undefined);
+}
+
+function RightSidebar() {
+  const actions = useWorkspaceActions();
+  const { view, drawer, rightOpen, noteName } = useWorkspaceSelector(
+    (w) => ({ view: w.prefs.rightView, drawer: w.drawer, rightOpen: w.prefs.rightOpen, noteName: focusedNoteName(w) }),
+    shallowEqual,
+  );
+  const open = drawer === "right";
+  const current = RIGHT_VIEWS.find((v) => v.id === view)!;
   const heading = view !== "tags" && noteName ? `${current.label} for ${noteName}` : current.label;
   return (
     <aside
@@ -278,11 +298,11 @@ function RightSidebar() {
       role={open ? "dialog" : undefined}
       aria-modal={open || undefined}
       tabIndex={-1}
-      inert={!!w.drawer && !open}
+      inert={!!drawer && !open}
       className={`fixed inset-y-0 right-0 z-40 flex w-[85vw] max-w-80 flex-col border-l border-border bg-frame shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)] max-lg:pr-[env(safe-area-inset-right)]
         lg:static lg:z-auto lg:w-[280px] lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:border-l-0 lg:shadow-none lg:visible
         ${open ? "visible translate-x-0" : "invisible translate-x-full"}
-        ${w.prefs.rightOpen ? "lg:flex" : "lg:hidden"}`}
+        ${rightOpen ? "lg:flex" : "lg:hidden"}`}
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ViewTabs
@@ -290,7 +310,7 @@ function RightSidebar() {
         prefix="right"
         views={RIGHT_VIEWS}
         value={view}
-        onSelect={w.actions.setRightView}
+        onSelect={actions.setRightView}
         className="flex h-10 shrink-0 items-center gap-0.5 px-2 pointer-coarse:h-12"
       />
       <div id="right-panel" role="tabpanel" aria-labelledby={`right-tab-${view}`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-6">
@@ -341,15 +361,36 @@ const SAVE_TEXT = {
 
 /** Text only, in the bar's own grey; colour only when something is wrong. */
 function SaveLabel() {
-  const w = useWorkspace();
-  const bad = w.save === "error" || w.save === "signedOut";
-  return <span className={bad ? "text-negative" : undefined}>{SAVE_TEXT[w.save]}</span>;
+  const save = useWorkspaceSelector((w) => w.save);
+  const bad = save === "error" || save === "signedOut";
+  return <span className={bad ? "text-negative" : undefined}>{SAVE_TEXT[save]}</span>;
+}
+
+/** The focused note's counts. Follows the published text (at most every 300 ms), not each keystroke. */
+function NoteCounts() {
+  const showRight = useWorkspaceActions().showRight;
+  const { backlinks, content } = useWorkspaceSelector(
+    (w) => ({ backlinks: w.activeNote?.backlinks.length ?? 0, content: w.activeNote?.content ?? "" }),
+    shallowEqual,
+  );
+  const words = useMemo(() => countWords(content), [content]);
+  return (
+    <>
+      <button type="button" onClick={() => showRight("backlinks")} className="tabular -mx-1 rounded px-1 hover:text-fg">
+        {nf.format(backlinks)} {backlinks === 1 ? "backlink" : "backlinks"}
+      </button>
+      <span className="tabular">
+        {nf.format(words)} {words === 1 ? "word" : "words"}
+      </span>
+      <span className="tabular">
+        {nf.format(content.length)} {content.length === 1 ? "character" : "characters"}
+      </span>
+    </>
+  );
 }
 
 function StatusBar({ inert }: { inert: boolean }) {
-  const w = useWorkspace();
-  const note = w.activeNote;
-  const words = useMemo(() => (note ? countWords(note.content) : 0), [note]);
+  const { hasNote, idle } = useWorkspaceSelector((w) => ({ hasNote: !!w.activeNote, idle: w.save === "saved" }), shallowEqual);
   return (
     <footer
       aria-label="Status bar"
@@ -359,28 +400,25 @@ function StatusBar({ inert }: { inert: boolean }) {
     >
       {/* First, so its changing width never moves the counters. Errors are announced by a toast.
           The idle "Saved" waits for the note: while it loads there is nothing to have saved. */}
-      {(note || w.save !== "saved") && <SaveLabel />}
-      {note && (
-        <>
-          <button type="button" onClick={() => w.actions.showRight("backlinks")} className="tabular -mx-1 rounded px-1 hover:text-fg">
-            {nf.format(note.backlinks.length)} {note.backlinks.length === 1 ? "backlink" : "backlinks"}
-          </button>
-          <span className="tabular">
-            {nf.format(words)} {words === 1 ? "word" : "words"}
-          </span>
-          <span className="tabular">
-            {nf.format(note.content.length)} {note.content.length === 1 ? "character" : "characters"}
-          </span>
-        </>
-      )}
+      {(hasNote || !idle) && <SaveLabel />}
+      {hasNote && <NoteCounts />}
     </footer>
   );
 }
 
 function PhoneTopBar({ inert }: { inert: boolean }) {
-  const w = useWorkspace();
-  const v = w.focusView;
-  const bad = w.save === "error" || w.save === "signedOut";
+  const actions = useWorkspaceActions();
+  const { v, drawer, save, name } = useWorkspaceSelector(
+    (w) => ({
+      v: w.focusView,
+      drawer: w.drawer,
+      // Only a problem shows here, so "dirty" and "saving" while typing do not re-render the bar.
+      save: w.save === "error" || w.save === "signedOut" ? w.save : null,
+      name: w.activeNote?.name,
+    }),
+    shallowEqual,
+  );
+  const bad = save !== null;
   return (
     <header
       inert={inert}
@@ -389,19 +427,19 @@ function PhoneTopBar({ inert }: { inert: boolean }) {
     >
       <IconButton
         label="Open files and search"
-        aria-expanded={w.drawer === "left"}
+        aria-expanded={drawer === "left"}
         aria-controls="left-sidebar"
         className="size-11 justify-self-start"
-        onClick={() => w.actions.showLeft()}
+        onClick={() => actions.showLeft()}
       >
         <MenuIcon />
       </IconButton>
       <p className="flex min-w-0 items-center justify-center gap-1.5 font-medium">
-        <span className="truncate">{v.type === "graph" ? "Graph view" : (w.activeNote?.name ?? "Nexus")}</span>
+        <span className="truncate">{v.type === "graph" ? "Graph view" : (name ?? "Nexus")}</span>
         {bad && (
-          <span className="shrink-0" title={SAVE_TEXT[w.save]}>
+          <span className="shrink-0" title={SAVE_TEXT[save]}>
             <span aria-hidden="true" className="block size-1.5 rounded-full bg-negative" />
-            <span className="sr-only">{SAVE_TEXT[w.save]}</span>
+            <span className="sr-only">{SAVE_TEXT[save]}</span>
           </span>
         )}
       </p>
@@ -410,17 +448,17 @@ function PhoneTopBar({ inert }: { inert: boolean }) {
           <IconButton
             label={v.mode === "edit" ? "Switch to reading view" : "Switch to editing view"}
             className="size-11"
-            onClick={() => w.actions.setMode()}
+            onClick={() => actions.setMode()}
           >
             {v.mode === "edit" ? <BookOpen /> : <Pencil />}
           </IconButton>
         )}
         <IconButton
           label="Open links and outline"
-          aria-expanded={w.drawer === "right"}
+          aria-expanded={drawer === "right"}
           aria-controls="right-sidebar"
           className="size-11"
-          onClick={() => w.actions.showRight()}
+          onClick={() => actions.showRight()}
         >
           <PanelRight />
         </IconButton>
@@ -455,8 +493,8 @@ function PhoneBarButton({
 }
 
 function PhoneBottomBar({ inert }: { inert: boolean }) {
-  const w = useWorkspace();
-  const t = w.focusTab;
+  const actions = useWorkspaceActions();
+  const t = useWorkspaceSelector((w) => w.focusTab);
   return (
     <nav
       aria-label="Phone navigation"
@@ -464,19 +502,19 @@ function PhoneBottomBar({ inert }: { inert: boolean }) {
       className="flex shrink-0 items-center justify-around border-t border-rule bg-frame px-1 md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <PhoneBarButton label="Navigate back" text="Back" disabled={!t || t.index === 0} onClick={w.actions.back}>
+      <PhoneBarButton label="Navigate back" text="Back" disabled={!t || t.index === 0} onClick={actions.back}>
         <ArrowLeft />
       </PhoneBarButton>
-      <PhoneBarButton label="Navigate forward" text="Forward" disabled={!t || t.index >= t.history.length - 1} onClick={w.actions.forward}>
+      <PhoneBarButton label="Navigate forward" text="Forward" disabled={!t || t.index >= t.history.length - 1} onClick={actions.forward}>
         <ArrowRight />
       </PhoneBarButton>
-      <PhoneBarButton label="Find or create a note" text="Find" onClick={() => w.actions.setPalette("notes")}>
+      <PhoneBarButton label="Find or create a note" text="Find" onClick={() => actions.setPalette("notes")}>
         <FileSearch />
       </PhoneBarButton>
-      <PhoneBarButton label="New note" text="New" primary onClick={() => w.actions.newNote("")}>
+      <PhoneBarButton label="New note" text="New" primary onClick={() => actions.newNote("")}>
         <FilePlus />
       </PhoneBarButton>
-      <PhoneBarButton label="Commands" text="Commands" onClick={() => w.actions.setPalette("commands")}>
+      <PhoneBarButton label="Commands" text="Commands" onClick={() => actions.setPalette("commands")}>
         <SquareTerminal />
       </PhoneBarButton>
     </nav>
@@ -499,9 +537,22 @@ const usePhone = () => useSyncExternalStore(subscribePhone, () => window.matchMe
 const ALT_CODES: Record<string, string> = { KeyN: "n", KeyT: "t", KeyW: "w", BracketRight: "]", BracketLeft: "[" };
 
 function Shell() {
-  const w = useWorkspace();
-  const a = w.actions;
-  const note = w.activeNote;
+  const a = useWorkspaceActions();
+  // Everything the frame needs except note text: typing (which publishes text) does not re-render it.
+  const w = useWorkspaceSelector(
+    (s) => ({
+      layout: s.layout,
+      focusGroup: s.focusGroup,
+      focusView: s.focusView,
+      drawer: s.drawer,
+      palette: s.palette,
+      settingsOpen: s.settingsOpen,
+      toasts: s.toasts,
+      treeNotes: s.tree.notes,
+    }),
+    shallowEqual,
+  );
+  const note = useWorkspaceSelector((s) => s.activeNote, sameNoteMeta);
   const phone = usePhone();
 
   const commands: Command[] = useMemo(
@@ -672,7 +723,7 @@ function Shell() {
         <Palette
           key={w.palette}
           mode={w.palette}
-          notes={w.tree.notes}
+          notes={w.treeNotes}
           commands={commands}
           onOpen={(id, newTab) => a.open(id, newTab ? "tab" : "current", "edit", { focus: "editor" })}
           onCreate={(name) => a.createAndOpen(name)}

@@ -340,6 +340,25 @@ function createWorkspaceStore(initial: WorkspaceValue): WorkspaceStore {
   };
 }
 
+/** Equal when both are the same object, or objects with the same keys holding identical values. */
+export function shallowEqual<T>(a: T, b: T): boolean {
+  if (Object.is(a, b)) return true;
+  if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
+  const ka = Object.keys(a) as (keyof T)[];
+  if (ka.length !== Object.keys(b).length) return false;
+  return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && Object.is(a[k], b[k]));
+}
+
+/** Arrays with identical items in the same order. */
+export function sameItems<T>(a: readonly T[], b: readonly T[]): boolean {
+  return a === b || (a.length === b.length && a.every((x, i) => Object.is(x, b[i])));
+}
+
+/** The same note as far as its identity goes (id, name, path): for menus and commands, not its text. */
+export function sameNoteMeta(a: { id: string; name: string; path: string } | undefined, b: { id: string; name: string; path: string } | undefined) {
+  return a === b || (!!a && !!b && a.id === b.id && a.name === b.name && a.path === b.path);
+}
+
 /** Everything at once. Re-renders on every workspace change, including the published text while typing. */
 export function useWorkspace() {
   const v = use(WorkspaceContext);
