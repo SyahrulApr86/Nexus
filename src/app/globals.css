@@ -454,3 +454,174 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- Rich markdown ---------- */
+/* Callouts, math, diagrams, embeds and footnotes in the reading view.
+   Callout tints: every title and body pair checked at >= 5.2:1 in both themes. */
+@layer components {
+  :root {
+    --callout-green-bg: #e9f2ee;
+    --callout-green-ink: #1f6e47;
+    --callout-red-bg: #faebec;
+    --callout-red-ink: #b3202a;
+  }
+  :root[data-theme="dark"] {
+    --callout-green-bg: #102725;
+    --callout-green-ink: #3fc07a;
+    --callout-red-bg: #251d24;
+    --callout-red-ink: #f07a82;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --callout-green-bg: #102725;
+      --callout-green-ink: #3fc07a;
+      --callout-red-bg: #251d24;
+      --callout-red-ink: #f07a82;
+    }
+  }
+
+  .reading .callout {
+    --callout-bg: var(--accent-soft);
+    --callout-ink: var(--accent-ink);
+    margin: 1.25em 0;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: var(--callout-bg);
+  }
+  .reading .callout[data-callout="question"],
+  .reading .callout[data-callout="example"],
+  .reading .callout[data-callout="quote"] {
+    --callout-bg: var(--code-bg);
+    --callout-ink: var(--muted);
+  }
+  .reading .callout[data-callout="tip"],
+  .reading .callout[data-callout="success"] {
+    --callout-bg: var(--callout-green-bg);
+    --callout-ink: var(--callout-green-ink);
+  }
+  .reading .callout[data-callout="warning"] {
+    --callout-bg: var(--mark-soft);
+    --callout-ink: var(--mark-ink);
+  }
+  .reading .callout[data-callout="failure"],
+  .reading .callout[data-callout="danger"],
+  .reading .callout[data-callout="bug"] {
+    --callout-bg: var(--callout-red-bg);
+    --callout-ink: var(--callout-red-ink);
+  }
+  .reading .callout-title {
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: 600;
+    color: var(--callout-ink);
+    margin: 0;
+  }
+  .reading .callout-content {
+    margin-top: 6px;
+  }
+  .reading .callout-content > :first-child {
+    margin-top: 0;
+  }
+  .reading .callout-content > :last-child {
+    margin-bottom: 0;
+  }
+  .reading details.callout > summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    list-style: none;
+    border-radius: 4px;
+  }
+  .reading details.callout > summary::-webkit-details-marker {
+    display: none;
+  }
+  .reading details.callout > summary::after {
+    content: "";
+    width: 7px;
+    height: 7px;
+    margin-left: 2px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform 150ms var(--ease-out-quint);
+  }
+  .reading details.callout:not([open]) > summary::after {
+    transform: rotate(-45deg);
+  }
+
+  .reading .katex {
+    font-size: 1.06em;
+  }
+  .reading .katex-display {
+    margin: 1em 0;
+    padding: 4px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .reading .mermaid-diagram {
+    margin: 1.25em 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+  .reading .mermaid-diagram svg {
+    max-width: 100%;
+    height: auto;
+  }
+  .reading .mermaid-error {
+    margin: 1em 0 0.25em;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--negative);
+  }
+
+  .reading .embed {
+    margin: 1.25em 0;
+    padding: 12px 16px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .reading .embed > .embed-title {
+    display: inline-block;
+    margin-bottom: 6px;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .reading .embed-body > :first-child {
+    margin-top: 0;
+  }
+  .reading .embed-body > :last-child {
+    margin-bottom: 0;
+  }
+  .reading .embed-note {
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--faint);
+  }
+
+  .reading .footnotes {
+    margin-top: 2.5em;
+    padding-top: 1em;
+    border-top: 1px solid var(--border);
+    font-size: 0.88em;
+    color: var(--muted);
+  }
+  .reading .footnotes ol {
+    padding-left: 1.2em;
+  }
+  .reading sup > a,
+  .reading .data-footnote-backref {
+    text-decoration: none;
+    font-family: var(--font-ui);
+  }
+  .reading sup > a {
+    padding: 0 2px;
+    font-size: 0.8em;
+  }
+}
