@@ -16,12 +16,14 @@ import {
   type RefObject,
 } from "react";
 import { api, ApiError, type ConflictNote, type FullNote, type Tree, type TreeNote } from "./api";
+import { goToVault, initActiveVault, vaultHeaders } from "./api"; // vaults-ui
 import { useDialogs, type DialogApi } from "./dialogs";
 import type { Toast } from "./ui";
 import type { EditorHandle } from "./editor";
 import { basename, dirname, extractTags, extractWikiLinks, linkKey } from "@/lib/markdown/parse";
 import { signOut } from "@/lib/auth-client";
 import { writePrefsCookie, type LayoutPrefs, type LeftView, type RightView, type SortOrder } from "./prefs-cookie";
+import { exportActiveVault } from "./vaults-export";
 
 /* ------------------------------------------------------------------ */
 /* Layout model: tab groups (max two, side by side), tabs with history */
@@ -919,7 +921,7 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
         // With the base: a note changed elsewhere answers 409 and the draft stays for the next visit.
         const body = JSON.stringify({ content: p.content, baseUpdatedAt: force.current.has(id) ? undefined : baseAt.current.get(id) });
         if (new Blob([body]).size > KEEPALIVE_LIMIT) continue; // too large for keepalive: the draft stays
-        fetch(`/api/notes/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body, keepalive: true })
+        fetch(`/api/notes/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...vaultHeaders() /* vaults-ui */ }, body, keepalive: true })
           .then((r) => r.ok && clearDraft(id))
           .catch(() => {});
       }
@@ -1644,8 +1646,8 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
   );
 
   // A file download from an API route, not a page navigation.
-  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-  const exportVault = useCallback(() => window.location.assign("/api/vault/export"), []);
+  // vaults-ui: export the vault on screen (a plain navigation would drop the vault header).
+  const exportVault = useCallback(() => void exportActiveVault(notify), [notify]);
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
@@ -1675,6 +1677,32 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign("/login");
   }, [flushAll, notify]);
+
+  /* ---------------- vaults-ui: active vault and switching ---------------- */
+
+  // Before the first request (effects run after this render): pick the vault from ?v= or this
+  // device's last choice, so every API call and the restored layout belong to it.
+  useState(() => initActiveVault(user.email));
+
+  /**
+   * Opens another vault. Waits for every pending save first; a fresh page then loads the new
+   * vault's tree and layout, so nothing of the previous vault stays in memory. `from` is the
+   * vault on screen (its id), whose layout is kept for later. False when saving failed.
+   */
+  const switchVault = useCallback(
+    async (to: string, from: string | null) => {
+      await flushAll();
+      if (pending.current.size || savingNow.current.size || conflicts.current.size || gone.current.size || signedOut.current) {
+        notify("Couldn’t save your changes, so the vault was not switched. Try again once they are saved.", { tone: "error" });
+        return false;
+      }
+      goToVault(to, from);
+      return true;
+    },
+    [flushAll, notify],
+  );
+
+  /* ---------------- end vaults-ui ---------------- */
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
@@ -1739,6 +1767,7 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
       bump,
       peekFocusRequest,
       clearFocusRequest,
+      switchVault, // vaults-ui
     }),
     [
       open, openView, openLink, openTag, back, forward, setMode, activate, focusGroupAt, closeTab, closeOthers,
@@ -1746,6 +1775,7 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
       deleteNote, moveNote, newFolder, renameFolder, deleteFolder, showLeft, showRight, setLeftView, setRightView,
       setSort, setExpanded, setDrawer, setSettingsOpen, searchFor, reveal, importFiles, exportVault, setTheme,
       logout, notify, dismissToast, bump, peekFocusRequest, clearFocusRequest,
+      switchVault, // vaults-ui
     ],
   );
 

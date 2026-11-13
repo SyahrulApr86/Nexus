@@ -77,7 +77,7 @@ async function SharedNote({ params }: { params: PageProps<"/s/[token]">["params"
     <>
       <Sheet>
         <article>
-          <h1 className="font-note text-[1.75rem] leading-tight font-semibold text-balance [overflow-wrap:anywhere] md:text-[2rem]">
+          <h1 className="font-note text-[24px] leading-8 font-semibold tracking-[-0.01em] text-balance [overflow-wrap:anywhere] md:text-[28px] md:leading-9">
             {found.name}
           </h1>
           <p className="mt-2 mb-8 font-ui text-[13px] leading-5 text-muted">
@@ -87,21 +87,26 @@ async function SharedNote({ params }: { params: PageProps<"/s/[token]">["params"
           <div className="reading" dangerouslySetInnerHTML={{ __html: found.html }} />
         </article>
       </Sheet>
-      <p className="mt-6 font-ui text-[13px] leading-5 text-muted">
+      <p className="mx-auto mt-4 max-w-[700px] px-3 text-center font-ui text-[13px] leading-5 text-muted md:px-0">
         Anyone with this link can read this note. Links to other notes show as plain text.
       </p>
     </>
   );
 }
 
+/** The note sheet: the app's reading view, centred on the 700px measure. */
 function Sheet({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-[14px] border border-border bg-sheet px-5 py-7 md:px-12 md:py-12">{children}</div>;
+  return (
+    <div className="rounded-[14px] border border-border bg-sheet px-5 py-7 md:px-10 md:py-12">
+      <div className="mx-auto max-w-[700px]">{children}</div>
+    </div>
+  );
 }
 
 /** The sheet at its final width, text replaced by flat bars: no layout shift when the note arrives. */
 function NoteSkeleton() {
   return (
-    <div className="rounded-[14px] border border-border bg-sheet px-5 py-7 md:px-12 md:py-12" aria-busy="true">
+    <div className="rounded-[14px] border border-border bg-sheet px-5 py-7 md:px-10 md:py-12" aria-busy="true">
       <p role="status" className="sr-only">
         Opening the shared note…
       </p>

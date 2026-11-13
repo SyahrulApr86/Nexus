@@ -85,6 +85,10 @@ async function assertVaultQuota(tx: Exec, vaultId: string) {
     .where(eq(note.vaultId, vaultId));
   if (q.notes > LIMITS.vaultNotes) throw new HttpError(413, `A vault holds at most ${LIMITS.vaultNotes} notes`);
   if (Number(q.bytes) > LIMITS.vaultBytes) throw new HttpError(413, "The vault is full");
+  // Plus the owner's total across all their vaults. Imported lazily: vaults.ts reads LIMITS from
+  // this module at load time, so a static import would be a cycle.
+  const { assertUserQuota } = await import("@/lib/vaults");
+  await assertUserQuota(tx, vaultId);
 }
 
 /* ------------------------------------------------------------------ */
