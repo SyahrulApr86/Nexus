@@ -17,8 +17,8 @@ const HOTKEYS: [string, string][] = [
   ["Close tab", "Alt+W"],
   ["Next tab", "Alt+]"],
   ["Previous tab", "Alt+["],
-  ["Navigate back", "Mod+Alt+←"],
-  ["Navigate forward", "Mod+Alt+→"],
+  ["Navigate back", "Ctrl+Alt+←"],
+  ["Navigate forward", "Ctrl+Alt+→"],
   ["Save now", "Mod+S"],
   ["Open settings", "Mod+,"],
 ];
@@ -41,21 +41,22 @@ function Row({ title, description, children }: { title: string; description?: st
   );
 }
 
-export function SettingsDialog() {
+export function SettingsDialog({ section = "general" }: { section?: "general" | "hotkeys" }) {
   const w = useWorkspace();
   const file = useRef<HTMLInputElement>(null);
   const close = () => w.actions.setSettingsOpen(false);
 
   return (
     <Modal label="Settings" onClose={close} className="max-w-2xl" placement="top">
-      <div className="max-h-[80vh] overflow-y-auto rounded-xl border border-border bg-sheet shadow-[var(--shadow-float)]">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-rule bg-sheet px-6 py-3">
+      {/* The header sits outside the scroller, so it can never cover a focused control. */}
+      <div className="flex max-h-[min(80vh,calc(100dvh-12vh-1.5rem))] flex-col overflow-hidden rounded-xl border border-border bg-sheet shadow-[var(--shadow-float)]">
+        <div className="flex shrink-0 items-center justify-between border-b border-rule px-6 py-3">
           <h2 className="text-[16px] font-medium">Settings</h2>
           <IconButton label="Close settings" onClick={close}>
             <X />
           </IconButton>
         </div>
-        <div className="px-6 pb-4">
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-6 pb-4">
           <Row title="Theme" description="Nexus follows your device until you pick one.">
             <fieldset>
               <legend className="sr-only">Theme</legend>
@@ -118,7 +119,14 @@ export function SettingsDialog() {
             </button>
           </Row>
           <div className="py-5">
-            <h3 className="font-medium">Hotkeys</h3>
+            <h3
+              id="settings-hotkeys"
+              tabIndex={-1}
+              data-autofocus={section === "hotkeys" ? true : undefined}
+              className="scroll-mt-4 font-medium"
+            >
+              Hotkeys
+            </h3>
             <dl className="mt-3 grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
               {HOTKEYS.map(([label, keys]) => (
                 <div key={label} className="flex items-center justify-between gap-3 text-[13px]">
