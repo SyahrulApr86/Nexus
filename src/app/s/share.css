@@ -1,0 +1,47 @@
+/* Public share page (src/app/s/[token]). Tokens come from globals.css. */
+
+/* [[Links]] to other notes: plain text, since nothing else in the vault is reachable from here. */
+.reading .share-link {
+  color: inherit;
+}
+/* #tags: the app's orange tag chip, without a link. */
+.reading .share-tag {
+  color: var(--mark-ink);
+  background: var(--mark-soft);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-family: var(--font-ui);
+  font-size: 0.82em;
+}
+/* An embedded note (![[Note]]): its name only, set like the app's embed title. */
+.reading .share-embed {
+  margin: 1.25em 0;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--muted);
+}
+/* Task boxes are read-only here. The browser's disabled box is too faint to read its state, so
+   draw it: a --control edge (>= 3:1) when open, a blue fill with a white tick when done. */
+.reading li.task-list-item > label,
+.reading li.task-list-item > p > label {
+  cursor: default;
+}
+.reading input[type="checkbox"]:disabled {
+  appearance: none;
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border: 1px solid var(--control);
+  border-radius: 3px;
+  background: var(--sheet) no-repeat center / 11px 11px;
+  opacity: 1;
+  cursor: default;
+}
+.reading input[type="checkbox"]:disabled:checked {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}

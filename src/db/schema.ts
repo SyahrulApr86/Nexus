@@ -267,3 +267,36 @@ export const linkRelations = relations(link, ({ one }) => ({
 export const tagRelations = relations(tag, ({ one }) => ({
   note: one(note, { fields: [tag.noteId], references: [note.id] }),
 }));
+
+/* ------------------------------------------------------------------ */
+/* Sharing (vaults-sharing track). Self-contained: only this block.    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A public, read-only link to one note. Only sha256(token) is stored, as 64 hex characters: the
+ * token itself is shown once, when the link is made. A link stops working when it is revoked, when
+ * it expires, or when its note is deleted (cascade). Policy lives in src/lib/shares.ts.
+ */
+export const share = pgTable(
+  "share",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => vault.id, { onDelete: "cascade" }),
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => note.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at"),
+    expiresAt: timestamp("expires_at"),
+  },
+  (t) => [
+    uniqueIndex("share_token_hash_uq").on(t.tokenHash),
+    index("share_note_idx").on(t.noteId),
+    // ON DELETE CASCADE from vault needs this to avoid a full scan.
+    index("share_vault_idx").on(t.vaultId),
+    check("share_token_hash_check", sql`${t.tokenHash} ~ '^[0-9a-f]{64}$'`),
+  ],
+);

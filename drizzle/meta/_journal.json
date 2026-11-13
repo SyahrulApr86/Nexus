@@ -29,6 +29,13 @@
       "when": 1794582951725,
       "tag": "0003_note_revision_vault_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794590065418,
+      "tag": "0004_share",
+      "breakpoints": true
     }
   ]
 }
