@@ -26,6 +26,7 @@ import {
 } from "@codemirror/autocomplete";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { tags as t } from "@lezer/highlight";
+import { livePreview } from "./live-preview";
 
 export type EditorHandle = { scrollToLine: (line: number) => void; focus: () => void };
 
@@ -246,6 +247,7 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
           tagDecorations,
           highlightDecorations,
           codeBlocks,
+          livePreview({ openLink: (target, newTab) => cb.current.onOpenLink(target, newTab) }),
           keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, ...completionKeymap, indentWithTab]),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) cb.current.onChange(u.state.doc.toString());
