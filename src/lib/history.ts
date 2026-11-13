@@ -39,6 +39,8 @@ const newestFirst = () => [desc(noteRevision.createdAt), desc(noteRevision.id)];
  * Call inside the transaction that is about to replace the content of
  * `noteId` with `next`. Locks the note row (the same lock the UPDATE takes),
  * so concurrent saves of one note take turns instead of both writing a revision.
+ * Returns the UTF-8 size of the content being replaced (null when the note does
+ * not exist), so the caller can skip the vault quota check when a note shrinks.
  */
 export async function snapshotBeforeWrite(
   tx: Tx,
@@ -46,14 +48,21 @@ export async function snapshotBeforeWrite(
   noteId: string,
   next: string,
   reason: RevisionReason,
-) {
+): Promise<number | null> {
   const [current] = await tx
     .select({ content: note.content })
     .from(note)
     .where(and(eq(note.vaultId, vaultId), eq(note.id, noteId)))
     .for("no key update");
-  if (!current || current.content === next) return;
+  if (!current) return null;
+  const previousBytes = Buffer.byteLength(current.content, "utf8");
+  if (current.content === next) return previousBytes;
+  await keepRevision(tx, vaultId, noteId, current.content, reason);
+  return previousBytes;
+}
 
+/** The revision policy of snapshotBeforeWrite, once the content is known to change. */
+async function keepRevision(tx: Tx, vaultId: string, noteId: string, current: string, reason: RevisionReason) {
   const [newest] = await tx
     .select({
       recent: sql<boolean>`${noteRevision.createdAt} > now() - ${SNAPSHOT_INTERVAL}`,
@@ -67,7 +76,7 @@ export async function snapshotBeforeWrite(
   if (newest?.same) return;
   if (newest?.recent && !ALWAYS_KEEP.has(reason)) return;
 
-  await tx.insert(noteRevision).values({ noteId, vaultId, content: current.content, reason });
+  await tx.insert(noteRevision).values({ noteId, vaultId, content: current, reason });
 
   const overflow = tx
     .select({ id: noteRevision.id })
@@ -83,6 +92,55 @@ export async function snapshotBeforeWrite(
         or(sql`${noteRevision.createdAt} < now() - ${RETENTION}`, inArray(noteRevision.id, overflow)),
       ),
     );
+}
+
+/**
+ * snapshotBeforeWrite for many notes at once, for import (reason "import", which skips the
+ * throttle). `next` maps note id to the content about to be written. Set-based: the comparison
+ * and the copy run in Postgres, so no current note body is loaded into the app.
+ */
+export async function snapshotBeforeImport(tx: Tx, vaultId: string, next: Map<string, string>) {
+  if (!next.size) return;
+  const ids = [...next.keys()];
+  await tx
+    .select({ id: note.id })
+    .from(note)
+    .where(and(eq(note.vaultId, vaultId), inArray(note.id, ids)))
+    .for("no key update");
+  const incoming = sql.join(
+    [...next].map(([id, content]) => sql`(${id}::uuid, ${content}::text)`),
+    sql`, `,
+  );
+  await tx.execute(sql`
+    insert into ${noteRevision} (note_id, vault_id, content, reason)
+    select n.id, n.vault_id, n.content, 'import'
+    from ${note} n
+    join (values ${incoming}) as v(id, content) on v.id = n.id
+    where n.vault_id = ${vaultId}
+      and n.content <> v.content
+      and not exists (
+        select 1 from (
+          select r.content from ${noteRevision} r
+          where r.note_id = n.id and r.created_at >= now() - ${RETENTION}
+          order by r.created_at desc, r.id desc
+          limit 1
+        ) newest
+        where newest.content = n.content
+      )`);
+  await tx.execute(sql`
+    delete from ${noteRevision}
+    where note_id in (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})
+      and (
+        created_at < now() - ${RETENTION}
+        or id in (
+          select id from (
+            select id, row_number() over (partition by note_id order by created_at desc, id desc) as rn
+            from ${noteRevision}
+            where note_id in (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})
+          ) ranked
+          where rn > ${MAX_REVISIONS}
+        )
+      )`);
 }
 
 async function assertNote(vaultId: string, noteId: string) {

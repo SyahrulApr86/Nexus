@@ -151,7 +151,7 @@ describeDb("links", () => {
     });
 
     it("is empty for an empty vault", async () => {
-      expect(await graph(v.a)).toEqual({ nodes: [], edges: [] });
+      expect(await graph(v.a)).toEqual({ nodes: [], edges: [], truncated: false });
     });
   });
 });

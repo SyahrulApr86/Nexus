@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { createNote, resolveLink } from "@/lib/notes";
-import { handle, requireVault } from "@/lib/session";
+import { NotePath, createNote, resolveLink } from "@/lib/notes";
+import { KiB, handle, readJson, requireVault } from "@/lib/session";
 
 /**
  * POST /api/resolve { target, create? }
@@ -11,8 +11,16 @@ export async function POST(req: Request) {
   return handle(async () => {
     const { vaultId } = await requireVault();
     const { target, create, content } = z
-      .object({ target: z.string().min(1).max(500), create: z.boolean().optional(), content: z.string().max(100_000).optional() })
-      .parse(await req.json());
+      .object({
+        target: NotePath.pipe(z.string().min(1)),
+        create: z.boolean().optional(),
+        content: z
+          .string()
+          .max(100_000)
+          .refine((s) => !s.includes("\u0000"), "Content must not contain NUL")
+          .optional(),
+      })
+      .parse(await readJson(req, 512 * KiB));
     const hit = await resolveLink(vaultId, target);
     if (hit) return { ...hit, created: false };
     if (!create) return { id: null };

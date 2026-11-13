@@ -1,19 +1,34 @@
+# Rotate container logs so a flood of requests cannot fill the disk.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   db:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
+      # `nexus` owns the schema (superuser of this container, used by migrate only).
       POSTGRES_USER: nexus
       POSTGRES_DB: nexus
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Password of `nexus_app`, the least-privilege role the app connects as (see configs below).
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-}
     ports:
       - "127.0.0.1:${DB_PORT:-5442}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    configs:
+      - source: app-role
+        target: /docker-entrypoint-initdb.d/10-app-role.sh
+        mode: 0555
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nexus"]
       interval: 5s
       retries: 10
+    logging: *logging
 
   migrate:
     profiles: ["prod"]
@@ -24,7 +39,9 @@ services:
       db:
         condition: service_healthy
     environment:
+      # POSTGRES_PASSWORD must be URL-safe (openssl rand -hex 32), see .env.example.
       DATABASE_URL: postgres://nexus:${POSTGRES_PASSWORD}@db:5432/nexus
+    logging: *logging
 
   app:
     profiles: ["prod"]
@@ -38,11 +55,52 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgres://nexus:${POSTGRES_PASSWORD}@db:5432/nexus
+      # Not a superuser: SELECT/INSERT/UPDATE/DELETE on the app tables only. APP_DB_PASSWORD is not
+      # marked required here because compose checks every service, and `pnpm db:up` must keep
+      # working without it; with it unset the app cannot connect, so the deploy fails closed.
+      DATABASE_URL: postgres://nexus_app:${APP_DB_PASSWORD:-}@db:5432/nexus
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # The public https:// origin. Cookies are only marked Secure when this is https.
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set BETTER_AUTH_URL to the public https:// origin in .env}
+      NEXUS_ALLOW_SIGNUP: ${NEXUS_ALLOW_SIGNUP:-false}
+      NEXUS_TRUSTED_PROXIES: ${NEXUS_TRUSTED_PROXIES:-}
+      NODE_OPTIONS: --max-old-space-size=${APP_MAX_OLD_SPACE_MB:-1024}
+    # Loopback only: the app is reached through the HTTPS reverse proxy on this host. Published on
+    # every interface, it would take plain HTTP and let a client pick its own X-Forwarded-For.
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    mem_limit: ${APP_MEM_LIMIT:-1536m}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/login || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: *logging
+
+configs:
+  # Runs once, when the pgdata volume is first initialised. For an existing volume run it by hand
+  # (README, Deploy). Idempotent. The password reaches psql as a variable, never inside the SQL text.
+  app-role:
+    content: |
+      #!/bin/sh
+      # No `set -u` and no `exit`: the postgres entrypoint sources a script that is not executable.
+      if [ -z "$${APP_DB_PASSWORD:-}" ]; then
+        echo "10-app-role: APP_DB_PASSWORD is empty, role nexus_app not created" >&2
+      else
+      psql -v ON_ERROR_STOP=1 -v app_password="$$APP_DB_PASSWORD" \
+        --username "$${POSTGRES_USER:-nexus}" --dbname "$${POSTGRES_DB:-nexus}" <<'SQL'
+      SELECT format('CREATE ROLE nexus_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L', :'app_password')
+        WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'nexus_app')\gexec
+      SELECT format('ALTER ROLE nexus_app PASSWORD %L', :'app_password')\gexec
+      GRANT CONNECT ON DATABASE nexus TO nexus_app;
+      GRANT USAGE ON SCHEMA public TO nexus_app;
+      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO nexus_app;
+      ALTER DEFAULT PRIVILEGES FOR ROLE nexus IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO nexus_app;
+      ALTER DEFAULT PRIVILEGES FOR ROLE nexus IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO nexus_app;
+      REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+      SQL
+      fi
 
 volumes:
   pgdata:

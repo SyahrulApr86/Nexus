@@ -2,7 +2,8 @@ import "server-only";
 import { and, asc, count, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { folder, link, note, tag, type RevisionReason } from "@/db/schema";
-import { snapshotBeforeWrite } from "@/lib/history";
+import { z } from "zod";
+import { snapshotBeforeImport, snapshotBeforeWrite } from "@/lib/history";
 import {
   basename,
   dirname,
@@ -10,6 +11,7 @@ import {
   extractWikiLinks,
   linkKey,
   maskCode,
+  isUnsafePath,
   normalizePath,
   parseFrontmatter,
   splitFrontmatter,
@@ -20,36 +22,119 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Exec = typeof db | Tx;
 
 /* ------------------------------------------------------------------ */
+/* Limits (input validation and resource quotas)                       */
+/* ------------------------------------------------------------------ */
+
+/** Policy values: generous for a personal vault, small enough that no request can exhaust the server. */
+export const LIMITS = {
+  /** Characters in a path as typed or imported, before normalisation. */
+  rawPath: 500,
+  /** Characters in a normalised path. */
+  path: 500,
+  /** Folder depth of a path (segments). */
+  segments: 32,
+  /** Characters in one path segment (a common file-system limit). */
+  segment: 255,
+  /** UTF-8 bytes in one note. */
+  noteBytes: 5 * 1024 * 1024,
+  /** Notes in one vault. */
+  vaultNotes: 20_000,
+  /** UTF-8 bytes of all notes in one vault. */
+  vaultBytes: 500 * 1024 * 1024,
+  /** Distinct links and tags indexed per note; the rest of the note is still saved. */
+  linksPerNote: 1_000,
+  tagsPerNote: 200,
+} as const;
+
+const hasNul = (s: string) => s.includes("\u0000");
+
+/** Raw path from a request body: bounded, no NUL. Normalised and checked again by validatePath. */
+export const NotePath = z
+  .string()
+  .max(LIMITS.rawPath)
+  .refine((s) => !hasNul(s), "Path must not contain NUL");
+
+/** Note content from a request body: at most LIMITS.noteBytes of UTF-8, no NUL (Postgres text refuses it). */
+export const NoteContent = z
+  .string()
+  .refine((s) => s.length <= LIMITS.noteBytes && Buffer.byteLength(s, "utf8") <= LIMITS.noteBytes, "Note is too large")
+  .refine((s) => !hasNul(s), "Content must not contain NUL");
+
+/** Why a normalised path is refused, or null when it is fine. */
+export function pathProblem(path: string): string | null {
+  if (!path) return "Invalid path";
+  if (path.length > LIMITS.path) return "Path is too long";
+  const segs = path.split("/");
+  if (segs.length > LIMITS.segments) return "Path is nested too deeply";
+  if (segs.some((s) => s.length > LIMITS.segment)) return "A path segment is too long";
+  if (isUnsafePath(path)) return "Invalid path";
+  return null;
+}
+
+/** Throws 400 unless the normalised path is within LIMITS and has no "." or ".." segment. */
+function validatePath(path: string) {
+  const problem = pathProblem(path);
+  if (problem) throw new HttpError(400, problem);
+}
+
+/** Throws 413 when the vault is over its note or byte quota. Run inside the write's transaction. */
+async function assertVaultQuota(tx: Exec, vaultId: string) {
+  const [q] = await tx
+    .select({ notes: count(), bytes: sql<string>`coalesce(sum(octet_length(${note.content})), 0)` })
+    .from(note)
+    .where(eq(note.vaultId, vaultId));
+  if (q.notes > LIMITS.vaultNotes) throw new HttpError(413, `A vault holds at most ${LIMITS.vaultNotes} notes`);
+  if (Number(q.bytes) > LIMITS.vaultBytes) throw new HttpError(413, "The vault is full");
+}
+
+/* ------------------------------------------------------------------ */
 /* Indexing                                                            */
 /* ------------------------------------------------------------------ */
 
-async function reindex(tx: Exec, vaultId: string, noteId: string, content: string) {
+/** Distinct outgoing links and tags of one note, capped at LIMITS.linksPerNote / tagsPerNote. */
+function indexOf(content: string, fm: Record<string, unknown>) {
+  const seen = new Set<string>();
+  const links: { target: string; embed: boolean }[] = [];
+  for (const l of extractWikiLinks(content)) {
+    if (!l.target) continue;
+    const target = linkKey(l.target);
+    const k = `${target}|${l.embed}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    links.push({ target, embed: l.embed });
+    if (links.length >= LIMITS.linksPerNote) break;
+  }
+  const tags = extractTags(content, fm).slice(0, LIMITS.tagsPerNote);
+  return { links, tags };
+}
+
+async function reindex(tx: Exec, vaultId: string, noteId: string, content: string, fm = frontmatterOf(content)) {
   await tx.delete(link).where(eq(link.sourceId, noteId));
   await tx.delete(tag).where(eq(tag.noteId, noteId));
-
-  const seen = new Set<string>();
-  const links = extractWikiLinks(content)
-    .filter((l) => l.target)
-    .map((l) => ({ sourceId: noteId, vaultId, target: linkKey(l.target), embed: l.embed }))
-    .filter((l) => {
-      const k = `${l.target}|${l.embed}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-  if (links.length) await tx.insert(link).values(links);
-
-  const tags = extractTags(content).map((t) => ({ noteId, vaultId, tag: t }));
-  if (tags.length) await tx.insert(tag).values(tags);
+  const idx = indexOf(content, fm);
+  if (idx.links.length) await tx.insert(link).values(idx.links.map((l) => ({ ...l, sourceId: noteId, vaultId })));
+  if (idx.tags.length) await tx.insert(tag).values(idx.tags.map((t) => ({ noteId, vaultId, tag: t })));
 }
 
 function frontmatterOf(content: string) {
   return parseFrontmatter(splitFrontmatter(content).yaml);
 }
 
+/** Every ancestor folder of `notePath`, outermost first ("a", "a/b"). Built one segment at a time. */
+function ancestors(notePath: string): string[] {
+  const out: string[] = [];
+  let acc = "";
+  for (const part of dirname(notePath).split("/")) {
+    if (!part) continue;
+    acc = acc ? `${acc}/${part}` : part;
+    out.push(acc);
+  }
+  return out;
+}
+
 async function ensureFolders(tx: Exec, vaultId: string, notePath: string) {
-  const parts = dirname(notePath).split("/").filter(Boolean);
-  const paths = parts.map((_, i) => parts.slice(0, i + 1).join("/"));
+  const paths = ancestors(notePath);
+  if (paths.length > LIMITS.segments) throw new HttpError(400, "Path is nested too deeply");
   if (paths.length)
     await tx
       .insert(folder)
@@ -57,17 +142,15 @@ async function ensureFolders(tx: Exec, vaultId: string, notePath: string) {
       .onConflictDoNothing();
 }
 
+/** `path`, or the first free "path N", in one query (the new-note flow creates many "Untitled N"). */
 async function uniquePath(tx: Exec, vaultId: string, path: string, excludeId?: string) {
-  let candidate = path;
-  for (let i = 1; ; i++) {
-    const [hit] = await tx
-      .select({ id: note.id })
-      .from(note)
-      .where(and(eq(note.vaultId, vaultId), eq(note.path, candidate)))
-      .limit(1);
-    if (!hit || hit.id === excludeId) return candidate;
-    candidate = `${path} ${i}`;
-  }
+  const taken = await tx
+    .select({ id: note.id, path: note.path })
+    .from(note)
+    .where(and(eq(note.vaultId, vaultId), or(eq(note.path, path), like(note.path, `${escapeLike(path)} %`))));
+  const used = new Set(taken.filter((t) => t.id !== excludeId).map((t) => t.path));
+  if (!used.has(path)) return path;
+  for (let i = 1; ; i++) if (!used.has(`${path} ${i}`)) return `${path} ${i}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -104,8 +187,13 @@ async function backlinksOf(vaultId: string, n: { id: string; name: string; path:
     .from(link)
     .innerJoin(note, eq(note.id, link.sourceId))
     .where(and(eq(link.vaultId, vaultId), inArray(link.target, keys), sql`${note.id} <> ${n.id}`))
-    .orderBy(asc(note.path));
+    .orderBy(asc(note.path))
+    .limit(MAX_BACKLINKS);
 }
+
+const MAX_BACKLINKS = 500;
+/** Characters of a source note loaded around its first link to the target, for the context line. */
+const CONTEXT_WINDOW = 2_000;
 
 /** The first line of `content` that links to one of `keys`, trimmed for display. */
 function linkContext(content: string, keys: Set<string>): string | null {
@@ -121,13 +209,22 @@ export async function getNote(vaultId: string, id: string) {
   const n = await getOwned(vaultId, id);
   const sources = await backlinksOf(vaultId, n);
   const keys = new Set([linkKey(n.name), linkKey(n.path)]);
+  // Only a window around the first "[[name" / "[[path" of each source leaves Postgres, never whole notes.
+  const needles = [...keys].map((k) => `[[${k}`);
+  const pos = sql`(select min(p) from unnest(array[${sql.join(
+    needles.map((k) => sql`strpos(lower(${note.content}), ${k})`),
+    sql`, `,
+  )}]) as p where p > 0)`;
   const contents = sources.length
     ? await db
-        .select({ id: note.id, content: note.content })
+        .select({
+          id: note.id,
+          content: sql<string | null>`substr(${note.content}, greatest(${pos} - ${CONTEXT_WINDOW}, 1), ${2 * CONTEXT_WINDOW})`,
+        })
         .from(note)
         .where(inArray(note.id, sources.map((s) => s.id)))
     : [];
-  const byId = new Map(contents.map((c) => [c.id, c.content]));
+  const byId = new Map(contents.map((c) => [c.id, c.content ?? ""]));
   const backlinks = sources.map((s) => ({ ...s, context: linkContext(byId.get(s.id) ?? "", keys) }));
   const { search: _s, ...rest } = n;
   void _s;
@@ -156,8 +253,15 @@ export async function unlinkedMentions(vaultId: string, id: string) {
   const n = await getOwned(vaultId, id);
   if (n.name.trim().length < 2) return [];
   const linked = new Set((await backlinksOf(vaultId, n)).map((b) => b.id));
+  // Only a window around the first case-insensitive hit of each candidate leaves Postgres.
+  const pos = sql`strpos(lower(${note.content}), lower(${n.name}))`;
   const candidates = await db
-    .select({ id: note.id, path: note.path, name: note.name, content: note.content })
+    .select({
+      id: note.id,
+      path: note.path,
+      name: note.name,
+      content: sql<string>`substr(${note.content}, greatest(${pos} - ${CONTEXT_WINDOW}, 1), ${2 * CONTEXT_WINDOW + n.name.length})`,
+    })
     .from(note)
     .where(
       and(
@@ -167,7 +271,7 @@ export async function unlinkedMentions(vaultId: string, id: string) {
       ),
     )
     .orderBy(asc(note.path))
-    .limit(200);
+    .limit(100);
   const re = mentionRegex(n.name);
   const out: { id: string; path: string; name: string; context: string }[] = [];
   for (const c of candidates) {
@@ -242,8 +346,13 @@ export async function listTags(vaultId: string) {
     .from(tag)
     .where(eq(tag.vaultId, vaultId))
     .groupBy(tag.tag)
-    .orderBy(asc(tag.tag));
+    .orderBy(asc(tag.tag))
+    .limit(MAX_TAG_LIST);
 }
+
+const MAX_TAG_LIST = 5_000;
+const MAX_GRAPH_EDGES = 50_000;
+const MAX_GRAPH_TAG_ROWS = 100_000;
 
 export async function notesByTag(vaultId: string, t: string) {
   const key = t.replace(/^#/, "").toLowerCase();
@@ -256,11 +365,27 @@ export async function notesByTag(vaultId: string, t: string) {
 }
 
 export async function graph(vaultId: string) {
-  const [nodes, edges, tagRows] = await Promise.all([
-    db.select({ id: note.id, name: note.name, path: note.path }).from(note).where(eq(note.vaultId, vaultId)),
-    db.select({ source: link.sourceId, target: link.target }).from(link).where(eq(link.vaultId, vaultId)),
-    db.select({ noteId: tag.noteId, tag: tag.tag }).from(tag).where(eq(tag.vaultId, vaultId)),
+  // Bounded reads: the note quota caps nodes; edges and tag rows are cut off with `truncated`.
+  const [nodes, edgeRows, tagRowsAll] = await Promise.all([
+    db
+      .select({ id: note.id, name: note.name, path: note.path })
+      .from(note)
+      .where(eq(note.vaultId, vaultId))
+      .limit(LIMITS.vaultNotes),
+    db
+      .select({ source: link.sourceId, target: link.target })
+      .from(link)
+      .where(eq(link.vaultId, vaultId))
+      .limit(MAX_GRAPH_EDGES + 1),
+    db
+      .select({ noteId: tag.noteId, tag: tag.tag })
+      .from(tag)
+      .where(eq(tag.vaultId, vaultId))
+      .limit(MAX_GRAPH_TAG_ROWS + 1),
   ]);
+  const truncated = edgeRows.length > MAX_GRAPH_EDGES || tagRowsAll.length > MAX_GRAPH_TAG_ROWS;
+  const edges = edgeRows.slice(0, MAX_GRAPH_EDGES);
+  const tagRows = tagRowsAll.slice(0, MAX_GRAPH_TAG_ROWS);
   const byPath = new Map(nodes.map((n) => [n.path.toLowerCase(), n.id]));
   const byName = new Map<string, string>();
   for (const n of [...nodes].sort((a, b) => b.path.length - a.path.length)) byName.set(n.name.toLowerCase(), n.id);
@@ -276,13 +401,18 @@ export async function graph(vaultId: string) {
     }
   }
   const tags = new Map<string, string[]>();
-  for (const r of tagRows) tags.set(r.noteId, [...(tags.get(r.noteId) ?? []), r.tag]);
+  for (const r of tagRows) {
+    const list = tags.get(r.noteId);
+    if (list) list.push(r.tag);
+    else tags.set(r.noteId, [r.tag]);
+  }
   return {
     nodes: [
       ...nodes.map((n) => ({ ...n, tags: tags.get(n.id) ?? [], ghost: false })),
       ...[...unresolved].map((t) => ({ id: `ghost:${t}`, name: basename(t), path: t, tags: [], ghost: true })),
     ],
     edges: resolved,
+    truncated,
   };
 }
 
@@ -292,28 +422,35 @@ export async function graph(vaultId: string) {
 
 export async function createNote(vaultId: string, rawPath: string, content = "") {
   const clean = normalizePath(rawPath) || "Untitled";
+  validatePath(clean);
+  const fm = frontmatterOf(content);
   return db.transaction(async (tx) => {
     const path = await uniquePath(tx, vaultId, clean);
+    validatePath(path);
     await ensureFolders(tx, vaultId, path);
     const [n] = await tx
       .insert(note)
-      .values({ vaultId, path, name: basename(path), content, frontmatter: frontmatterOf(content) })
+      .values({ vaultId, path, name: basename(path), content, frontmatter: fm })
       .returning({ id: note.id, path: note.path, name: note.name });
-    await reindex(tx, vaultId, n.id, content);
+    await reindex(tx, vaultId, n.id, content, fm);
+    await assertVaultQuota(tx, vaultId);
     return n;
   });
 }
 
 export async function updateContent(vaultId: string, id: string, content: string, reason: RevisionReason = "autosave") {
+  const fm = frontmatterOf(content);
   return db.transaction(async (tx) => {
-    await snapshotBeforeWrite(tx, vaultId, id, content, reason);
+    const previousBytes = await snapshotBeforeWrite(tx, vaultId, id, content, reason);
+    const grew = previousBytes === null || Buffer.byteLength(content, "utf8") > previousBytes;
     const [n] = await tx
       .update(note)
-      .set({ content, frontmatter: frontmatterOf(content) })
+      .set({ content, frontmatter: fm })
       .where(and(eq(note.vaultId, vaultId), eq(note.id, id)))
       .returning({ id: note.id, updatedAt: note.updatedAt });
     if (!n) throw new HttpError(404, "Note not found");
-    await reindex(tx, vaultId, id, content);
+    await reindex(tx, vaultId, id, content, fm);
+    if (grew) await assertVaultQuota(tx, vaultId);
     return n;
   });
 }
@@ -337,11 +474,12 @@ function rewriteLinks(content: string, oldKeys: Set<string>, newTarget: string) 
 export async function renameNote(vaultId: string, id: string, rawPath: string) {
   const old = await getOwned(vaultId, id);
   const clean = normalizePath(rawPath);
-  if (!clean) throw new HttpError(400, "Invalid path");
+  validatePath(clean);
   if (clean === old.path) return { id, path: old.path, name: old.name, updatedLinks: 0 };
 
   return db.transaction(async (tx) => {
     const path = await uniquePath(tx, vaultId, clean, id);
+    validatePath(path);
     const name = basename(path);
     await ensureFolders(tx, vaultId, path);
     await tx.update(note).set({ path, name }).where(eq(note.id, id));
@@ -375,7 +513,7 @@ export async function deleteNote(vaultId: string, id: string) {
 
 export async function createFolder(vaultId: string, rawPath: string) {
   const path = normalizePath(rawPath);
-  if (!path) throw new HttpError(400, "Invalid path");
+  validatePath(path);
   await ensureFolders(db, vaultId, `${path}/x`);
   return { path };
 }
@@ -383,23 +521,32 @@ export async function createFolder(vaultId: string, rawPath: string) {
 export async function renameFolder(vaultId: string, from: string, to: string) {
   const src = normalizePath(from);
   const dst = normalizePath(to);
-  if (!src || !dst) throw new HttpError(400, "Invalid path");
+  validatePath(src);
+  validatePath(dst);
   if (dst === src || dst.startsWith(`${src}/`)) throw new HttpError(400, "Cannot move folder into itself");
+  /** The moved path, re-normalised; a stored path that would change shape is refused, never written. */
+  const moved = (p: string) => {
+    const raw = dst + p.slice(src.length);
+    const path = normalizePath(raw);
+    if (path !== raw) throw new HttpError(400, "Invalid path");
+    validatePath(path);
+    return path;
+  };
   return db.transaction(async (tx) => {
     const notes = await tx
       .select({ id: note.id, path: note.path })
       .from(note)
       .where(and(eq(note.vaultId, vaultId), like(note.path, `${escapeLike(src)}/%`)));
     for (const n of notes) {
-      const path = dst + n.path.slice(src.length);
+      const path = moved(n.path);
       await tx.update(note).set({ path, name: basename(path) }).where(eq(note.id, n.id));
     }
     const folders = await tx
       .select({ id: folder.id, path: folder.path })
       .from(folder)
       .where(and(eq(folder.vaultId, vaultId), or(eq(folder.path, src), like(folder.path, `${escapeLike(src)}/%`))));
+    const newPaths = folders.map((f) => moved(f.path));
     for (const f of folders) await tx.delete(folder).where(eq(folder.id, f.id));
-    const newPaths = folders.map((f) => dst + f.path.slice(src.length));
     await ensureFolders(tx, vaultId, `${dst}/x`);
     if (newPaths.length)
       await tx
@@ -430,6 +577,17 @@ function escapeLike(s: string) {
 /* Import / export (Obsidian vault <-> zip)                            */
 /* ------------------------------------------------------------------ */
 
+/** One page of the vault for a streaming export, ordered by path (keyset pagination after `afterPath`). */
+export async function exportPage(vaultId: string, afterPath: string | null, limit: number) {
+  return db
+    .select({ path: note.path, content: note.content })
+    .from(note)
+    .where(and(eq(note.vaultId, vaultId), afterPath === null ? undefined : sql`${note.path} > ${afterPath}`))
+    .orderBy(asc(note.path))
+    .limit(limit);
+}
+
+/** The whole vault in one array. Tests use it; the export route streams exportPage instead. */
 export async function exportVault(vaultId: string) {
   return db
     .select({ path: note.path, content: note.content })
@@ -437,39 +595,109 @@ export async function exportVault(vaultId: string) {
     .where(eq(note.vaultId, vaultId));
 }
 
-/** Upsert by path: existing notes are overwritten, new ones created. */
-export async function importNotes(vaultId: string, files: { path: string; content: string }[]) {
-  let created = 0;
-  let updated = 0;
-  await db.transaction(async (tx) => {
-    for (const f of files) {
-      const path = normalizePath(f.path);
-      if (!path) continue;
-      await ensureFolders(tx, vaultId, path);
-      const [existing] = await tx
-        .select({ id: note.id })
-        .from(note)
-        .where(and(eq(note.vaultId, vaultId), eq(note.path, path)))
-        .limit(1);
-      let id: string;
-      if (existing) {
-        await snapshotBeforeWrite(tx, vaultId, existing.id, f.content, "import");
-        await tx
-          .update(note)
-          .set({ content: f.content, frontmatter: frontmatterOf(f.content) })
-          .where(eq(note.id, existing.id));
-        id = existing.id;
-        updated++;
-      } else {
-        const [n] = await tx
-          .insert(note)
-          .values({ vaultId, path, name: basename(path), content: f.content, frontmatter: frontmatterOf(f.content) })
-          .returning({ id: note.id });
-        id = n.id;
-        created++;
-      }
-      await reindex(tx, vaultId, id, f.content);
+const IMPORT_CHUNK = 500;
+/** Rows per multi-row INSERT, well under the 65,534 bind parameters Postgres allows. */
+const INSERT_ROWS = 5_000;
+
+function chunks<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+export type ImportResult = { created: number; updated: number; skipped: { path: string; reason: string }[] };
+
+/**
+ * Upsert by path: existing notes are overwritten, new ones created. Every file is checked against
+ * the same limits as the JSON routes (path shape and length, note size, no NUL); a file that fails
+ * is skipped and listed in `skipped`. The write is set-based (a few queries per 500 files), runs one
+ * import per vault at a time (else 429) and is rolled back when the vault would exceed its quota.
+ */
+export async function importNotes(vaultId: string, files: { path: string; content: string }[]): Promise<ImportResult> {
+  const skipped: ImportResult["skipped"] = [];
+  const byPath = new Map<string, string>();
+  let repeats = 0;
+  for (const f of files) {
+    if (f.path.length > LIMITS.rawPath * 2) {
+      skipped.push({ path: f.path.slice(0, 80), reason: "Path is too long" });
+      continue;
     }
+    const path = normalizePath(f.path);
+    if (!path) continue;
+    const problem = pathProblem(path);
+    if (problem) {
+      skipped.push({ path: f.path.slice(0, 200), reason: problem });
+      continue;
+    }
+    const content = f.content.replaceAll("\u0000", "");
+    if (Buffer.byteLength(content, "utf8") > LIMITS.noteBytes) {
+      skipped.push({ path, reason: "Note is too large" });
+      continue;
+    }
+    if (byPath.has(path)) repeats++;
+    byPath.set(path, content);
+  }
+
+  let created = 0;
+  let updated = repeats; // a path repeated within one import counts as an update, as if written twice
+  await db.transaction(async (tx) => {
+    const [lock] = await tx.execute<{ ok: boolean }>(
+      sql`select pg_try_advisory_xact_lock(hashtext(${`import:${vaultId}`})) as ok`,
+    );
+    if (!lock?.ok) throw new HttpError(429, "An import into this vault is already running");
+    await tx.execute(sql`set local statement_timeout = '60s'`);
+
+    const folders = new Set<string>();
+    for (const path of byPath.keys()) for (const a of ancestors(path)) folders.add(a);
+    for (const part of chunks([...folders], INSERT_ROWS))
+      await tx
+        .insert(folder)
+        .values(part.map((path) => ({ vaultId, path })))
+        .onConflictDoNothing();
+
+    for (const part of chunks([...byPath], IMPORT_CHUNK)) {
+      const existing = await tx
+        .select({ id: note.id, path: note.path })
+        .from(note)
+        .where(and(eq(note.vaultId, vaultId), inArray(note.path, part.map(([p]) => p))));
+      if (existing.length) {
+        const contentByPath = new Map(part);
+        await snapshotBeforeImport(tx, vaultId, new Map(existing.map((e) => [e.id, contentByPath.get(e.path)!])));
+      }
+
+      const values = part.map(([path, content]) => {
+        const fm = frontmatterOf(content);
+        return { vaultId, path, name: basename(path), content, frontmatter: fm };
+      });
+      const written = await tx
+        .insert(note)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [note.vaultId, note.path],
+          set: { content: sql`excluded.content`, frontmatter: sql`excluded.frontmatter`, updatedAt: sql`now()` },
+        })
+        .returning({ id: note.id, path: note.path, inserted: sql<boolean>`(xmax = 0)` });
+      for (const w of written) {
+        if (w.inserted) created++;
+        else updated++;
+      }
+
+      const ids = written.map((w) => w.id);
+      await tx.delete(link).where(inArray(link.sourceId, ids));
+      await tx.delete(tag).where(inArray(tag.noteId, ids));
+      const idByPath = new Map(written.map((w) => [w.path, w.id]));
+      const linkRows: (typeof link.$inferInsert)[] = [];
+      const tagRows: (typeof tag.$inferInsert)[] = [];
+      for (const v of values) {
+        const id = idByPath.get(v.path)!;
+        const idx = indexOf(v.content, v.frontmatter);
+        for (const l of idx.links) linkRows.push({ sourceId: id, vaultId, ...l });
+        for (const t of idx.tags) tagRows.push({ noteId: id, vaultId, tag: t });
+      }
+      for (const rowsPart of chunks(linkRows, INSERT_ROWS)) await tx.insert(link).values(rowsPart);
+      for (const rowsPart of chunks(tagRows, INSERT_ROWS)) await tx.insert(tag).values(rowsPart);
+    }
+    await assertVaultQuota(tx, vaultId);
   });
-  return { created, updated };
+  return { created, updated, skipped };
 }

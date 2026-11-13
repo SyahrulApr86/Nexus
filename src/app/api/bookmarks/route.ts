@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { addBookmark, listBookmarks, removeBookmark, reorderBookmarks } from "@/lib/bookmarks";
-import { handle, requireVault } from "@/lib/session";
+import { KiB, handle, readJson, requireVault } from "@/lib/session";
 
 /** GET: bookmarked notes in order: { noteId, path, name, position }[]. */
 export async function GET() {
@@ -14,7 +14,7 @@ export async function GET() {
 export async function POST(req: Request) {
   return handle(async () => {
     const { vaultId } = await requireVault();
-    const { noteId } = z.object({ noteId: z.uuid() }).parse(await req.json());
+    const { noteId } = z.object({ noteId: z.uuid() }).parse(await readJson(req, 16 * KiB));
     return addBookmark(vaultId, noteId);
   });
 }
@@ -33,7 +33,7 @@ export async function DELETE(req: Request) {
 export async function PATCH(req: Request) {
   return handle(async () => {
     const { vaultId } = await requireVault();
-    const { order } = z.object({ order: z.array(z.uuid()).max(10_000) }).parse(await req.json());
+    const { order } = z.object({ order: z.array(z.uuid()).max(10_000) }).parse(await readJson(req, 512 * KiB));
     return reorderBookmarks(vaultId, order);
   });
 }

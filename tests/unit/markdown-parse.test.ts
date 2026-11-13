@@ -5,6 +5,7 @@ import {
   extractHeadings,
   extractTags,
   extractWikiLinks,
+  isUnsafePath,
   linkKey,
   maskCode,
   normalizePath,
@@ -245,5 +246,68 @@ describe("parseFrontmatter", () => {
   it("round-trips with splitFrontmatter", () => {
     const { yaml } = splitFrontmatter("---\ntags: [a, b]\ndraft: true\n---\n# Body");
     expect(parseFrontmatter(yaml)).toEqual({ tags: ["a", "b"], draft: "true" });
+  });
+});
+
+describe("frontmatter parsing stays linear (ReDoS regression)", () => {
+  /** The old comment strip, /\s+#.*$/, was quadratic on a long whitespace run without "#". */
+  const legacyStrip = (raw: string) => raw.replace(/\s+#.*$/, "");
+
+  it("cuts comments exactly where the old regex did", () => {
+    const lines = [
+      "count: 3 # trailing comment",
+      "a  b   #c # d",
+      "url: http://x.test/#frag",
+      "x:\t#tab comment",
+      "  - item # note",
+      "#only",
+      "no comment here",
+      "trailing spaces   ",
+      "k: v #",
+    ];
+    for (const line of lines) {
+      const parsed = parseFrontmatter(line);
+      const legacy = parseFrontmatter(legacyStrip(line) === line ? line : legacyStrip(line));
+      expect(parsed).toEqual(legacy);
+    }
+  });
+
+  it("parses a 1 MB whitespace line without backtracking", () => {
+    const line = `k:${" ".repeat(1_000_000)}x`;
+    const t = performance.now();
+    parseFrontmatter(line);
+    expect(performance.now() - t).toBeLessThan(50);
+  });
+
+  it("indexes a note with 1 MB of hostile frontmatter quickly", () => {
+    const md = `---\ntags: [a]${" ".repeat(1_000_000)}\n${"\t".repeat(200_000)}x\n---\nbody #b`;
+    const t = performance.now();
+    extractTags(md);
+    expect(performance.now() - t).toBeLessThan(200);
+  });
+
+  it("ignores oversized frontmatter blocks and lines", () => {
+    expect(parseFrontmatter(`tags: [a]\n${"x: y\n".repeat(20_000)}`)).toEqual({});
+    expect(parseFrontmatter(`tags: [a]\ntitle: ${"t".repeat(5_000)}`)).toEqual({ tags: ["a"] });
+  });
+});
+
+describe("normalizePath never yields a dot segment (zip-slip regression)", () => {
+  it("drops segments that become . or .. once .md is stripped", () => {
+    expect(normalizePath("...md")).toBe("");
+    expect(normalizePath("..md")).toBe("");
+    expect(normalizePath("a/...md")).toBe("a");
+    expect(normalizePath("a/ .. .md")).toBe("a");
+    expect(normalizePath("a/..<>.md")).toBe("a");
+  });
+
+  it("keeps ordinary names", () => {
+    expect(normalizePath("a/b.c.md")).toBe("a/b.c");
+    expect(normalizePath("a/...x.md")).toBe("a/...x");
+  });
+
+  it("isUnsafePath flags empty, dot and absolute segments", () => {
+    for (const p of ["", "..", "a/..", "./a", "/a", "a//b", "a\\b", "a/."]) expect(isUnsafePath(p)).toBe(true);
+    for (const p of ["a", "a/b", "a/...x", ".hidden/x"]) expect(isUnsafePath(p)).toBe(false);
   });
 });
