@@ -13,14 +13,25 @@ function Section({
   title,
   count,
   defaultOpen = true,
+  open: openProp,
+  onOpenChange,
   children,
 }: {
   title: string;
   count?: number;
   defaultOpen?: boolean;
+  /** Controlled open state; leave out to let the section keep its own. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [openState, setOpenState] = useState(defaultOpen);
+  const open = openProp ?? openState;
+  const setOpen = (f: (o: boolean) => boolean) => {
+    const next = f(open);
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   return (
     <section className="mb-4">
       <h3>
@@ -102,29 +113,35 @@ export function BacklinksView() {
   const noteId = note?.id;
   const key = note ? `${note.id}:${note.name}` : "";
   const mentions = res?.key === key ? res.items : null;
-  // Refetch when links changed (not on every autosave), and only while the panel is on screen.
+  // Refetch when links changed, not on every autosave, and only while the panel is on screen.
+  // A plain-text mention changes no links, so while Unlinked mentions is open every save
+  // refetches too; opening it after edits refetches once.
   const [rootRef, shown] = useShown<HTMLDivElement>();
+  const [unlinkedOpen, setUnlinkedOpen] = useState(false);
   const linksVersion = (w as { linksVersion?: number }).linksVersion ?? w.version;
-  const want = `${key}:${linksVersion}`;
-  const done = useRef("");
+  const contentVersion = unlinkedOpen ? w.version : null;
+  const done = useRef<{ key: string; links: number; content: number } | null>(null);
 
   useEffect(() => {
-    if (!noteId || !shown || done.current === want) return;
+    if (!noteId || !shown) return;
+    const d = done.current;
+    if (d && d.key === key && d.links === linksVersion && (contentVersion === null || d.content === contentVersion)) return;
+    const stamp = { key, links: linksVersion, content: w.version };
     let live = true;
     api
       .mentions(noteId)
       .then((m) => {
         if (!live) return;
-        done.current = want;
+        done.current = stamp;
         setRes((r) => (r?.key === key && same(r.items, m) ? r : { key, items: m }));
       })
       .catch(() => live && setRes((r) => (r?.key === key ? r : { key, items: [] })));
     return () => {
       live = false;
     };
-    // `want` covers key and the links version.
+    // w.version is read through contentVersion, which tracks it only while Unlinked is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [want, noteId, shown]);
+  }, [key, linksVersion, contentVersion, noteId, shown]);
 
   if (!note)
     return (
@@ -174,7 +191,7 @@ export function BacklinksView() {
           </ul>
         )}
       </Section>
-      <Section title="Unlinked mentions" count={mentions?.length} defaultOpen={false}>
+      <Section title="Unlinked mentions" count={mentions?.length} open={unlinkedOpen} onOpenChange={setUnlinkedOpen}>
         {mentions === null ? (
           <div className="space-y-2 px-2 py-1">
             <Bar w="60%" h={10} />
