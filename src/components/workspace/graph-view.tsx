@@ -86,12 +86,10 @@ export function GraphView() {
   });
 
   // Refetch only when links, tags or the set of notes changed, and only while the graph is on screen
-  // (a hidden split group keeps it mounted). linksVersion and tagsVersion fall back to version on
-  // stores that do not have them yet.
+  // (a hidden split group keeps it mounted).
   const [rootRef, onScreen] = useShown<HTMLDivElement>();
-  const sig = w as { linksVersion?: number; tagsVersion?: number };
   const notesKey = useMemo(() => w.tree.notes.map((n) => `${n.id}:${n.path}`).join("\n"), [w.tree.notes]);
-  const want = `${sig.linksVersion ?? w.version}:${sig.tagsVersion ?? w.version}:${attempt}:${notesKey}`;
+  const want = `${w.linksVersion}:${w.tagsVersion}:${attempt}:${notesKey}`;
   const done = useRef("");
   useEffect(() => {
     if (!onScreen || done.current === want) return;

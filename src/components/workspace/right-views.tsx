@@ -118,7 +118,7 @@ export function BacklinksView() {
   // refetches too; opening it after edits refetches once.
   const [rootRef, shown] = useShown<HTMLDivElement>();
   const [unlinkedOpen, setUnlinkedOpen] = useState(false);
-  const linksVersion = (w as { linksVersion?: number }).linksVersion ?? w.version;
+  const linksVersion = w.linksVersion;
   const contentVersion = unlinkedOpen ? w.version : null;
   const done = useRef<{ key: string; links: number; content: number } | null>(null);
 
@@ -306,7 +306,7 @@ export function TagsView() {
   const notes = selected && byTag?.tag === selected ? byTag.items : null;
   // Refetch when tags changed (not on every autosave), and only while the panel is on screen.
   const [rootRef, shown] = useShown<HTMLElement>();
-  const tagsVersion = (w as { tagsVersion?: number }).tagsVersion ?? w.version;
+  const tagsVersion = w.tagsVersion;
   const doneTags = useRef(-1);
   const doneByTag = useRef("");
 
