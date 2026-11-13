@@ -1,7 +1,8 @@
 import "server-only";
 import { and, asc, count, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { folder, link, note, tag } from "@/db/schema";
+import { folder, link, note, tag, type RevisionReason } from "@/db/schema";
+import { snapshotBeforeWrite } from "@/lib/history";
 import {
   basename,
   dirname,
@@ -303,8 +304,9 @@ export async function createNote(vaultId: string, rawPath: string, content = "")
   });
 }
 
-export async function updateContent(vaultId: string, id: string, content: string) {
+export async function updateContent(vaultId: string, id: string, content: string, reason: RevisionReason = "autosave") {
   return db.transaction(async (tx) => {
+    await snapshotBeforeWrite(tx, vaultId, id, content, reason);
     const [n] = await tx
       .update(note)
       .set({ content, frontmatter: frontmatterOf(content) })
@@ -353,6 +355,7 @@ export async function renameNote(vaultId: string, id: string, rawPath: string) {
       const [src] = await tx.select({ content: note.content }).from(note).where(eq(note.id, s.id));
       const next = rewriteLinks(src.content, oldKeys, newTarget);
       if (next !== null) {
+        await snapshotBeforeWrite(tx, vaultId, s.id, next, "rename");
         await tx.update(note).set({ content: next }).where(eq(note.id, s.id));
         await reindex(tx, vaultId, s.id, next);
         updatedLinks++;
@@ -450,6 +453,7 @@ export async function importNotes(vaultId: string, files: { path: string; conten
         .limit(1);
       let id: string;
       if (existing) {
+        await snapshotBeforeWrite(tx, vaultId, existing.id, f.content, "import");
         await tx
           .update(note)
           .set({ content: f.content, frontmatter: frontmatterOf(f.content) })

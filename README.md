@@ -151,9 +151,11 @@ CI (`.github/workflows/ci.yml`) berjalan di setiap push dan pull request: typech
 ## Struktur
 
 ```
-src/db/schema.ts              skema (auth + vault, folder, note, link, tag)
+src/db/schema.ts              skema (auth + vault, folder, note, link, tag, note_revision, bookmark)
 src/lib/notes.ts              logika vault: CRUD, indexing link/tag, rename + rewrite link, search, graph, impor/ekspor
 src/lib/search.ts             pencarian ala Obsidian: parser query (AST) dan penerjemahnya ke SQL, dipakai /api/search
+src/lib/history.ts            riwayat catatan: kebijakan snapshot, retensi, baca revisi
+src/lib/bookmarks.ts          bookmark: tambah, hapus, urutkan
 src/lib/markdown/parse.ts     ekstraksi wikilink, tag, heading, frontmatter (dipakai server dan client)
 src/lib/markdown/render.ts    markdown ke HTML (sanitized) untuk mode baca
 src/app/api/*                 REST API (semua query dibatasi ke vault milik user)
@@ -163,12 +165,43 @@ tests/integration/            tes fungsi vault terhadap Postgres (database nexus
 .github/workflows/ci.yml      CI: typecheck, lint, tes, build, image Docker
 ```
 
+## API riwayat catatan dan bookmark
+
+Backend untuk dua core plugin Obsidian, File recovery dan Bookmarks. UI-nya belum ada. Semua endpoint butuh session login dan hanya membaca atau mengubah vault milik user. Catatan, revisi, atau bookmark dari vault lain dijawab `404`.
+
+### Riwayat catatan
+
+Sebelum isi catatan ditimpa (autosave, impor yang menimpa catatan, rewrite link saat rename, restore), isi lama disimpan sebagai revisi di tabel `note_revision`.
+
+| Aturan | Nilai |
+|---|---|
+| Jarak antar revisi per catatan | Minimal 5 menit. Restore dan impor selalu menyimpan isi yang ditimpanya. |
+| Tidak disimpan | Isi tidak berubah, atau isi lama sama dengan revisi terbaru |
+| Retensi | 50 revisi terbaru per catatan. Revisi yang lebih tua dari 30 hari langsung tidak tampil di API dan dihapus dari tabel saat catatan itu menyimpan revisi berikutnya; belum ada job pembersihan berkala. |
+
+| Method | Endpoint | Hasil |
+|---|---|---|
+| GET | `/api/notes/[id]/history` | `[{ id, createdAt, reason, size, preview }]`, terbaru dulu. `size` dalam byte. `reason`: `autosave`, `rename`, `restore`, atau `import`. |
+| GET | `/api/notes/[id]/history/[revisionId]` | `{ id, createdAt, reason, content }` |
+| POST | `/api/notes/[id]/history/[revisionId]/restore` | Menulis isi revisi ke catatan lewat `updateContent`, lalu link dan tag di-reindex. Hasil `{ id, updatedAt }`. |
+
+### Bookmark
+
+Satu daftar catatan berurutan per vault, di tabel `bookmark`. Bookmark ikut terhapus saat catatannya dihapus.
+
+| Method | Endpoint | Hasil |
+|---|---|---|
+| GET | `/api/bookmarks` | `[{ noteId, path, name, position }]`, urut `position` |
+| POST | `/api/bookmarks`, body `{ noteId }` | Menambah di akhir daftar. Kalau catatan sudah di-bookmark, bookmark lama dikembalikan tanpa perubahan. |
+| DELETE | `/api/bookmarks?noteId=` | Menghapus bookmark. `404` kalau catatan itu tidak di-bookmark. |
+| PATCH | `/api/bookmarks`, body `{ order: noteId[] }` | Menomori ulang `position` sesuai `order`. Id yang tidak di-bookmark di vault ini diabaikan. Bookmark yang tidak disebut menyusul dengan urutan lamanya. Hasil daftar baru. |
+
 ## Belum ada (roadmap)
 
 - Live preview ala Obsidian (sembunyikan sintaks markdown di baris yang tidak aktif)
 - Lampiran gambar/PDF (butuh object storage S3-compatible) dan transclusion `![[note]]`
 - Callout `> [!note]`, Mermaid, LaTeX/KaTeX
-- Template, bookmark, riwayat versi catatan
+- Template, serta UI untuk bookmark dan riwayat versi catatan (API sudah ada)
 - Canvas (`.canvas`), publish halaman publik, kolaborasi real-time (Yjs)
 - Service worker dan mode offline untuk PWA
 - Siap dipasarkan: verifikasi email dan reset password (perlu provider email), rate limit, kuota per user, billing, kebijakan privasi sesuai UU PDP

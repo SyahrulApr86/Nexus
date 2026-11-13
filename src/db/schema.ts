@@ -1,8 +1,10 @@
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   customType,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -190,6 +192,60 @@ export const tag = pgTable(
   (t) => [
     primaryKey({ columns: [t.noteId, t.tag] }),
     index("tag_vault_tag_idx").on(t.vaultId, t.tag),
+  ],
+);
+
+/** Why a revision was taken: the write that was about to overwrite the note. */
+export const revisionReasons = ["autosave", "rename", "restore", "import"] as const;
+export type RevisionReason = (typeof revisionReasons)[number];
+
+/**
+ * File recovery: earlier contents of a note, written just before the note
+ * was overwritten. Policy and retention live in src/lib/history.ts.
+ */
+export const noteRevision = pgTable(
+  "note_revision",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => note.id, { onDelete: "cascade" }),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => vault.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    reason: text("reason", { enum: revisionReasons }).notNull(),
+  },
+  (t) => [
+    // nullsFirst: drizzle defaults to NULLS LAST, which plain `ORDER BY created_at DESC` cannot use.
+    index("note_revision_note_created_idx").on(t.noteId, t.createdAt.desc().nullsFirst()),
+    // ON DELETE CASCADE from vault (and user, through vault) needs this to avoid a full scan.
+    index("note_revision_vault_idx").on(t.vaultId),
+    check(
+      "note_revision_reason_check",
+      sql`${t.reason} in (${sql.raw(revisionReasons.map((r) => `'${r}'`).join(", "))})`,
+    ),
+  ],
+);
+
+/** Bookmarked notes (Obsidian's Bookmarks core plugin, notes only for now), ordered by `position`. */
+export const bookmark = pgTable(
+  "bookmark",
+  {
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => vault.id, { onDelete: "cascade" }),
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => note.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.vaultId, t.noteId] }),
+    // The primary key leads with vault_id; deleting a note cascades by note_id.
+    index("bookmark_note_idx").on(t.noteId),
   ],
 );
 
