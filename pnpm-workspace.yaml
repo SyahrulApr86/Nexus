@@ -1,3 +1,9 @@
+# Dependency build scripts are denied by default. None are needed:
+# @prisma/client and better-sqlite3 are unused optional peers of better-auth,
+# and esbuild (drizzle-kit/tsx) resolves its platform binary without postinstall.
 allowBuilds:
+  '@prisma/client': false
+  better-sqlite3: false
+  esbuild: false
   sharp: false
   unrs-resolver: false

@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+!.env.example
+
+# local browser-test artifacts
+.playwright-mcp/
+
+# design-taste working output (screenshots, inspector runs); the dealt direction sheets are kept
+.taste-skill/*/inspect/
+.taste-skill/inspect/
+.taste-skill/before/
+.taste-skill/after/
