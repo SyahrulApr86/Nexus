@@ -55,6 +55,7 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
   );
   const g = layout.groups[gi];
   const titles = useWorkspaceSelector((w) => (w.layout.groups[gi]?.tabs ?? []).map((t) => viewTitle(w, currentView(t))), sameItems);
+  const listRef = useRef<HTMLDivElement>(null);
   const menu = useMenu();
   const [menuTab, setMenuTab] = useState(0);
 
@@ -104,15 +105,29 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
     { label: "Open to the right", onSelect: () => actions.splitTab(gi, menuTab) },
   ];
 
+  // An active tab past the edge of an overflowing strip scrolls into view (only the strip moves).
+  const activeKey = g.tabs[g.active]?.key;
+  useEffect(() => {
+    const list = listRef.current;
+    const el = list?.querySelector<HTMLElement>(`[data-tab-key="${CSS.escape(activeKey ?? "")}"]`);
+    if (!list || !el || list.scrollWidth <= list.clientWidth) return;
+    const box = list.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const delta = r.left < box.left ? r.left - box.left : r.right > box.right ? r.right - box.right : 0;
+    if (!delta) return;
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    list.scrollBy({ left: delta, behavior: smooth ? "smooth" : "auto" });
+  }, [activeKey, g.tabs.length]);
+
   return (
     <div className="hidden h-10 shrink-0 items-end gap-1 pl-4 pr-2 md:flex pointer-coarse:h-12">
       {/* pb-px lets the selected tab paint over the sheet's top hairline; pl-4 clears the sheet's rounded corner. */}
-      <div role="tablist" aria-label={layout.groups.length > 1 ? `Tabs, group ${gi + 1}` : "Tabs"} className="relative z-10 -mb-px flex min-w-0 items-end gap-0.5 overflow-x-auto overflow-y-hidden pb-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div ref={listRef} role="tablist" aria-label={layout.groups.length > 1 ? `Tabs, group ${gi + 1}` : "Tabs"} className="relative z-10 -mb-px flex min-w-0 items-end gap-0.5 overflow-x-auto overflow-y-hidden pb-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {g.tabs.map((t: Tab, i) => {
           const selected = i === g.active;
           const v = currentView(t);
           return (
-            <div key={t.key} className="group relative flex shrink-0 items-center">
+            <div key={t.key} data-tab-key={t.key} className="group relative flex shrink-0 items-center">
               <button
                 id={`tab-${g.key}-${i}`}
                 type="button"
