@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import "tailwindcss" source("../");
 
 /*
  * Nexus tokens. Brand palette (owner-set): navy #02070A, blue #0297DE, orange #FC734D.
@@ -17,7 +17,7 @@
   --rule: #ebeff3;
   --control: #7d8c99; /* input and button edges, 3.4:1 */
   --fg: #02070a;
-  --muted: #45525d;
+  --muted: #36424c; /* a clear step above --faint */
   --faint: #566470;
   --accent: #0297de; /* fills and non-text marks */
   --accent-ink: #01669a; /* blue as text on light grounds */
@@ -28,6 +28,7 @@
   --hl: #ffd9cc;
   --focus: #01669a;
   --negative: #c4242a;
+  --negative-hover: #a91f24; /* white label 7.2:1 */
   --positive: #247b50;
   --selection: rgb(2 151 222 / 0.22);
   --code-bg: #eef2f5;
@@ -61,6 +62,7 @@
   --hl: #57312a;
   --focus: #0297de;
   --negative: #ef6a73;
+  --negative-hover: #f4868d;
   --positive: #3fc07a;
   --selection: rgb(2 151 222 / 0.35);
   --code-bg: #111c25;
@@ -95,6 +97,7 @@
     --hl: #57312a;
     --focus: #0297de;
     --negative: #ef6a73;
+    --negative-hover: #f4868d;
     --positive: #3fc07a;
     --selection: rgb(2 151 222 / 0.35);
     --code-bg: #111c25;
@@ -127,6 +130,7 @@
   --color-mark-soft: var(--mark-soft);
   --color-hl: var(--hl);
   --color-negative: var(--negative);
+  --color-negative-hover: var(--negative-hover);
   --color-positive: var(--positive);
   --color-navy: #02070a;
   --font-ui: var(--font-hanken), ui-sans-serif, sans-serif;
@@ -159,8 +163,21 @@
     }
   }
 
+  :root {
+    caret-color: var(--accent);
+  }
+
   ::selection {
     background: var(--selection);
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
 
   :focus-visible {
@@ -169,16 +186,19 @@
     border-radius: 6px;
   }
 
-  /* Scrollbars follow the frame, not the OS default. */
+  /* Scrollbars follow the frame: hidden at rest, --control (>= 3:1) on the scroller in use. */
   * {
     scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  :hover,
+  :focus-visible {
     scrollbar-color: var(--control) transparent;
   }
 
   dialog {
     color: var(--fg);
     max-width: none;
-    max-height: none;
     overscroll-behavior: contain;
   }
   dialog::backdrop {
@@ -253,27 +273,13 @@
   .cm-tooltip-autocomplete > ul > li[aria-selected] {
     background: var(--active) !important;
     color: var(--fg) !important;
-  }
-  .cm-completionMatchedText {
-    text-decoration: none;
-    color: var(--accent-ink);
-    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--focus);
   }
   .cm-panels {
     background: var(--frame) !important;
     color: var(--fg) !important;
     border-color: var(--border) !important;
     font-family: var(--font-ui);
-  }
-  .cm-searchMatch {
-    background: var(--mark-soft);
-    outline: 1px solid var(--mark);
-  }
-  .cm-searchMatch-selected {
-    background: var(--hl);
-  }
-  .cm-placeholder {
-    color: var(--faint);
   }
 
   /* ---------- Reading view ---------- */
@@ -415,6 +421,30 @@
     white-space: pre-wrap;
     margin-bottom: 1.5em;
   }
+}
+
+/* ---------- CodeMirror overrides ---------- */
+/* Unlayered, with one more class than CodeMirror's injected base theme, so these win over it. */
+:root .cm-editor .cm-placeholder {
+  color: var(--faint);
+}
+:root .cm-editor .cm-searchMatch {
+  background-color: var(--mark-soft);
+  outline: 1px solid var(--mark);
+}
+:root .cm-editor .cm-searchMatch.cm-searchMatch-selected {
+  background-color: var(--hl);
+}
+:root .cm-editor .cm-selectionMatch {
+  background-color: var(--accent-soft);
+}
+:root .cm-editor .cm-tooltip.cm-tooltip-autocomplete > ul {
+  font-family: var(--font-ui);
+}
+:root .cm-editor .cm-completionMatchedText {
+  text-decoration: none;
+  color: var(--accent-ink);
+  font-weight: 600;
 }
 
 /* ---------- View transitions ---------- */

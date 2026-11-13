@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import { createPortal } from "react-dom";
 
 /* ------------------------------------------------------------------ */
-/* Icon button: 28px in the frame, 44px on touch                       */
+/* Icon button: 32px for a mouse, 44px for touch, themed tooltip       */
 /* ------------------------------------------------------------------ */
 
 export function IconButton({
@@ -12,21 +12,133 @@ export function IconButton({
   shortcut,
   className = "",
   children,
+  ref: outerRef,
   ...props
 }: { label: string; shortcut?: string; children: ReactNode } & ComponentProps<"button">) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const tip = useTooltip(ref);
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={shortcut ? `${label} (${shortcut})` : label}
-      className={`inline-flex size-8 shrink-0 items-center justify-center rounded-md text-faint transition-colors duration-150 hover:bg-hover hover:text-fg active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-[18px] [&_svg]:stroke-[1.5] ${className}`}
-      {...props}
-    >
-      <span aria-hidden="true" className="contents">
-        {children}
-      </span>
-    </button>
+    <>
+      <button
+        ref={(el) => {
+          ref.current = el;
+          if (typeof outerRef === "function") outerRef(el);
+          else if (outerRef) outerRef.current = el;
+        }}
+        type="button"
+        aria-label={label}
+        aria-keyshortcuts={shortcut ? keyShortcuts(shortcut) : undefined}
+        className={`inline-flex size-8 shrink-0 items-center justify-center rounded-md text-faint transition-[color,background-color,scale] duration-150 ease-[var(--ease-out-quint)] hover:bg-hover hover:text-fg active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40 pointer-coarse:size-11 [&_svg]:size-[18px] [&_svg]:stroke-[1.5] ${className}`}
+        {...props}
+        {...tip.handlers(props)}
+      >
+        <span aria-hidden="true" className="contents">
+          {children}
+        </span>
+      </button>
+      {tip.render(
+        <>
+          {label}
+          {shortcut && <Shortcut keys={shortcut} />}
+        </>,
+      )}
+    </>
   );
+}
+
+type TipHandlers = Pick<ComponentProps<"button">, "onPointerEnter" | "onPointerLeave" | "onFocus" | "onBlur" | "onPointerDown">;
+
+/**
+ * Hover (after 400ms, mouse and pen only) or keyboard focus shows a small label next to the control.
+ * It stays while the pointer is over it and closes on Escape (WCAG 1.4.13). The control keeps its
+ * own accessible name, so the tooltip is hidden from assistive tech.
+ */
+function useTooltip(anchor: React.RefObject<HTMLElement | null>) {
+  const [pos, setPos] = useState<{ left: number; top: number; host: Element } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const tipRef = useRef<HTMLSpanElement>(null);
+
+  const show = () => {
+    const el = anchor.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ left: r.left + r.width / 2, top: r.bottom + 6, host: el.closest("dialog[open]") ?? document.body });
+  };
+  const hide = (delay = 0) => {
+    clearTimeout(timer.current);
+    if (delay) timer.current = setTimeout(() => setPos(null), delay);
+    else setPos(null);
+  };
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  // Keep the tip inside the viewport; flip above the control when there is no room below.
+  useLayoutEffect(() => {
+    const t = tipRef.current;
+    const el = anchor.current;
+    if (!t || !el || !pos) return;
+    const r = el.getBoundingClientRect();
+    const w = t.offsetWidth;
+    const h = t.offsetHeight;
+    const left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 8));
+    const top = r.bottom + 6 + h > window.innerHeight - 8 ? r.top - 6 - h : r.bottom + 6;
+    t.style.left = `${left}px`;
+    t.style.top = `${top}px`;
+  }, [pos, anchor]);
+
+  useEffect(() => {
+    if (!pos) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Dismiss the tip; the Escape still reaches dialogs and menus underneath.
+      clearTimeout(timer.current);
+      setPos(null);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [pos]);
+
+  return {
+    handlers: (own: TipHandlers): TipHandlers => ({
+      onPointerEnter: (e) => {
+        own.onPointerEnter?.(e);
+        if (e.pointerType === "touch" || !matchMedia("(hover: hover)").matches) return;
+        clearTimeout(timer.current);
+        timer.current = setTimeout(show, 400);
+      },
+      onPointerLeave: (e) => {
+        own.onPointerLeave?.(e);
+        if (!e.currentTarget.matches(":focus-visible")) hide(120);
+      },
+      onPointerDown: (e) => {
+        own.onPointerDown?.(e);
+        hide();
+      },
+      onFocus: (e) => {
+        own.onFocus?.(e);
+        if (e.currentTarget.matches(":focus-visible")) show();
+      },
+      onBlur: (e) => {
+        own.onBlur?.(e);
+        hide();
+      },
+    }),
+    render: (content: ReactNode) =>
+      pos &&
+      createPortal(
+        <span
+          ref={tipRef}
+          aria-hidden="true"
+          onPointerEnter={() => clearTimeout(timer.current)}
+          onPointerLeave={() => hide(120)}
+          className="fixed z-[60] inline-flex items-center gap-2 whitespace-nowrap rounded-md bg-[var(--toast-bg)] px-2 py-1 text-[12px] leading-4 text-[var(--toast-fg)] shadow-[var(--shadow-float)] [&_.kbd]:h-[18px] [&_.kbd]:min-w-[18px]"
+          style={{ left: pos.left, top: pos.top }}
+        >
+          {content}
+        </span>,
+        pos.host,
+      ),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -39,17 +151,41 @@ export function isMac() {
 
 const noopSubscribe = () => () => {};
 
+const SPOKEN: Record<string, string> = {
+  "↑": "Up arrow",
+  "↓": "Down arrow",
+  "←": "Left arrow",
+  "→": "Right arrow",
+  "↵": "Enter",
+  "⌘": "Command",
+  "⌥": "Option",
+  "⌃": "Control",
+  Esc: "Escape",
+};
+
+/** Key names for aria-keyshortcuts, e.g. "Mod+Alt+←" becomes "Control+Alt+ArrowLeft Meta+Alt+ArrowLeft". */
+export function keyShortcuts(keys: string) {
+  const ARIA: Record<string, string> = { Ctrl: "Control", "←": "ArrowLeft", "→": "ArrowRight", "↑": "ArrowUp", "↓": "ArrowDown", "↵": "Enter", Esc: "Escape" };
+  const parts = keys.split("+").map((k) => ARIA[k] ?? k);
+  if (!parts.includes("Mod")) return parts.join("+");
+  return ["Control", "Meta"].map((m) => parts.map((k) => (k === "Mod" ? m : k)).join("+")).join(" ");
+}
+
 export function Shortcut({ keys }: { keys: string }) {
   // Platform is client-only; the server snapshot renders the Ctrl form.
   const mac = useSyncExternalStore(noopSubscribe, isMac, () => false);
-  const parts = keys.split("+").map((k) => (k === "Mod" ? (mac ? "⌘" : "Ctrl") : k === "Alt" && mac ? "⌥" : k));
+  const parts = keys
+    .split("+")
+    .map((k) => (k === "Mod" ? (mac ? "⌘" : "Ctrl") : k === "Alt" && mac ? "⌥" : k === "Ctrl" && mac ? "⌃" : k));
+  const spoken = parts.map((p) => SPOKEN[p] ?? p).join("+");
   return (
-    <span className="inline-flex items-center gap-1" aria-label={parts.join(" ")}>
+    <span className="inline-flex items-center gap-1">
       {parts.map((p, i) => (
         <kbd key={i} className="kbd" aria-hidden="true">
           {p}
         </kbd>
       ))}
+      <span className="sr-only">{spoken}</span>
     </span>
   );
 }
@@ -160,7 +296,7 @@ export function Menu({
                 onClose();
                 it.onSelect();
               }}
-              className={`flex w-full items-center gap-3 px-3 py-1.5 text-left outline-none focus-visible:bg-active focus-visible:outline-none hover:bg-sheet-hover aria-disabled:opacity-50 ${
+              className={`mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-md px-2 py-1.5 text-left outline-offset-[-2px] hover:bg-sheet-hover focus-visible:bg-active aria-disabled:opacity-50 ${
                 it.danger ? "text-negative" : "text-fg"
               }`}
             >
@@ -198,34 +334,54 @@ export function useMenu() {
 
 export function Modal({
   label,
+  describedBy,
   onClose,
   children,
   className = "",
   placement = "center",
 }: {
   label: string;
+  /** Id of the text that explains the dialog, such as a confirm's consequence. */
+  describedBy?: string;
   onClose: () => void;
   children: ReactNode;
   className?: string;
   placement?: "center" | "top";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
+  // Layout effect: the cleanup closes the dialog while it is still in the document, so the browser
+  // returns focus to whatever had it before showModal(). The opener is the fallback when that
+  // element is gone (a deleted note's row, a closed tab).
+  useLayoutEffect(() => {
     const d = ref.current;
+    const opener = document.activeElement;
     if (d && !d.open) d.showModal();
-    return () => d?.close();
+    // React's autoFocus runs before showModal(), which then moves focus itself; [data-autofocus] wins.
+    d?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    return () => {
+      d?.close();
+      const now = document.activeElement;
+      if (!now || now === document.body || d?.contains(now)) {
+        const target =
+          opener instanceof HTMLElement && opener !== document.body && opener.isConnected
+            ? opener
+            : document.getElementById("workbench");
+        target?.focus({ preventScroll: true });
+      }
+    };
   }, []);
   return (
     <dialog
       ref={ref}
       aria-label={label}
+      aria-describedby={describedBy}
       onCancel={(e) => {
         e.preventDefault();
         onClose();
       }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
       className={`m-0 w-full bg-transparent p-3 ${
-        placement === "top" ? "mt-[12vh]" : "my-auto"
+        placement === "top" ? "mt-[12vh] max-h-[calc(100dvh-12vh)]" : "my-auto max-h-dvh"
       } mx-auto ${className}`}
     >
       {children}
@@ -249,9 +405,9 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: num
       {toasts.map((t) => (
         <div
           key={t.id}
-          className="pointer-events-auto flex max-w-[min(32rem,100%)] items-center gap-3 rounded-lg bg-[var(--toast-bg)] px-4 py-2.5 text-[14px] text-[var(--toast-fg)] shadow-[var(--shadow-float)]"
+          className="pointer-events-auto flex max-w-[min(32rem,100%)] animate-[rise_200ms_var(--ease-out-quint)] items-center gap-3 rounded-lg bg-[var(--toast-bg)] px-4 py-2.5 text-[14px] text-[var(--toast-fg)] shadow-[var(--shadow-float)]"
         >
-          <span>{t.message}</span>
+          <span className="min-w-0 wrap-anywhere">{t.message}</span>
           {t.action && (
             <button
               type="button"

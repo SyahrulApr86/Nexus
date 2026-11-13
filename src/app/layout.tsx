@@ -20,18 +20,24 @@ export const metadata: Metadata = {
   appleWebApp: { title: "Nexus", capable: true, statusBarStyle: "default" },
 };
 
+// Frame colours from globals.css (--frame), for the browser bar.
+const FRAME = { light: "#f1f4f7", dark: "#02070a" };
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f1f4f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#02070a" },
+    { media: "(prefers-color-scheme: light)", color: FRAME.light },
+    { media: "(prefers-color-scheme: dark)", color: FRAME.dark },
   ],
 };
 
-// Applies a saved theme choice before first paint, so there is no light/dark flash.
-const themeScript = `try{var t=localStorage.getItem('nexus-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}`;
+// Applies a saved theme choice before first paint, so there is no light/dark flash. A manual choice
+// also gets its own theme-color tag, kept first in <head> so it wins over the two media-query tags
+// above, even after React reorders the head; "Match system" removes it. The observer keeps it in
+// step whenever data-theme changes later.
+const themeScript = `(function(){var d=document.documentElement,C=${JSON.stringify(FRAME)};try{var t=localStorage.getItem('nexus-theme');if(t==='light'||t==='dark')d.dataset.theme=t}catch(e){}function sync(){var t=d.dataset.theme,m=document.getElementById('nexus-theme-color');if(t!=='light'&&t!=='dark'){if(m)m.remove();return}if(!m){m=document.createElement('meta');m.name='theme-color';m.id='nexus-theme-color'}if(m.content!==C[t])m.content=C[t];if(document.querySelector('meta[name="theme-color"]')!==m)document.head.prepend(m)}sync();var o=new MutationObserver(sync);o.observe(d,{attributes:true,attributeFilter:['data-theme']});o.observe(document.head,{childList:true})})()`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

@@ -85,7 +85,7 @@ export function Palette({
     <Modal label={mode === "notes" ? "Quick switcher" : "Command palette"} onClose={onClose} className="max-w-xl" placement="top">
       <div className="overflow-hidden rounded-xl border border-border bg-sheet shadow-[var(--shadow-float)]">
         <input
-          autoFocus
+          data-autofocus
           role="combobox"
           aria-expanded="true"
           aria-controls={listId}
@@ -124,7 +124,7 @@ export function Palette({
               aria-selected={item === active}
               onPointerMove={() => setSel(i)}
               onClick={(e) => choose(item, e.ctrlKey || e.metaKey)}
-              className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ${item === active ? "bg-active" : ""}`}
+              className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ${item === active ? "bg-active outline-2 outline-offset-[-2px] outline-[var(--focus)]" : ""}`}
             >
               {item.kind === "note" && (
                 <>
@@ -167,7 +167,7 @@ export function Palette({
           </span>
           {mode === "notes" && (
             <span className="hidden items-center gap-1.5 sm:inline-flex">
-              <Shortcut keys="Mod+↵" /> new tab
+              <Shortcut keys="Mod+↵" /> to open in a new tab
             </span>
           )}
           <span className="ml-auto inline-flex items-center gap-1.5">
