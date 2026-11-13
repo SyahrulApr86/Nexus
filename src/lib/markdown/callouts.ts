@@ -55,7 +55,8 @@ const MARKER = /^\[!([A-Za-z][\w-]*)\]([+-]?)[ \t]*/;
 export function calloutType(raw: string): CalloutType {
   const k = raw.toLowerCase();
   if ((CALLOUT_TYPES as readonly string[]).includes(k)) return k as CalloutType;
-  return ALIASES[k] ?? "note";
+  // Own keys only: `[!constructor]` or `[!__proto__]` must not reach Object.prototype.
+  return Object.hasOwn(ALIASES, k) ? ALIASES[k] : "note";
 }
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();

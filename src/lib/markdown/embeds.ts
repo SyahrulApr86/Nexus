@@ -10,6 +10,8 @@
  * running text, and embeds of attachments (images, PDFs…), stay links for now.
  */
 
+import { matchHeading } from "./parse";
+
 const ATTACHMENT = /\.(png|jpe?g|gif|webp|avif|bmp|svg|pdf|mp3|wav|ogg|m4a|flac|mp4|webm|mov|canvas)$/i;
 
 /** True when the embed should render as a block: it is the only thing on its line and not an attachment. */
@@ -122,14 +124,14 @@ export function extractSection(md: string, heading: string): string | null {
     const line = lines[i];
     if (/^\s*(```|~~~)/.test(line)) inFence = !inFence;
     if (inFence) continue;
-    const h = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+    const h = matchHeading(line);
     if (!h) continue;
     if (start === -1) {
-      if (h[2].trim().toLowerCase() === want) {
+      if (h.text.toLowerCase() === want) {
         start = i;
-        level = h[1].length;
+        level = h.level;
       }
-    } else if (h[1].length <= level) {
+    } else if (h.level <= level) {
       return lines.slice(start, i).join("\n");
     }
   }

@@ -41,7 +41,8 @@ export function splitFrontmatter(md: string): { yaml: string | null; body: strin
 /** Minimal YAML subset: `key: value`, `key: [a, b]`, and `key:\n  - a`. Enough for tags/aliases. */
 export function parseFrontmatter(yaml: string | null): Record<string, unknown> {
   if (!yaml) return {};
-  const out: Record<string, unknown> = {};
+  // Null prototype: a `__proto__:` or `constructor:` key stays an ordinary field.
+  const out: Record<string, unknown> = Object.create(null);
   let listKey: string | null = null;
   for (const raw of yaml.split(/\r?\n/)) {
     const line = raw.replace(/\s+#.*$/, "");
@@ -118,15 +119,23 @@ export function extractTags(md: string): string[] {
   return [...tags];
 }
 
+/**
+ * An ATX heading line as { level, text }, or null. Linear time: the optional closing
+ * #s are trimmed with string operations instead of a backtracking pattern.
+ */
+export function matchHeading(line: string): { level: number; text: string } | null {
+  const m = /^(#{1,6})[ \t]+(.+)$/.exec(line);
+  if (!m) return null;
+  const text = m[2].trimEnd().replace(/(?<=\s)#+$/, "").trimEnd();
+  return text ? { level: m[1].length, text } : null;
+}
+
 export function extractHeadings(md: string): Heading[] {
   const masked = maskCode(md);
   const out: Heading[] = [];
   masked.split("\n").forEach((line, i) => {
-    // Linear-time match; the optional closing #s are trimmed with string operations.
-    const m = /^(#{1,6})[ \t]+(.+)$/.exec(line);
-    if (!m) return;
-    const text = m[2].trimEnd().replace(/(?<=\s)#+$/, "").trimEnd();
-    if (text) out.push({ level: m[1].length, text, line: i });
+    const h = matchHeading(line);
+    if (h) out.push({ ...h, line: i });
   });
   return out;
 }
