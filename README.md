@@ -180,6 +180,7 @@ pnpm db:migrate
 | `pnpm test:unit` | `tests/unit`: parser dan renderer markdown (termasuk payload XSS dan regresi ReDoS), ekstraksi zip impor (zip bomb, batas entri), pembaca body, cek origin, header keamanan. Tanpa database. |
 | `pnpm test:integration` | `tests/integration`: fungsi vault di `src/lib/notes.ts` terhadap Postgres. |
 | `pnpm test` | Keduanya. |
+| `pnpm test:e2e` | `tests/e2e`: Playwright terhadap build produksi (`next build` + `next start`) dan database `nexus_e2e`. Lihat [Tes end-to-end](#tes-end-to-end). |
 
 Tes integrasi memakai database `nexus_test`, terpisah dari database `nexus` milik `pnpm dev`. Dengan service `db` dari `pnpm db:up` sudah jalan:
 
@@ -196,7 +197,27 @@ pnpm test
 - Setiap file tes membuat user dengan dua vault sendiri, lalu menghapusnya setelah selesai.
 - Di checkout baru, jalankan `pnpm exec next typegen` sebelum `pnpm typecheck`. Tipe route seperti `LayoutProps` dibuat oleh Next.
 
-CI (`.github/workflows/ci.yml`) berjalan di setiap push dan pull request: typecheck, ESLint, tes unit, tes integrasi terhadap service `postgres:17-alpine` setelah migrasi diterapkan, `next build`, dan `docker build --target runner`.
+CI (`.github/workflows/ci.yml`) berjalan di setiap push dan pull request: typecheck, ESLint, tes unit, tes integrasi terhadap service `postgres:17-alpine` setelah migrasi diterapkan, `next build`, `docker build --target runner`, dan tes end-to-end.
+
+### Tes end-to-end
+
+`tests/e2e` menjalankan alur utama di Chromium lewat Playwright: daftar, masuk, keluar; menulis catatan dan autosave; autocomplete `[[link]]`, backlink, dan rename yang menulis ulang tautan; tag dan pencarian dengan operator; quick switcher dan command palette dengan keyboard; centang tugas di mode baca; template; properti; tempel lampiran; canvas; vault baru dan pindah vault; tautan publik; impor zip Obsidian (`tests/e2e/fixtures/obsidian-vault.zip`) dan ekspor; edit offline lalu sinkron; serta pemeriksaan axe-core (WCAG 2.2 A/AA) di `/`, `/login`, `/vault` dengan catatan terbuka, dan dialog Settings.
+
+```bash
+docker compose exec -T db psql -U nexus -c "CREATE DATABASE nexus_e2e"   # opsional: global setup membuatnya kalau belum ada
+export E2E_DATABASE_URL="postgres://nexus:$(grep ^POSTGRES_PASSWORD= .env | cut -d= -f2-)@127.0.0.1:5442/nexus_e2e"
+pnpm exec playwright install chromium   # sekali per versi Playwright
+pnpm test:e2e                            # build produksi, start di port 3104, lalu semua tes
+pnpm test:e2e --project=desktop-light    # hanya proyek desktop terang
+E2E_SKIP_BUILD=1 pnpm test:e2e auth      # pakai build .next yang ada, hanya tests/e2e/auth.spec.ts
+```
+
+- Database yang namanya tidak mengandung `e2e` ditolak sebelum koneksi dibuka, jadi `nexus` dan `nexus_test` tidak pernah tersentuh. Database dibuat dan dimigrasi otomatis.
+- Server tes berjalan di `http://localhost:3104` (ubah dengan `E2E_PORT`) dengan `NEXUS_ALLOW_SIGNUP=true`, `BETTER_AUTH_SECRET` acak per run, dan lampiran di direktori sementara (`E2E_DATA_DIR`). Server yang sudah jalan di port itu dipakai ulang di lokal; di CI selalu server baru.
+- Setiap tes mendaftarkan user sendiri (`e2e-…@example.test`) dan mengirim alamat `X-Forwarded-For` privat sendiri, sehingga rate limit masuk/daftar tetap aktif tanpa tes saling berebut kuota.
+- Proyek: `desktop-light` (1440x900) menjalankan semua alur; `desktop-dark`, `phone-light`, dan `phone-dark` (390x844, sentuh) menjalankan tes bertag `@smoke` (akun, catatan, keyboard, aksesibilitas).
+- Pelanggaran axe serius atau kritis menggagalkan tes, kecuali yang tercatat di `KNOWN` dalam `tests/e2e/a11y.spec.ts`; hasil lengkap terlampir di laporan.
+- Trace direkam pada retry pertama (`retries: 1` di CI). Laporan HTML: `pnpm exec playwright show-report`. Di CI laporan diunggah sebagai artifact `playwright-report` saat job gagal.
 
 ## Struktur
 
