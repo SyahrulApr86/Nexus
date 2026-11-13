@@ -69,7 +69,9 @@ export function parseFrontmatter(yaml: string | null): Record<string, unknown> {
       listKey = null;
     }
   }
-  return out;
+  // Hand back a plain object: callers (Drizzle among them) read `.constructor`. Spread
+  // defines each key as an own property, so `__proto__` stays a field here too.
+  return { ...out };
 }
 
 function unquote(s: string): string {

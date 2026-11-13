@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkFrontmatter from "remark-frontmatter";
 import { stripComments } from "./comments";
+import { splitFrontmatter } from "./parse";
 
 type MdNode = {
   type: string;
@@ -21,7 +22,10 @@ const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(rem
  * up, and tasks inside comments or code never count.
  */
 export function taskOffsets(md: string): number[] {
-  const text = stripComments(md);
+  // Comments are blanked in the body only, as the renderer does: a `%%` in frontmatter
+  // must not hide the tasks below it. Both parts keep their length, so offsets hold.
+  const { offset } = splitFrontmatter(md);
+  const text = md.slice(0, offset) + stripComments(md.slice(offset));
   const tree = parser.parse(text) as unknown as MdNode;
   const out: number[] = [];
   const walk = (n: MdNode) => {
