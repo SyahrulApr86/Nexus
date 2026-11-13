@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { EditorState } from "@codemirror/state";
+import { EditorState, RangeSetBuilder } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -52,7 +52,52 @@ const theme = EditorView.theme({
   "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
     { backgroundColor: "var(--selection)" },
   ".cm-gutters": { display: "none" },
+  ".cm-line.cm-codeblock": {
+    fontFamily: "var(--font-code)",
+    fontSize: "0.84em",
+    lineHeight: "1.7",
+    backgroundColor: "var(--code-bg)",
+    padding: "0 14px",
+  },
 });
+
+/** Fenced and indented code blocks get the code face on a tinted band, line by line. */
+const codeLine = Decoration.line({ class: "cm-codeblock" });
+const codeBlocks = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = this.build(view);
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.viewportChanged || syntaxTree(u.startState) !== syntaxTree(u.state)) this.decorations = this.build(u.view);
+    }
+    build(view: EditorView) {
+      const b = new RangeSetBuilder<Decoration>();
+      let last = -1;
+      for (const { from, to } of view.visibleRanges) {
+        syntaxTree(view.state).iterate({
+          from,
+          to,
+          enter: (node) => {
+            if (node.name !== "FencedCode" && node.name !== "CodeBlock") return;
+            for (let pos = node.from; pos <= node.to; ) {
+              const line = view.state.doc.lineAt(pos);
+              if (line.from > last) {
+                b.add(line.from, line.from, codeLine);
+                last = line.from;
+              }
+              pos = line.to + 1;
+            }
+            return false;
+          },
+        });
+      }
+      return b.finish();
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
 
 const highlight = HighlightStyle.define([
   { tag: t.heading1, fontSize: "1.6em", fontWeight: "600", lineHeight: "1.3" },
@@ -75,7 +120,8 @@ const highlight = HighlightStyle.define([
   { tag: [t.processingInstruction, t.meta, t.contentSeparator], color: "var(--faint)" },
   { tag: [t.keyword, t.operator], color: "var(--accent-ink)" },
   { tag: [t.string, t.special(t.string)], color: "var(--positive)" },
-  { tag: [t.number, t.bool, t.atom], color: "var(--mark-ink)" },
+  { tag: [t.number, t.bool], color: "var(--mark-ink)" },
+  { tag: t.atom, color: "var(--faint)" }, // task markers [ ] stay neutral; orange is for tags
   { tag: t.comment, color: "var(--faint)" },
   { tag: [t.function(t.variableName), t.typeName, t.className], color: "var(--accent-ink)" },
 ]);
@@ -199,6 +245,7 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
           linkDecorations(() => cb.current.exists),
           tagDecorations,
           highlightDecorations,
+          codeBlocks,
           keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, ...completionKeymap, indentWithTab]),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) cb.current.onChange(u.state.doc.toString());

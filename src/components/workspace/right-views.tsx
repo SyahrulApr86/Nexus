@@ -38,6 +38,33 @@ function Section({
   );
 }
 
+/**
+ * A backlink's context line, readable: list and heading markers dropped,
+ * [[links]] shown as their text, the link to this note in blue.
+ */
+function Context({ line, target }: { line: string; target: string }) {
+  const clean = line
+    .replace(/^\s*(?:[-*+]\s+\[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+|>\s*|#{1,6}\s+)/, "")
+    .replace(/==([^=\n]+)==/g, "$1");
+  const parts: React.ReactNode[] = [];
+  let pos = 0;
+  for (const m of clean.matchAll(/!?\[\[([^\[\]\n]+?)\]\]/g)) {
+    parts.push(clean.slice(pos, m.index));
+    const [targetPart, alias] = m[1].split("|");
+    const name = targetPart.split("#")[0].trim();
+    const text = alias ?? name;
+    const isTarget = name.toLowerCase() === target.toLowerCase() || name.toLowerCase().endsWith(`/${target.toLowerCase()}`);
+    parts.push(
+      <span key={m.index} className={isTarget ? "font-medium text-accent-ink" : "text-muted"}>
+        {text}
+      </span>,
+    );
+    pos = m.index! + m[0].length;
+  }
+  parts.push(clean.slice(pos));
+  return <span className="mt-0.5 line-clamp-2 block text-[13px] leading-5 text-faint">{parts}</span>;
+}
+
 function Empty({ children }: { children: React.ReactNode }) {
   return <p className="px-2 py-1 text-[13px] text-faint">{children}</p>;
 }
@@ -99,7 +126,7 @@ export function BacklinksView() {
                   className="block w-full rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
                 >
                   <span className="block truncate">{b.name}</span>
-                  {b.context && <span className="mt-0.5 line-clamp-2 block text-[13px] leading-5 text-faint">{b.context}</span>}
+                  {b.context && <Context line={b.context} target={note.name} />}
                 </button>
               </li>
             ))}
@@ -131,7 +158,7 @@ export function BacklinksView() {
                     {linking === m.id ? "Linking…" : "Link"}
                   </button>
                 </div>
-                <p className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-faint">{m.context}</p>
+                <Context line={m.context} target={note.name} />
               </li>
             ))}
           </ul>

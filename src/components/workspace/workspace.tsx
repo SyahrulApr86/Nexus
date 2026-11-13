@@ -230,7 +230,7 @@ function RightSidebar() {
       <div role="tabpanel" aria-label={current.label} className="min-h-0 flex-1 overflow-y-auto px-2 pb-6">
         <h2 className="px-2 pb-2 pt-1 text-[13px] text-faint">
           {current.label}
-          {view !== "tags" && w.activeNote && <span className="text-muted"> · {w.activeNote.name}</span>}
+          {view !== "tags" && w.activeNote && <span className="text-muted"> for {w.activeNote.name}</span>}
         </h2>
         {view === "backlinks" && <BacklinksView />}
         {view === "outgoing" && <OutgoingView />}

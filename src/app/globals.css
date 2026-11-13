@@ -135,290 +135,285 @@
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-html {
-  background: var(--frame);
-  color: var(--fg);
-  -webkit-tap-highlight-color: transparent;
-  text-size-adjust: 100%;
-}
-
-body {
-  font-family: var(--font-ui);
-  font-size: 14px;
-  line-height: 20px;
-  font-feature-settings: "kern" 1;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  touch-action: manipulation;
-}
-
-@media (pointer: fine) {
+@layer base {
   html {
-    overscroll-behavior: none;
+    background: var(--frame);
+    color: var(--fg);
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 20px;
+    font-feature-settings: "kern" 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    touch-action: manipulation;
+  }
+
+  @media (pointer: fine) {
+    html {
+      overscroll-behavior: none;
+    }
+  }
+
+  ::selection {
+    background: var(--selection);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Scrollbars follow the frame, not the OS default. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--control) transparent;
+  }
+
+  dialog {
+    color: var(--fg);
+    max-width: none;
+    max-height: none;
+    overscroll-behavior: contain;
+  }
+  dialog::backdrop {
+    background: var(--scrim);
+  }
+  dialog[open] {
+    animation: rise 200ms var(--ease-out-quint);
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
   }
 }
 
-::selection {
-  background: var(--selection);
-}
+@layer components {
+  .tabular {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
 
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    min-width: 20px;
+    padding: 0 5px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--sheet);
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
 
-input,
-textarea,
-select,
-button {
-  font: inherit;
-  color: inherit;
-}
+  /* ---------- CodeMirror decorations (layout lives in the editor theme) ---------- */
+  .cm-wikilink {
+    color: var(--accent-ink);
+    cursor: pointer;
+  }
+  .cm-wikilink-ghost {
+    color: var(--faint);
+    text-decoration: underline dotted var(--faint);
+    text-underline-offset: 3px;
+  }
+  .cm-tag {
+    color: var(--mark-ink);
+    background: var(--mark-soft);
+    border-radius: 4px;
+    padding: 0 4px;
+    font-family: var(--font-ui);
+    font-size: 0.88em;
+  }
+  .cm-highlight {
+    background: var(--hl);
+    border-radius: 2px;
+  }
+  .cm-tooltip {
+    background: var(--sheet) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow-float);
+    font-family: var(--font-ui);
+  }
+  .cm-tooltip-autocomplete > ul > li {
+    padding: 4px 10px !important;
+    font-size: 14px;
+  }
+  .cm-tooltip-autocomplete > ul > li[aria-selected] {
+    background: var(--active) !important;
+    color: var(--fg) !important;
+  }
+  .cm-completionMatchedText {
+    text-decoration: none;
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+  .cm-panels {
+    background: var(--frame) !important;
+    color: var(--fg) !important;
+    border-color: var(--border) !important;
+    font-family: var(--font-ui);
+  }
+  .cm-searchMatch {
+    background: var(--mark-soft);
+    outline: 1px solid var(--mark);
+  }
+  .cm-searchMatch-selected {
+    background: var(--hl);
+  }
+  .cm-placeholder {
+    color: var(--faint);
+  }
 
-/* Scrollbars follow the frame, not the OS default. */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--control) transparent;
-}
-
-.tabular {
-  font-variant-numeric: tabular-nums lining-nums;
-}
-
-.kbd {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  min-width: 20px;
-  padding: 0 5px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--sheet);
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/* ---------- CodeMirror decorations (layout lives in the editor theme) ---------- */
-.cm-wikilink {
-  color: var(--accent-ink);
-  cursor: pointer;
-}
-.cm-wikilink-ghost {
-  color: var(--faint);
-  text-decoration: underline dotted var(--faint);
-  text-underline-offset: 3px;
-}
-.cm-tag {
-  color: var(--mark-ink);
-  background: var(--mark-soft);
-  border-radius: 4px;
-  padding: 0 4px;
-  font-family: var(--font-ui);
-  font-size: 0.88em;
-}
-.cm-highlight {
-  background: var(--hl);
-  border-radius: 2px;
-}
-.cm-tooltip {
-  background: var(--sheet) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: var(--shadow-float);
-  font-family: var(--font-ui);
-}
-.cm-tooltip-autocomplete > ul > li {
-  padding: 4px 10px !important;
-  font-size: 14px;
-}
-.cm-tooltip-autocomplete > ul > li[aria-selected] {
-  background: var(--active) !important;
-  color: var(--fg) !important;
-}
-.cm-completionMatchedText {
-  text-decoration: none;
-  color: var(--accent-ink);
-  font-weight: 600;
-}
-.cm-panels {
-  background: var(--frame) !important;
-  color: var(--fg) !important;
-  border-color: var(--border) !important;
-  font-family: var(--font-ui);
-}
-.cm-searchMatch {
-  background: var(--mark-soft);
-  outline: 1px solid var(--mark);
-}
-.cm-searchMatch-selected {
-  background: var(--hl);
-}
-.cm-placeholder {
-  color: var(--faint);
-}
-
-/* ---------- Reading view ---------- */
-.reading {
-  font-family: var(--font-note);
-  font-size: 17px;
-  line-height: 1.65;
-  overflow-wrap: anywhere;
-  hanging-punctuation: first;
-}
-.reading > :first-child {
-  margin-top: 0;
-}
-.reading h1,
-.reading h2,
-.reading h3,
-.reading h4,
-.reading h5,
-.reading h6 {
-  font-weight: 600;
-  line-height: 1.25;
-  text-wrap: balance;
-  margin: 1.6em 0 0.5em;
-}
-.reading h1 { font-size: 1.6em; }
-.reading h2 { font-size: 1.35em; }
-.reading h3 { font-size: 1.15em; }
-.reading h4,
-.reading h5,
-.reading h6 { font-size: 1em; }
-.reading p { margin: 0.75em 0; }
-.reading ul { list-style: disc; padding-left: 1.4em; margin: 0.6em 0; }
-.reading ol { list-style: decimal; padding-left: 1.4em; margin: 0.6em 0; }
-.reading li { margin: 0.2em 0; }
-.reading li::marker { color: var(--faint); }
-.reading li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.3em; }
-.reading input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  margin-right: 0.45em;
-  vertical-align: -2px;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-.reading a {
-  color: var(--accent-ink);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  text-decoration-color: color-mix(in srgb, var(--accent-ink) 40%, transparent);
-}
-.reading a[href^="wikilink:"] {
-  text-decoration: none;
-}
-.reading a[href^="wikilink:"]:hover {
-  text-decoration: underline;
-}
-.reading a.ghost {
-  color: var(--faint);
-  text-decoration: underline dotted;
-}
-.reading a[href^="tag:"] {
-  color: var(--mark-ink);
-  background: var(--mark-soft);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-family: var(--font-ui);
-  font-size: 0.82em;
-  text-decoration: none;
-}
-.reading blockquote {
-  margin: 1em 0;
-  padding: 0.1em 0 0.1em 1em;
-  border-left: 1px solid var(--control);
-  color: var(--muted);
-}
-.reading code {
-  font-family: var(--font-code);
-  font-size: 0.84em;
-  background: var(--code-bg);
-  border-radius: 4px;
-  padding: 0.1em 0.35em;
-}
-.reading pre {
-  background: var(--code-bg);
-  border-radius: 8px;
-  padding: 12px 16px;
-  overflow-x: auto;
-  margin: 1em 0;
-  line-height: 1.55;
-}
-.reading pre code {
-  background: none;
-  padding: 0;
-}
-.reading hr {
-  border: 0;
-  border-top: 1px solid var(--border);
-  margin: 2em 0;
-}
-.reading table {
-  display: block;
-  overflow-x: auto;
-  border-collapse: collapse;
-  margin: 1em 0;
-  font-family: var(--font-ui);
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-}
-.reading th,
-.reading td {
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--rule);
-  text-align: left;
-}
-.reading th {
-  color: var(--muted);
-  font-weight: 500;
-  border-bottom-color: var(--border);
-}
-.reading img {
-  max-width: 100%;
-  border-radius: 8px;
-}
-.reading mark {
-  background: var(--hl);
-  color: inherit;
-  border-radius: 2px;
-  padding: 0 2px;
-}
-.reading .frontmatter {
-  font-family: var(--font-code);
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--muted);
-  background: var(--code-bg);
-  border-radius: 8px;
-  padding: 10px 14px;
-  white-space: pre-wrap;
-  margin-bottom: 1.5em;
-}
-
-/* ---------- Native dialogs ---------- */
-dialog {
-  color: var(--fg);
-  max-width: none;
-  max-height: none;
-  overscroll-behavior: contain;
-}
-dialog::backdrop {
-  background: var(--scrim);
-}
-dialog[open] {
-  animation: rise 200ms var(--ease-out-quint);
-}
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
+  /* ---------- Reading view ---------- */
+  .reading {
+    font-family: var(--font-note);
+    font-size: 17px;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+    hanging-punctuation: first;
+  }
+  .reading > :first-child {
+    margin-top: 0;
+  }
+  .reading h1,
+  .reading h2,
+  .reading h3,
+  .reading h4,
+  .reading h5,
+  .reading h6 {
+    font-weight: 600;
+    line-height: 1.25;
+    text-wrap: balance;
+    margin: 1.6em 0 0.5em;
+  }
+  .reading h1 { font-size: 1.6em; }
+  .reading h2 { font-size: 1.35em; }
+  .reading h3 { font-size: 1.15em; }
+  .reading h4,
+  .reading h5,
+  .reading h6 { font-size: 1em; }
+  .reading p { margin: 0.75em 0; }
+  .reading ul { list-style: disc; padding-left: 1.4em; margin: 0.6em 0; }
+  .reading ol { list-style: decimal; padding-left: 1.4em; margin: 0.6em 0; }
+  .reading li { margin: 0.2em 0; }
+  .reading li::marker { color: var(--faint); }
+  .reading li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.3em; }
+  .reading input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    margin-right: 0.45em;
+    vertical-align: -2px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .reading a {
+    color: var(--accent-ink);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    text-decoration-color: color-mix(in srgb, var(--accent-ink) 40%, transparent);
+  }
+  .reading a[href^="wikilink:"] {
+    text-decoration: none;
+  }
+  .reading a[href^="wikilink:"]:hover {
+    text-decoration: underline;
+  }
+  .reading a.ghost {
+    color: var(--faint);
+    text-decoration: underline dotted;
+  }
+  .reading a[href^="tag:"] {
+    color: var(--mark-ink);
+    background: var(--mark-soft);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: var(--font-ui);
+    font-size: 0.82em;
+    text-decoration: none;
+  }
+  .reading blockquote {
+    margin: 1em 0;
+    padding: 0.1em 0 0.1em 1em;
+    border-left: 1px solid var(--control);
+    color: var(--muted);
+  }
+  .reading code {
+    font-family: var(--font-code);
+    font-size: 0.84em;
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 0.1em 0.35em;
+  }
+  .reading pre {
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 12px 16px;
+    overflow-x: auto;
+    margin: 1em 0;
+    line-height: 1.55;
+  }
+  .reading pre code {
+    background: none;
+    padding: 0;
+  }
+  .reading hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 2em 0;
+  }
+  .reading table {
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 1em 0;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .reading th,
+  .reading td {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+  }
+  .reading th {
+    color: var(--muted);
+    font-weight: 500;
+    border-bottom-color: var(--border);
+  }
+  .reading img {
+    max-width: 100%;
+    border-radius: 8px;
+  }
+  .reading mark {
+    background: var(--hl);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 2px;
+  }
+  .reading .frontmatter {
+    font-family: var(--font-code);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--muted);
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 10px 14px;
+    white-space: pre-wrap;
+    margin-bottom: 1.5em;
   }
 }
 

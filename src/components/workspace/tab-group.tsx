@@ -59,7 +59,7 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
 
   return (
     <div className="hidden h-10 shrink-0 items-end gap-1 pr-2 md:flex">
-      <div role="tablist" aria-label={w.layout.groups.length > 1 ? `Tabs, group ${gi + 1}` : "Tabs"} className="flex min-w-0 items-end gap-0.5 overflow-x-auto">
+      <div role="tablist" aria-label={w.layout.groups.length > 1 ? `Tabs, group ${gi + 1}` : "Tabs"} className="flex min-w-0 items-end gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {g.tabs.map((t: Tab, i) => {
           const selected = i === g.active;
           const v = currentView(t);
