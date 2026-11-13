@@ -13,7 +13,7 @@ import {
 } from "d3-force";
 import { X } from "lucide-react";
 import { api, type GraphData } from "./api";
-import { useWorkspace } from "./store";
+import { shallowEqual, useWorkspaceActions, useWorkspaceSelector } from "./store";
 import { CLEAR_BUTTON, nf, useShown } from "./ui";
 
 type N = SimulationNodeDatum & { id: string; name: string; ghost: boolean; degree: number; tagged: boolean };
@@ -55,7 +55,11 @@ const structureKey = (v: ViewData) =>
  * Under reduced motion the layout is computed off screen and drawn once.
  */
 export function GraphView() {
-  const w = useWorkspace();
+  const actions = useWorkspaceActions();
+  const w = useWorkspaceSelector(
+    (s) => ({ layout: s.layout, tree: s.tree, linksVersion: s.linksVersion, tagsVersion: s.tagsVersion }),
+    shallowEqual,
+  );
   const canvas = useRef<HTMLCanvasElement>(null);
   const [data, setData] = useState<GraphData | null>(null);
   const [error, setError] = useState(false);
@@ -74,7 +78,7 @@ export function GraphView() {
     }
     return null;
   }, [w.layout]);
-  const openRef = useRef(w.actions.open);
+  const openRef = useRef(actions.open);
   const activeRef = useRef(activeId);
   const sceneRef = useRef<Scene | null>(null);
   // Survive switching to the list and back: positions and camera.
@@ -82,7 +86,7 @@ export function GraphView() {
   const camRef = useRef<{ x: number; y: number; k: number } | null>(null);
   const savedKeyRef = useRef("");
   useEffect(() => {
-    openRef.current = w.actions.open;
+    openRef.current = actions.open;
   });
 
   // Refetch only when links, tags or the set of notes changed, and only while the graph is on screen
@@ -539,7 +543,7 @@ export function GraphView() {
           {notesInVault === 0 ? (
             <>
               <p>Your vault has no notes yet.</p>
-              <button type="button" className="mt-2 font-medium text-accent-ink hover:underline" onClick={() => w.actions.newNote("")}>
+              <button type="button" className="mt-2 font-medium text-accent-ink hover:underline" onClick={() => actions.newNote("")}>
                 Create a note
               </button>
             </>
@@ -570,7 +574,7 @@ export function GraphView() {
             <ul className="max-w-2xl space-y-2">
               {listRows.map((r) => (
                 <li key={r.id}>
-                  <button type="button" onClick={() => w.actions.open(r.id)} className="font-medium text-accent-ink hover:underline" translate="no">
+                  <button type="button" onClick={() => actions.open(r.id)} className="font-medium text-accent-ink hover:underline" translate="no">
                     {r.name}
                   </button>
                   <span className="text-[13px] text-faint">

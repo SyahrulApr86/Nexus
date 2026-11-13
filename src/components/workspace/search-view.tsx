@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { api, type SearchHit } from "./api";
-import { useWorkspace } from "./store";
+import { shallowEqual, useWorkspaceActions, useWorkspaceSelector } from "./store";
 import { Bar, CLEAR_BUTTON, nf, useShown } from "./ui";
 
 /** `tag` is set when the whole query is one #tag, for the empty-result copy. */
@@ -16,7 +16,9 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
  * a tag combines with words and operators (`#work line:todo`).
  */
 export function SearchView() {
-  const w = useWorkspace();
+  const actions = useWorkspaceActions();
+  // `version` moves on saves (not keystrokes): a saved edit can change the hits.
+  const w = useWorkspaceSelector((s) => ({ searchQuery: s.searchQuery, version: s.version }), shallowEqual);
   const q = w.searchQuery;
   const [result, setResult] = useState<Result | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -90,7 +92,7 @@ export function SearchView() {
             type="search"
             value={q}
             autoFocus
-            onChange={(e) => w.actions.setSearchQuery(e.target.value)}
+            onChange={(e) => actions.setSearchQuery(e.target.value)}
             placeholder="Search…"
             aria-describedby={hintId}
             autoComplete="off"
@@ -102,7 +104,7 @@ export function SearchView() {
               type="button"
               aria-label="Clear search"
               onClick={() => {
-                w.actions.setSearchQuery("");
+                actions.setSearchQuery("");
                 document.getElementById(inputId)?.focus();
               }}
               className={CLEAR_BUTTON}
@@ -151,7 +153,7 @@ export function SearchView() {
             <li key={h.id}>
               <button
                 type="button"
-                onClick={(e) => w.actions.open(h.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
+                onClick={(e) => actions.open(h.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
                 className="block w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-hover"
               >
                 <span className="block truncate font-medium" translate="no">

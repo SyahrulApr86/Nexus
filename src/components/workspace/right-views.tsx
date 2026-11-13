@@ -1,13 +1,33 @@
 "use client";
 
-import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { api, type Mention, type TagCount, type NoteRef } from "./api";
-import { useWorkspace } from "./store";
+import { shallowEqual, useWorkspaceActions, useWorkspaceSelector, type CachedNote } from "./store";
 import { Bar, nf, useShown } from "./ui";
 import { extractHeadings, extractWikiLinks } from "@/lib/markdown/parse";
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Unlinked mentions follow saves while open; a burst of saves becomes one request. */
+const MENTIONS_DEBOUNCE = 1200;
+
+/**
+ * A derivation of the focused note's text, recomputed only when the text changed.
+ * Returned as a string, so a selector compares it by value and a panel re-renders
+ * only when the derived result changed, not on every published keystroke.
+ */
+function fromText(fn: (content: string) => string) {
+  let key: string | undefined;
+  let value = "";
+  return (content: string) => {
+    if (content !== key) {
+      key = content;
+      value = fn(content);
+    }
+    return value;
+  };
+}
 
 function Section({
   title,
@@ -88,10 +108,12 @@ function NoNote() {
 
 /** Shown in place of a note panel while the focused note is still loading (or failed to). */
 function NoteMissing() {
-  const w = useWorkspace();
-  const v = w.focusView;
-  if (v.type !== "note") return <NoNote />;
-  if (w.noteErrors[v.id]) return <Empty>Couldn’t load this note.</Empty>;
+  const { isNote, failed } = useWorkspaceSelector(
+    (w) => ({ isNote: w.focusView.type === "note", failed: w.focusView.type === "note" && !!w.noteErrors[w.focusView.id] }),
+    shallowEqual,
+  );
+  if (!isNote) return <NoNote />;
+  if (failed) return <Empty>Couldn’t load this note.</Empty>;
   return (
     <div role="status" className="space-y-2 px-2 py-1">
       <span className="sr-only">Loading note</span>
@@ -103,9 +125,13 @@ function NoteMissing() {
 
 /* ---------------- Backlinks: linked and unlinked mentions ---------------- */
 
+/** Backlinks follow the note's identity and its backlink list, not its text. */
+const sameBacklinks = (a: CachedNote | undefined, b: CachedNote | undefined) =>
+  a === b || (!!a && !!b && a.id === b.id && a.name === b.name && a.backlinks === b.backlinks);
+
 export function BacklinksView() {
-  const w = useWorkspace();
-  const note = w.activeNote;
+  const actions = useWorkspaceActions();
+  const note = useWorkspaceSelector((w) => w.activeNote, sameBacklinks);
   // Results are stored with the note they belong to, so an autosave refresh keeps showing
   // the previous list instead of blanking it; only a different note shows the skeleton.
   const [res, setRes] = useState<{ key: string; items: Mention[] } | null>(null);
@@ -113,34 +139,45 @@ export function BacklinksView() {
   const noteId = note?.id;
   const key = note ? `${note.id}:${note.name}` : "";
   const mentions = res?.key === key ? res.items : null;
-  // Refetch when links changed, not on every autosave, and only while the panel is on screen.
-  // A plain-text mention changes no links, so while Unlinked mentions is open every save
-  // refetches too; opening it after edits refetches once.
+  // Refetch when links changed, and only while the panel is on screen. Unlinked mentions depend
+  // on other notes' text, not links: while that section is open, saves (`version`) refetch too,
+  // debounced so typing does not spam the API. The previous list stays up while it refetches.
   const [rootRef, shown] = useShown<HTMLDivElement>();
   const [unlinkedOpen, setUnlinkedOpen] = useState(false);
-  const linksVersion = w.linksVersion;
-  const contentVersion = unlinkedOpen ? w.version : null;
-  const done = useRef<{ key: string; links: number; content: number } | null>(null);
+  const { linksVersion, contentVersion } = useWorkspaceSelector(
+    (w) => ({ linksVersion: w.linksVersion, contentVersion: unlinkedOpen ? w.version : null }),
+    shallowEqual,
+  );
+  const done = useRef<{ key: string; links: number; content: number | null } | null>(null);
+  const wasShown = useRef(false);
 
   useEffect(() => {
+    const revealed = shown && !wasShown.current;
+    wasShown.current = shown;
     if (!noteId || !shown) return;
     const d = done.current;
     if (d && d.key === key && d.links === linksVersion && (contentVersion === null || d.content === contentVersion)) return;
-    const stamp = { key, links: linksVersion, content: w.version };
+    const stamp = { key, links: linksVersion, content: contentVersion };
+    // Only text saved while the section was open and on screen waits; a new note, new links,
+    // opening the section or showing the panel again fetch at once.
+    const debounce = !revealed && !!d && d.key === key && d.links === linksVersion && d.content !== null;
     let live = true;
-    api
-      .mentions(noteId)
-      .then((m) => {
-        if (!live) return;
-        done.current = stamp;
-        setRes((r) => (r?.key === key && same(r.items, m) ? r : { key, items: m }));
-      })
-      .catch(() => live && setRes((r) => (r?.key === key ? r : { key, items: [] })));
+    const t = setTimeout(
+      () =>
+        api
+          .mentions(noteId)
+          .then((m) => {
+            if (!live) return;
+            done.current = stamp;
+            setRes((r) => (r?.key === key && same(r.items, m) ? r : { key, items: m }));
+          })
+          .catch(() => live && setRes((r) => (r?.key === key ? r : { key, items: [] }))),
+      debounce ? MENTIONS_DEBOUNCE : 0,
+    );
     return () => {
       live = false;
+      clearTimeout(t);
     };
-    // w.version is read through contentVersion, which tracks it only while Unlinked is open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, linksVersion, contentVersion, noteId, shown]);
 
   if (!note)
@@ -153,13 +190,13 @@ export function BacklinksView() {
   const link = async (m: Mention) => {
     setLinking(m.id);
     try {
-      await w.actions.flush(m.id);
+      await actions.flush(m.id);
       await api.linkMention(note.id, m.id);
-      await w.actions.loadNote(note.id);
-      w.actions.bump();
-      w.actions.notify(`Linked “${note.name}” in ${m.name}`);
+      await actions.loadNote(note.id);
+      actions.bump();
+      actions.notify(`Linked “${note.name}” in ${m.name}`);
     } catch (e) {
-      w.actions.notify(e instanceof Error ? e.message : "Couldn’t link that mention");
+      actions.notify(e instanceof Error ? e.message : "Couldn’t link that mention");
     } finally {
       setLinking(null);
     }
@@ -178,7 +215,7 @@ export function BacklinksView() {
               <li key={b.id}>
                 <button
                   type="button"
-                  onClick={(e) => w.actions.open(b.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
+                  onClick={(e) => actions.open(b.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
                   className="block w-full rounded-md px-2 py-3 text-left transition-colors hover:bg-hover lg:py-1.5"
                 >
                   <span className="block truncate" translate="no">
@@ -208,7 +245,7 @@ export function BacklinksView() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => w.actions.open(m.id)}
+                    onClick={() => actions.open(m.id)}
                     className="min-w-0 flex-1 truncate text-left hover:underline"
                     translate="no"
                   >
@@ -236,19 +273,28 @@ export function BacklinksView() {
 
 /* ---------------- Outgoing links ---------------- */
 
-export function OutgoingView() {
-  const w = useWorkspace();
-  const content = useDeferredValue(w.activeNote?.content ?? "");
-  const links = useMemo(() => {
-    const seen = new Set<string>();
-    return extractWikiLinks(content).filter((l) => {
+/** Distinct link targets, one per line (a target never holds a line break). */
+const targetsOf = fromText((content) => {
+  const seen = new Set<string>();
+  return extractWikiLinks(content)
+    .filter((l) => {
       const k = l.target.toLowerCase();
       if (!l.target || seen.has(k)) return false;
       seen.add(k);
       return true;
-    });
-  }, [content]);
-  if (!w.activeNote) return <NoteMissing />;
+    })
+    .map((l) => l.target)
+    .join("\n");
+});
+
+export function OutgoingView() {
+  const actions = useWorkspaceActions();
+  const w = useWorkspaceSelector(
+    (s) => ({ hasNote: !!s.activeNote, targets: targetsOf(s.activeNote?.content ?? ""), exists: s.exists }),
+    shallowEqual,
+  );
+  const links = useMemo(() => (w.targets ? w.targets.split("\n").map((target) => ({ target })) : []), [w.targets]);
+  if (!w.hasNote) return <NoteMissing />;
   const resolved = links.filter((l) => w.exists(l.target));
   const unresolved = links.filter((l) => !w.exists(l.target));
   return (
@@ -262,7 +308,7 @@ export function OutgoingView() {
               <li key={l.target}>
                 <button
                   type="button"
-                  onClick={(e) => w.actions.openLink(l.target, e.ctrlKey || e.metaKey)}
+                  onClick={(e) => actions.openLink(l.target, e.ctrlKey || e.metaKey)}
                   className="block w-full truncate rounded-md px-2 py-3 text-left text-accent-ink transition-colors hover:bg-hover lg:py-1.5"
                   translate="no"
                 >
@@ -280,7 +326,7 @@ export function OutgoingView() {
               <li key={l.target}>
                 <button
                   type="button"
-                  onClick={() => w.actions.openLink(l.target)}
+                  onClick={() => actions.openLink(l.target)}
                   title={`Create “${l.target}”`}
                   className="block w-full truncate rounded-md px-2 py-3 text-left text-faint transition-colors hover:bg-hover hover:text-fg lg:py-1.5"
                   translate="no"
@@ -299,7 +345,8 @@ export function OutgoingView() {
 /* ---------------- Tags (vault-wide) ---------------- */
 
 export function TagsView() {
-  const w = useWorkspace();
+  const actions = useWorkspaceActions();
+  const w = useWorkspaceSelector((s) => ({ selectedTag: s.selectedTag, tagsVersion: s.tagsVersion }), shallowEqual);
   const [tags, setTags] = useState<TagCount[] | null>(null);
   const [byTag, setByTag] = useState<{ tag: string; items: NoteRef[] } | null>(null);
   const selected = w.selectedTag;
@@ -346,7 +393,7 @@ export function TagsView() {
   if (selected)
     return (
       <div ref={rootRef}>
-        <button type="button" onClick={() => w.actions.setSelectedTag(null)} className="mb-2 rounded-md px-2 py-3 text-[13px] text-accent-ink hover:underline lg:py-1">
+        <button type="button" onClick={() => actions.setSelectedTag(null)} className="mb-2 rounded-md px-2 py-3 text-[13px] text-accent-ink hover:underline lg:py-1">
           All tags
         </button>
         <h3 className="px-2 pb-2 font-medium">
@@ -367,7 +414,7 @@ export function TagsView() {
               <li key={n.id}>
                 <button
                   type="button"
-                  onClick={(e) => w.actions.open(n.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
+                  onClick={(e) => actions.open(n.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
                   className="block w-full truncate rounded-md px-2 py-3 text-left transition-colors hover:bg-hover lg:py-1.5"
                   translate="no"
                 >
@@ -400,7 +447,7 @@ export function TagsView() {
         <li key={t.tag}>
           <button
             type="button"
-            onClick={() => w.actions.setSelectedTag(t.tag)}
+            onClick={() => actions.setSelectedTag(t.tag)}
             className="flex w-full items-center gap-2 rounded-md px-2 py-3 text-left transition-colors hover:bg-hover lg:py-1.5"
           >
             <span className="min-w-0 flex-1 truncate text-mark-ink" translate="no">
@@ -416,11 +463,16 @@ export function TagsView() {
 
 /* ---------------- Outline ---------------- */
 
+const headingsOf = fromText((content) => JSON.stringify(extractHeadings(content)));
+
 export function OutlineView() {
-  const w = useWorkspace();
-  const content = useDeferredValue(w.activeNote?.content ?? "");
-  const headings = useMemo(() => extractHeadings(content), [content]);
-  if (!w.activeNote) return <NoteMissing />;
+  const actions = useWorkspaceActions();
+  const w = useWorkspaceSelector(
+    (s) => ({ hasNote: !!s.activeNote, headings: headingsOf(s.activeNote?.content ?? ""), focusView: s.focusView, editor: s.editor }),
+    shallowEqual,
+  );
+  const headings = useMemo(() => JSON.parse(w.headings) as ReturnType<typeof extractHeadings>, [w.headings]);
+  if (!w.hasNote) return <NoteMissing />;
   if (!headings.length) return <Empty>No headings. Start a line with # to add one.</Empty>;
   const min = Math.min(...headings.map((h) => h.level));
   return (
@@ -431,8 +483,8 @@ export function OutlineView() {
             <button
               type="button"
               onClick={() => {
-                if (w.focusView.type === "note" && w.focusView.mode === "read") w.actions.setMode("edit");
-                w.actions.setDrawer(null);
+                if (w.focusView.type === "note" && w.focusView.mode === "read") actions.setMode("edit");
+                actions.setDrawer(null);
                 setTimeout(() => w.editor.current?.scrollToLine(h.line), 40);
               }}
               className="block w-full truncate rounded-md py-3 pr-2 text-left transition-colors hover:bg-hover lg:py-1.5"

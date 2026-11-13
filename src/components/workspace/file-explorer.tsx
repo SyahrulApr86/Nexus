@@ -3,7 +3,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { ArrowDownUp, ChevronRight, ChevronsDownUp, EllipsisVertical, FilePen, FolderPlus } from "lucide-react";
 import type { TreeNote } from "./api";
-import { useWorkspace, type SortOrder } from "./store";
+import { shallowEqual, useWorkspaceActions, useWorkspaceSelector, type SortOrder } from "./store";
 import { Bar, IconButton, Menu, useMenu, type MenuItem } from "./ui";
 
 type Dir = { name: string; path: string; dirs: Map<string, Dir>; notes: TreeNote[] };
@@ -79,8 +79,8 @@ const SORT_LABELS: Record<SortOrder, string> = {
 };
 
 /**
- * One tree row. Only primitive props, so typing in the editor (which re-renders
- * the explorer) does not reconcile every row. Events are handled on the tree.
+ * One tree row. Only primitive props, so a change elsewhere in the explorer
+ * (focus, drop target) does not reconcile every row. Events are handled on the tree.
  */
 const TreeRow = memo(function TreeRow({
   rowKey,
@@ -161,8 +161,12 @@ const TreeRow = memo(function TreeRow({
 });
 
 export function FileExplorer() {
-  const w = useWorkspace();
-  const { actions } = w;
+  const actions = useWorkspaceActions();
+  // Not the note text: typing does not re-render the explorer.
+  const w = useWorkspaceSelector(
+    (s) => ({ prefs: s.prefs, tree: s.tree, treeStatus: s.treeStatus, focusView: s.focusView }),
+    shallowEqual,
+  );
   const expanded = useMemo(() => new Set(w.prefs.expanded), [w.prefs.expanded]);
   const root = useMemo(() => buildTree(w.tree.notes, w.tree.folders), [w.tree]);
   const rows = useMemo(() => flatten(root, expanded, w.prefs.sort), [root, expanded, w.prefs.sort]);

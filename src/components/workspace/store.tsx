@@ -21,6 +21,7 @@ import type { Toast } from "./ui";
 import type { EditorHandle } from "./editor";
 import { basename, dirname, extractTags, extractWikiLinks, linkKey } from "@/lib/markdown/parse";
 import { signOut } from "@/lib/auth-client";
+import { writePrefsCookie, type LayoutPrefs, type LeftView, type RightView, type SortOrder } from "./prefs-cookie";
 
 /* ------------------------------------------------------------------ */
 /* Layout model: tab groups (max two, side by side), tabs with history */
@@ -200,8 +201,7 @@ function layoutReducer(state: Layout, a: Action): Layout {
 /* Persisted preferences                                               */
 /* ------------------------------------------------------------------ */
 
-export type LeftView = "files" | "search";
-export type RightView = "backlinks" | "outgoing" | "tags" | "outline";
+export type { LeftView, RightView, SortOrder } from "./prefs-cookie";
 export type SaveState = "saved" | "dirty" | "saving" | "error" | "signedOut";
 export type SettingsSection = "general" | "hotkeys";
 /** A cached note. `rev` changes only when the server text replaced what the editor showed. */
@@ -209,7 +209,6 @@ export type CachedNote = FullNote & { rev: number };
 export type NoteError = { status: number; message: string };
 type FocusRequest = { id: string; target: "editor" | "title" };
 type PendingSave = { content: string; timer?: ReturnType<typeof setTimeout> };
-export type SortOrder = "name-asc" | "name-desc" | "modified-desc" | "modified-asc";
 export type Theme = "system" | "light" | "dark";
 export type Drawer = "left" | "right" | null;
 export type PaletteMode = "notes" | "commands" | null;
@@ -222,6 +221,7 @@ type Prefs = {
   sort: SortOrder;
   expanded: string[];
 };
+export type InitialPrefs = LayoutPrefs;
 const PREFS_KEY = "nexus-prefs";
 const LAYOUT_KEY = "nexus-layout";
 const defaultPrefs: Prefs = {
@@ -340,6 +340,25 @@ function createWorkspaceStore(initial: WorkspaceValue): WorkspaceStore {
   };
 }
 
+/** Equal when both are the same object, or objects with the same keys holding identical values. */
+export function shallowEqual<T>(a: T, b: T): boolean {
+  if (Object.is(a, b)) return true;
+  if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
+  const ka = Object.keys(a) as (keyof T)[];
+  if (ka.length !== Object.keys(b).length) return false;
+  return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && Object.is(a[k], b[k]));
+}
+
+/** Arrays with identical items in the same order. */
+export function sameItems<T>(a: readonly T[], b: readonly T[]): boolean {
+  return a === b || (a.length === b.length && a.every((x, i) => Object.is(x, b[i])));
+}
+
+/** The same note as far as its identity goes (id, name, path): for menus and commands, not its text. */
+export function sameNoteMeta(a: { id: string; name: string; path: string } | undefined, b: { id: string; name: string; path: string } | undefined) {
+  return a === b || (!!a && !!b && a.id === b.id && a.name === b.name && a.path === b.path);
+}
+
 /** Everything at once. Re-renders on every workspace change, including the published text while typing. */
 export function useWorkspace() {
   const v = use(WorkspaceContext);
@@ -379,8 +398,17 @@ export function useWorkspaceSelector<T>(
   return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 }
 
-export function WorkspaceProvider({ user, children }: { user: User; children: ReactNode }) {
-  const value = useWorkspaceState(user);
+export function WorkspaceProvider({
+  user,
+  initialPrefs,
+  children,
+}: {
+  user: User;
+  /** Layout prefs from the cookie, so the server and the first client render match the saved layout. */
+  initialPrefs?: InitialPrefs;
+  children: ReactNode;
+}) {
+  const value = useWorkspaceState(user, initialPrefs);
   const [store] = useState(() => createWorkspaceStore(value));
   // After commit, so selector subscribers never read a value React has not committed.
   useLayoutEffect(() => store.set(value), [store, value]);
@@ -396,7 +424,7 @@ export function WorkspaceProvider({ user, children }: { user: User; children: Re
   );
 }
 
-function useWorkspaceState(user: User) {
+function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
   const { api: dialogRaw, node: dialogNode } = useDialogs();
   const dialog: DialogApi = useMemo(
     () => ({ prompt: dialogRaw.prompt, confirm: dialogRaw.confirm }),
@@ -408,7 +436,7 @@ function useWorkspaceState(user: User) {
   const [notes, setNotes] = useState<Record<string, CachedNote>>({});
   const [noteErrors, setNoteErrors] = useState<Record<string, NoteError>>({});
   const [layout, dispatch] = useReducer(layoutReducer, { groups: [newGroup()], focus: 0 });
-  const [prefs, setPrefs] = useState<Prefs>(defaultPrefs);
+  const [prefs, setPrefs] = useState<Prefs>(() => ({ ...defaultPrefs, ...initialPrefs }));
   const [save, setSaveState] = useState<SaveState>("saved");
   const [drawer, setDrawerState] = useState<Drawer>(null);
   const [palette, setPalette] = useState<PaletteMode>(null);
@@ -1010,7 +1038,9 @@ function useWorkspaceState(user: User) {
   // Before paint, so the saved sidebar layout shows from the first client frame.
   useLayoutEffect(() => {
     // localStorage is client-only, so these cannot be initial state without a hydration mismatch.
-    setPrefs(readJSON(PREFS_KEY, defaultPrefs));
+    // The cookie only mirrors these for the server render; localStorage wins when they differ.
+    const saved = readJSON<Partial<Prefs> | null>(PREFS_KEY, null);
+    if (saved) setPrefs((p) => ({ ...p, ...saved }));
     let t: string | null = null;
     try {
       t = localStorage.getItem("nexus-theme");
@@ -1074,7 +1104,9 @@ function useWorkspaceState(user: User) {
     if (!restoring) writeJSON(LAYOUT_KEY, layout);
   }, [layout, restoring]);
   useEffect(() => {
-    if (!restoring) writeJSON(PREFS_KEY, prefs);
+    if (restoring) return;
+    writeJSON(PREFS_KEY, prefs);
+    writePrefsCookie(prefs);
   }, [prefs, restoring]);
 
   // Keep ?n= in sync so the open note can be bookmarked or shared across devices.
