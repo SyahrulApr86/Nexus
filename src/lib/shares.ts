@@ -116,11 +116,15 @@ export async function revokeShare(userId: string, shareId: string) {
   return { ok: true as const, id: s.id };
 }
 
-/** The public URL of a token: the app's configured origin, else the origin the request came to. */
+/**
+ * The public URL of a token: the app's configured origin, else the origin the request came to.
+ * NEXT_PUBLIC_APP_URL is read with a computed key so the bundler does not inline its build-time
+ * value (see lib/public-origin.ts): an image built with one origin must not mint links for another.
+ */
 export function shareUrl(token: string, requestUrl: string) {
   let origin: string;
   try {
-    origin = new URL(process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || requestUrl).origin;
+    origin = new URL(process.env["NEXT_PUBLIC_" + "APP_URL"] || process.env.BETTER_AUTH_URL || requestUrl).origin;
   } catch {
     origin = new URL(requestUrl).origin;
   }

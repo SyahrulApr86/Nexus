@@ -1,5 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
+import { unstable_rethrow } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
 import { getAuth } from "@/lib/auth";
 import { db } from "@/db";
@@ -249,6 +250,9 @@ export async function handle<T>(fn: () => Promise<T>): Promise<Response> {
     if (data instanceof Response) return data;
     return Response.json(data ?? { ok: true });
   } catch (err) {
+    // Next's own control-flow errors (prerender bailout on headers(), notFound, redirect) are not
+    // failures: let them through, or a build would prerender a GET route as a static 500.
+    unstable_rethrow(err);
     if (err instanceof HttpError) return Response.json(err.body ?? { error: err.message }, { status: err.status });
     if (err && typeof err === "object" && "issues" in err)
       return Response.json({ error: "Invalid input", issues: (err as { issues: unknown }).issues }, { status: 400 });
