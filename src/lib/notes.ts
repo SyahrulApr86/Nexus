@@ -694,7 +694,18 @@ export async function previewImport(vaultId: string, files: { path: string; cont
   return { conflicts: conflicts.sort(), total: byPath.size };
 }
 
-export async function importNotes(vaultId: string, files: { path: string; content: string }[]): Promise<ImportResult> {
+/**
+ * More writes in the import's transaction (the vault's attachments, src/lib/attachments.ts). Runs
+ * after the notes and before the quota check; `discard` undoes side effects outside the database
+ * when the transaction fails afterwards, while it is still open.
+ */
+export type ImportExtra = (tx: Tx) => Promise<{ discard: () => Promise<void> }>;
+
+export async function importNotes(
+  vaultId: string,
+  files: { path: string; content: string }[],
+  extra?: ImportExtra,
+): Promise<ImportResult> {
   const { byPath, skipped, repeats } = planImport(files);
   let created = 0;
   let updated = repeats; // a path repeated within one import counts as an update, as if written twice
@@ -755,7 +766,13 @@ export async function importNotes(vaultId: string, files: { path: string; conten
       for (const rowsPart of chunks(linkRows, INSERT_ROWS)) await tx.insert(link).values(rowsPart);
       for (const rowsPart of chunks(tagRows, INSERT_ROWS)) await tx.insert(tag).values(rowsPart);
     }
-    await assertVaultQuota(tx, vaultId);
+    const more = extra ? await extra(tx) : null;
+    try {
+      await assertVaultQuota(tx, vaultId);
+    } catch (err) {
+      await more?.discard();
+      throw err;
+    }
   });
   return { created, updated, skipped };
 }

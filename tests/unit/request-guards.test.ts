@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { HttpError, assertSameOrigin, handle, logError, rateLimit, readBody, readJson } from "@/lib/session";
 import { assertSecureBaseUrl, authOptions, trustedProxies } from "@/lib/auth";
 import nextConfig, { contentSecurityPolicy } from "../../next.config";
+import { ATTACHMENT_CSP } from "@/lib/attachments/headers";
 
 /** Better Auth's own client-IP resolver (the rate-limit key), which it does not export publicly. */
 type GetIP = (req: Headers, options: unknown) => string | null;
@@ -203,8 +204,14 @@ describe("security headers (next.config.ts)", () => {
       "Permissions-Policy",
     ])
       expect(names).toContain(h);
-    const api = rules.find((r) => r.source === "/api/:path*")!;
+    const api = rules.find((r) => r.source.startsWith("/api/"))!;
     expect(api.headers).toContainEqual({ key: "Cache-Control", value: "private, no-store" });
+    // Every API path but the attachment file route (which sets its own private caching).
+    const re = new RegExp(`^/api/${api.source.slice("/api/:path".length)}$`);
+    expect(re.test("/api/notes")).toBe(true);
+    expect(re.test("/api/attachments")).toBe(true);
+    expect(re.test("/api/attachments/file/x")).toBe(true);
+    expect(re.test("/api/attachments/file")).toBe(false);
   });
 
   it("production CSP forbids framing, eval, plugins and foreign connections", () => {
@@ -214,6 +221,22 @@ describe("security headers (next.config.ts)", () => {
     expect(csp).toContain("connect-src 'self'");
     expect(csp).not.toContain("unsafe-eval");
     expect(csp).not.toMatch(/connect-src[^;]*ws:/);
+  });
+
+  it("gives attachment files the sandbox policy, after (so instead of) the page policy", async () => {
+    const rules = await nextConfig.headers!();
+    const at = rules.findIndex((r) => r.source === "/api/attachments/file");
+    expect(at).toBeGreaterThan(rules.findIndex((r) => r.source === "/(.*)"));
+    expect(rules[at].headers).toEqual([{ key: "Content-Security-Policy", value: ATTACHMENT_CSP }]);
+    expect(ATTACHMENT_CSP).toMatch(/^sandbox;/);
+    expect(ATTACHMENT_CSP).not.toMatch(/script-src|allow-scripts/);
+  });
+
+  it("keeps images and media same-origin, so a note cannot load remote trackers", () => {
+    const csp = contentSecurityPolicy(false);
+    expect(csp).toContain("img-src 'self' data: blob:;");
+    expect(csp).toContain("media-src 'self'");
+    expect(csp).not.toMatch(/img-src[^;]*https:/);
   });
 });
 
