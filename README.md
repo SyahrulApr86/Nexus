@@ -89,6 +89,31 @@ pnpm db:generate   # buat file SQL di drizzle/
 pnpm db:migrate
 ```
 
+## Tes
+
+| Perintah | Cakupan |
+|---|---|
+| `pnpm test:unit` | `tests/unit`: parser dan renderer markdown, termasuk payload XSS. Tanpa database. |
+| `pnpm test:integration` | `tests/integration`: fungsi vault di `src/lib/notes.ts` terhadap Postgres. |
+| `pnpm test` | Keduanya. |
+
+Tes integrasi memakai database `nexus_test`, terpisah dari database `nexus` milik `pnpm dev`. Dengan service `db` dari `pnpm db:up` sudah jalan:
+
+```bash
+docker compose exec -T db psql -U nexus -c "CREATE DATABASE nexus_test"   # sekali saja
+export TEST_DATABASE_URL="postgres://nexus:$(grep ^POSTGRES_PASSWORD= .env | cut -d= -f2-)@127.0.0.1:5442/nexus_test"
+DATABASE_URL="$TEST_DATABASE_URL" node scripts/migrate.mjs   # ulangi setiap ada migrasi baru di drizzle/
+pnpm test
+```
+
+- `export` hanya berlaku di shell tempat ia dijalankan. Perintah di atas menyusun URL dari `.env` tanpa mencetak password; kalau password memuat `/`, `@`, `:`, `#`, atau `?`, karakter itu harus di-percent-encode di URL.
+- Tanpa `TEST_DATABASE_URL`, tes integrasi di-skip dengan pesan. Di CI (variabel `CI` terisi) kondisi yang sama membuat run gagal.
+- Database yang namanya tidak mengandung `test` ditolak, karena tes menulis dan menghapus data.
+- Setiap file tes membuat user dengan dua vault sendiri, lalu menghapusnya setelah selesai.
+- Di checkout baru, jalankan `pnpm exec next typegen` sebelum `pnpm typecheck`. Tipe route seperti `LayoutProps` dibuat oleh Next.
+
+CI (`.github/workflows/ci.yml`) berjalan di setiap push dan pull request: typecheck, ESLint, tes unit, tes integrasi terhadap service `postgres:17-alpine` setelah migrasi diterapkan, `next build`, dan `docker build --target runner`.
+
 ## Struktur
 
 ```
@@ -98,6 +123,9 @@ src/lib/markdown/parse.ts     ekstraksi wikilink, tag, heading, frontmatter (dip
 src/lib/markdown/render.ts    markdown ke HTML (sanitized) untuk mode baca
 src/app/api/*                 REST API (semua query dibatasi ke vault milik user)
 src/components/workspace/*    UI: editor, file tree, panel, palette, graph
+tests/unit/                   tes parser dan renderer markdown, tanpa database
+tests/integration/            tes fungsi vault terhadap Postgres (database nexus_test)
+.github/workflows/ci.yml      CI: typecheck, lint, tes, build, image Docker
 ```
 
 ## Belum ada (roadmap)
