@@ -1,0 +1,113 @@
+<!doctype html>
+<!-- Classification: INTERNAL -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus</title>
+<style>
+@font-face {
+  font-family: "Recursive";
+  src: url("fonts/recursive/Recursive_VF_1.085.woff2") format("woff2");
+  font-weight: 300 1000;
+  font-display: block;
+}
+
+/* Words are set proportional; every typed markdown token is set monospaced,
+   kept visible but recessive, and hung outside the text edge so the words align. */
+:root {
+  color-scheme: light;
+  --ground: #FFFFFF;
+  --prose: #02070A;
+  --target: #01639A;
+  --typed: #5D6870;
+  --call: #B42A03;
+  --edge: clamp(2.2rem, 14vw, 13rem);
+}
+
+html { background-color: var(--ground); }
+
+body {
+  margin: 0;
+  background-color: var(--ground);
+  color: var(--prose);
+  font-family: "Recursive", "Segoe UI", "Helvetica Neue", sans-serif;
+  font-weight: 400;
+  font-variation-settings: "MONO" 0, "CASL" 0;
+  font-kerning: normal;
+  overflow-wrap: break-word;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+h1, p { margin: 0; }
+
+.source {
+  padding: clamp(1.5rem, 5vh, 3.5rem) clamp(1rem, 6vw, 6rem) clamp(4rem, 12vh, 8rem) var(--edge);
+}
+
+/* the typed layer: monospaced cells (0.6em each), linear, recessive */
+.mk {
+  color: var(--typed);
+  font-weight: 400;
+  font-variation-settings: "MONO" 1, "CASL" 0;
+}
+/* hanging: a line that starts with a token is pulled left by exactly its cells */
+.l { display: block; }
+.hang-3 { text-indent: -1.8em; }  /* "[[ " = 3 cells */
+.hang-2 { text-indent: -1.2em; }  /* "[[" = 2 cells */
+.hang-1 { text-indent: -0.6em; }  /* "#" = 1 cell */
+
+.name {
+  color: var(--call);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+.head {
+  margin-top: clamp(1.75rem, 6vh, 4rem);
+  font-size: clamp(2.2rem, 1rem + 4vw, 5rem);
+  font-weight: 640;
+  line-height: 1.02;
+  letter-spacing: -0.022em;
+  max-width: 11em;
+  text-wrap: balance;
+}
+.text {
+  margin-top: clamp(1.5rem, 4vh, 2.5rem);
+  font-size: clamp(1.1rem, 0.95rem + 0.5vw, 1.35rem);
+  line-height: 1.5;
+  max-width: 34em;
+}
+.note {
+  margin-top: clamp(3rem, 10vh, 6.5rem);
+  font-size: clamp(1.3rem, 0.8rem + 2.2vw, 2.8rem);
+  font-weight: 500;
+  line-height: 1.16;
+  font-variation-settings: "MONO" 0, "CASL" 1;
+}
+.note .mk { font-weight: 400; }
+.target {
+  color: var(--target);
+}
+.act {
+  margin-top: clamp(1.5rem, 4vh, 2.5rem);
+  color: var(--call);
+  font-size: clamp(1.6rem, 1.1rem + 1.6vw, 2.6rem);
+  font-weight: 760;
+  line-height: 1.1;
+}
+</style>
+</head>
+<body>
+<main class="source">
+  <h1 class="name">Nexus</h1>
+  <p class="head">Notes that link to each other, in plain markdown.</p>
+  <p class="text"><span class="l">Open your vault in any browser, on any device. Type</span> <span class="l hang-3"><span class="mk">[[ </span>to connect one note to another, and every link shows up as a backlink on the other side.</span></p>
+  <p class="text">Your notes stay <span class="mk">.md</span> files. Export the whole vault as a <span class="mk">.zip</span>, open it in Obsidian, or run Nexus on your own server.</p>
+  <p class="act">Open your vault</p>
+  <p class="note"><span class="l">Wednesday, 13&nbsp;November&nbsp;— Linked</span> <span class="l hang-2"><span class="mk">[[</span><span class="target">Project&nbsp;kickoff</span><span class="mk">]]</span> to</span> <span class="l hang-2"><span class="mk">[[</span><span class="target">Q4&nbsp;roadmap</span><span class="mk">]]</span>.</span> <span class="l hang-1"><span class="mk">#</span><span class="target">planning</span></span></p>
+</main>
+</body>
+</html>

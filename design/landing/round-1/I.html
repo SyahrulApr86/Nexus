@@ -1,0 +1,114 @@
+<!doctype html>
+<!-- Classification: INTERNAL -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus</title>
+<style>
+@font-face {
+  font-family: "Piazzolla";
+  src: url("fonts/piazzolla/Piazzolla%5Bopsz,wght%5D.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Piazzolla";
+  src: url("fonts/piazzolla/Piazzolla-Italic%5Bopsz,wght%5D.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: block;
+}
+
+/* The copy is split by grammatical mood.
+   What you do (imperative): roman, red-orange, on the first axis.
+   What is then true (indicative, and the record of what was done): italic, blue, one step in. */
+:root {
+  color-scheme: dark;
+  --ground: #02070A;
+  --is: #0297DE;
+  --do: #FC734D;
+  --step: clamp(1.75rem, 11vw, 11rem);
+}
+
+html { background-color: var(--ground); }
+
+body {
+  margin: 0;
+  background-color: var(--ground);
+  color: var(--is);
+  font-family: "Piazzolla", "Iowan Old Style", Georgia, serif;
+  font-optical-sizing: auto;
+  font-kerning: normal;
+  overflow-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+h1, p { margin: 0; }
+
+.turns {
+  padding:
+    clamp(1.5rem, 5vw, 4.5rem)
+    clamp(1rem, 5vw, 5rem)
+    clamp(3rem, 10vw, 7rem)
+    clamp(1rem, 7vw, 7.5rem);
+  font-size: clamp(1.32rem, 0.95rem + 1.55vw, 2.5rem);
+  line-height: 1.18;
+}
+
+.is,
+.do { display: block; max-width: 24em; }
+
+.is {
+  color: var(--is);
+  font-style: italic;
+  font-weight: 400;
+  margin-left: var(--step);
+}
+.do {
+  color: var(--do);
+  font-style: normal;
+  font-weight: 520;
+}
+
+.turns > * + * { margin-top: 0.95em; }
+.turn > * + * { margin-top: 0.14em; }
+
+.name {
+  font-size: clamp(3.4rem, 1.2rem + 9vw, 10rem);
+  font-weight: 300;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+}
+.turns > .name + .is { margin-top: 0.4em; }
+
+.record {
+  font-size: 0.62em;
+  font-size: max(1.0625rem, 0.62em);
+  line-height: 1.35;
+  max-width: 34em;
+}
+.turns > .record { margin-top: 1.6em; }
+
+.act {
+  font-size: 1.15em;
+  font-weight: 700;
+  line-height: 1.05;
+}
+.turns > .act { margin-top: 0.75em; }
+</style>
+</head>
+<body>
+<main class="turns">
+  <h1 class="is name">Nexus</h1>
+  <p class="is">Notes that link to each other, in plain markdown.</p>
+  <p class="turn"><span class="do">Open your vault in any browser, on any device.</span> <span class="do">Type [[ to connect one note to another,</span> <span class="is">and every link shows up as a backlink on the other side.</span></p>
+  <p class="turn"><span class="is">Your notes stay .md files.</span> <span class="do">Export the whole vault as a .zip,</span> <span class="do">open it in Obsidian,</span> <span class="do">or run Nexus on your own server.</span></p>
+  <p class="is record">Wednesday, 13&nbsp;November&nbsp;— Linked [[Project&nbsp;kickoff]] to [[Q4&nbsp;roadmap]]. #planning</p>
+  <p class="do act">Open your vault</p>
+</main>
+</body>
+</html>
