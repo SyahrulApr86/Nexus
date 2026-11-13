@@ -6,7 +6,10 @@ import { api, type NoteRef, type SearchHit } from "./api";
 import { useWorkspace } from "./store";
 import { Bar } from "./ui";
 
-type Result = { kind: "text"; hits: SearchHit[] } | { kind: "tag"; tag: string; hits: NoteRef[] };
+type Result = { query: string } & ({ kind: "text"; hits: SearchHit[] } | { kind: "tag"; tag: string; hits: NoteRef[] });
+
+const nf = new Intl.NumberFormat("en");
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Full-text search across the vault. A query starting with # lists the notes with that tag. */
 export function SearchView() {
@@ -14,6 +17,7 @@ export function SearchView() {
   const q = w.searchQuery;
   const [result, setResult] = useState<Result | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [attempt, setAttempt] = useState(0);
   const inputId = useId();
 
   useEffect(() => {
@@ -28,23 +32,37 @@ export function SearchView() {
       setStatus("loading");
       try {
         const r: Result = /^#\S+$/.test(query)
-          ? { kind: "tag", tag: query.slice(1), hits: await api.byTag(query.slice(1)) }
-          : { kind: "text", hits: await api.search(query) };
+          ? { query, kind: "tag", tag: query.slice(1), hits: await api.byTag(query.slice(1)) }
+          : { query, kind: "text", hits: await api.search(query) };
         if (live) {
-          setResult(r);
+          // A background refresh after an autosave usually returns the same hits: keep the old object.
+          setResult((prev) => (same(prev, r) ? prev : r));
           setStatus("idle");
         }
       } catch {
-        if (live) setStatus("error");
+        if (live) {
+          setResult(null);
+          setStatus("error");
+        }
       }
     }, 180);
     return () => {
       live = false;
       clearTimeout(t);
     };
-  }, [q, w.version]);
+  }, [q, w.version, attempt]);
 
   const count = result?.hits.length ?? 0;
+  const summary = result
+    ? count === 0
+      ? result.kind === "tag"
+        ? `No notes tagged #${result.tag}`
+        : "No matches"
+      : `${nf.format(count)} ${count === 1 ? "note" : "notes"}`
+    : "";
+  // One short, always-mounted announcement instead of a live results list.
+  const announcement =
+    status === "error" ? "Search failed." : result ? (count === 0 ? summary : `${summary} for “${result.query}”`) : "";
 
   return (
     <div className="flex h-full flex-col">
@@ -72,11 +90,18 @@ export function SearchView() {
           )}
         </div>
         <p className="mt-2 text-[12px] leading-4 text-faint">
-          Type <kbd className="kbd">#tag</kbd> to list notes with a tag.
+          Type{" "}
+          <kbd className="kbd" translate="no">
+            #tag
+          </kbd>{" "}
+          to list notes with a tag.
         </p>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-6" aria-live="polite" aria-busy={status === "loading"}>
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-6">
         {status === "loading" && !result && (
           <div className="space-y-4 px-2 py-2">
             {[0, 1, 2].map((i) => (
@@ -87,16 +112,22 @@ export function SearchView() {
             ))}
           </div>
         )}
-        {status === "error" && <p className="px-2 py-2 text-[13px] text-muted">Search failed. Check your connection and try again.</p>}
-        {result && (
-          <p className="px-2 pb-2 text-[12px] text-faint tabular">
-            {count === 0
-              ? result.kind === "tag"
-                ? `No notes tagged #${result.tag}`
-                : "No matches"
-              : `${count} ${count === 1 ? "note" : "notes"}`}
-          </p>
+        {status === "error" && (
+          <div className="px-2 py-2 text-[13px] text-muted">
+            <p>Search failed. Check your connection.</p>
+            <button
+              type="button"
+              className="mt-2 font-medium text-accent-ink hover:underline"
+              onClick={() => {
+                setStatus("loading");
+                setAttempt((n) => n + 1);
+              }}
+            >
+              Try again
+            </button>
+          </div>
         )}
+        {result && <p className="px-2 pb-2 text-[12px] text-faint tabular">{summary}</p>}
         <ul className="space-y-0.5">
           {result?.kind === "text" &&
             result.hits.map((h) => (
@@ -106,8 +137,14 @@ export function SearchView() {
                   onClick={(e) => w.actions.open(h.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
                   className="block w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-hover"
                 >
-                  <span className="block truncate font-medium">{h.name}</span>
-                  {h.path.includes("/") && <span className="block truncate text-[12px] text-faint">{h.path.slice(0, h.path.lastIndexOf("/"))}</span>}
+                  <span className="block truncate font-medium" translate="no">
+                    {h.name}
+                  </span>
+                  {h.path.includes("/") && (
+                    <span className="block truncate text-[12px] text-faint" translate="no">
+                      {h.path.slice(0, h.path.lastIndexOf("/"))}
+                    </span>
+                  )}
                   <Snippet text={h.snippet} />
                 </button>
               </li>
@@ -118,7 +155,8 @@ export function SearchView() {
                 <button
                   type="button"
                   onClick={(e) => w.actions.open(h.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
-                  className="block w-full truncate rounded-md px-2 py-1.5 text-left transition-colors hover:bg-hover"
+                  className="block w-full truncate rounded-md px-2 py-3 text-left transition-colors hover:bg-hover md:py-1.5"
+                  translate="no"
                 >
                   {h.name}
                 </button>
