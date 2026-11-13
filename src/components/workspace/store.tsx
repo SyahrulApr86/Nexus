@@ -11,6 +11,7 @@ import {
   useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -283,22 +284,85 @@ const retryable = (status: number) => status === 0 || status === 408 || status =
 
 export type User = { name: string; email: string };
 
-type WorkspaceValue = ReturnType<typeof useWorkspaceState>;
+export type WorkspaceValue = ReturnType<typeof useWorkspaceState>;
+export type WorkspaceActions = WorkspaceValue["actions"];
 const WorkspaceContext = createContext<WorkspaceValue | null>(null);
+const ActionsContext = createContext<WorkspaceActions | null>(null);
 
+/** The newest workspace value plus subscribers, so a selector re-renders only when its slice changes. */
+type WorkspaceStore = { get: () => WorkspaceValue; set: (v: WorkspaceValue) => void; subscribe: (fn: () => void) => () => void };
+const StoreContext = createContext<WorkspaceStore | null>(null);
+
+function createWorkspaceStore(initial: WorkspaceValue): WorkspaceStore {
+  let value = initial;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    set: (v) => {
+      if (v === value) return;
+      value = v;
+      listeners.forEach((fn) => fn());
+    },
+    subscribe: (fn) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+  };
+}
+
+/** Everything at once. Re-renders on every workspace change, including the published text while typing. */
 export function useWorkspace() {
   const v = use(WorkspaceContext);
   if (!v) throw new Error("useWorkspace must be used inside <WorkspaceProvider>");
   return v;
 }
 
+/** The actions only. Their identity never changes, so a component using just these never re-renders for workspace state. */
+export function useWorkspaceActions(): WorkspaceActions {
+  const a = use(ActionsContext);
+  if (!a) throw new Error("useWorkspaceActions must be used inside <WorkspaceProvider>");
+  return a;
+}
+
+/**
+ * One slice of the workspace. The component re-renders only when `isEqual` says
+ * the slice changed (Object.is by default, so return state as it is, or pass a
+ * shallow compare when the selector builds a new object or array).
+ */
+export function useWorkspaceSelector<T>(
+  selector: (w: WorkspaceValue) => T,
+  isEqual: (a: T, b: T) => boolean = Object.is,
+): T {
+  const store = use(StoreContext);
+  if (!store) throw new Error("useWorkspaceSelector must be used inside <WorkspaceProvider>");
+  // Memoised per store value and selector: getSnapshot must return the same result until something changed.
+  const cache = useRef<{ value: WorkspaceValue; selector: unknown; result: T } | null>(null);
+  const getSnapshot = () => {
+    const value = store.get();
+    const c = cache.current;
+    if (c?.value === value && c.selector === selector) return c.result;
+    const next = selector(value);
+    const result = c && isEqual(c.result, next) ? c.result : next;
+    cache.current = { value, selector, result };
+    return result;
+  };
+  return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
+}
+
 export function WorkspaceProvider({ user, children }: { user: User; children: ReactNode }) {
   const value = useWorkspaceState(user);
+  const [store] = useState(() => createWorkspaceStore(value));
+  // After commit, so selector subscribers never read a value React has not committed.
+  useLayoutEffect(() => store.set(value), [store, value]);
   return (
-    <WorkspaceContext value={value}>
-      {children}
-      {value.dialogNode}
-    </WorkspaceContext>
+    <StoreContext value={store}>
+      <ActionsContext value={value.actions}>
+        <WorkspaceContext value={value}>
+          {children}
+          {value.dialogNode}
+        </WorkspaceContext>
+      </ActionsContext>
+    </StoreContext>
   );
 }
 
