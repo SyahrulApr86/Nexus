@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { EditorState, RangeSetBuilder } from "@codemirror/state";
+import { useEffect, useId, useRef } from "react";
+import { Compartment, EditorState, RangeSetBuilder } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -26,6 +26,7 @@ import {
 } from "@codemirror/autocomplete";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { tags as t } from "@lezer/highlight";
+import { livePreview } from "./live-preview";
 
 export type EditorHandle = { scrollToLine: (line: number) => void; focus: () => void };
 
@@ -57,12 +58,75 @@ const theme = EditorView.theme({
     fontSize: "0.84em",
     lineHeight: "1.7",
     backgroundColor: "var(--code-bg)",
-    padding: "0 14px",
+    padding: "0 16px",
+  },
+  ".cm-line.cm-codeblock.cm-codeblock-first": { paddingTop: "8px", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" },
+  ".cm-line.cm-codeblock.cm-codeblock-last": { paddingBottom: "8px", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" },
+  // Markup characters ([[ ]], target|, == ==) recede in source, like # and list marks.
+  ".cm-formatting, .cm-formatting *": { color: "var(--faint)" },
+  ".cm-wikilink-ghost, .cm-wikilink-ghost *": { color: "var(--faint)" },
+  // Off-palette CodeMirror defaults, mapped onto the tokens.
+  "&.cm-focused .cm-matchingBracket": { backgroundColor: "transparent", outline: "1px solid var(--accent)", borderRadius: "2px" },
+  "&.cm-focused .cm-nonmatchingBracket": {
+    backgroundColor: "transparent",
+    textDecoration: "underline wavy var(--negative)",
+    textUnderlineOffset: "3px",
+  },
+  ".cm-selectionMatch": { backgroundColor: "var(--accent-soft)" },
+  ".cm-searchMatch": { backgroundColor: "var(--mark-soft)", outline: "1px solid var(--mark)" },
+  ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "var(--hl)" },
+  // In-note find and replace panel (Ctrl/Cmd+F) in the app's tokens, both themes.
+  ".cm-panels": { backgroundColor: "var(--frame)", color: "var(--fg)", borderColor: "var(--border)" },
+  ".cm-panel.cm-search": { padding: "6px 40px 6px 8px", fontFamily: "var(--font-ui)", fontSize: "13px" },
+  ".cm-textfield": {
+    backgroundColor: "var(--sheet)",
+    color: "var(--fg)",
+    border: "1px solid var(--control)",
+    borderRadius: "6px",
+    fontSize: "13px",
+    padding: "4px 8px",
+  },
+  ".cm-textfield:focus-visible": { outline: "2px solid var(--focus)", outlineOffset: "1px" },
+  ".cm-button, .cm-button:active": {
+    backgroundImage: "none",
+    backgroundColor: "var(--sheet)",
+    color: "var(--fg)",
+    border: "1px solid var(--control)",
+    borderRadius: "6px",
+    fontSize: "13px",
+    padding: "4px 10px",
+  },
+  ".cm-button:hover": { backgroundColor: "var(--hover)" },
+  ".cm-panel.cm-search label": { fontSize: "13px", color: "var(--muted)" },
+  ".cm-panel.cm-search input[type=checkbox]": { accentColor: "var(--accent)" },
+  ".cm-panel.cm-search [name=close]": {
+    color: "var(--faint)",
+    width: "28px",
+    height: "28px",
+    top: "4px",
+    right: "6px",
+    borderRadius: "6px",
   },
 });
 
+const searchPhrases = EditorState.phrases.of({
+  next: "Next",
+  previous: "Previous",
+  all: "Select all",
+  "match case": "Match case",
+  regexp: "Regex",
+  "by word": "Whole word",
+  replace: "Replace",
+  "replace all": "Replace all",
+  close: "Close",
+  Find: "Find",
+});
+
 /** Fenced and indented code blocks get the code face on a tinted band, line by line. */
-const codeLine = Decoration.line({ class: "cm-codeblock" });
+const codeMid = Decoration.line({ class: "cm-codeblock" });
+const codeFirst = Decoration.line({ class: "cm-codeblock cm-codeblock-first" });
+const codeLast = Decoration.line({ class: "cm-codeblock cm-codeblock-last" });
+const codeOnly = Decoration.line({ class: "cm-codeblock cm-codeblock-first cm-codeblock-last" });
 const codeBlocks = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
@@ -81,10 +145,14 @@ const codeBlocks = ViewPlugin.fromClass(
           to,
           enter: (node) => {
             if (node.name !== "FencedCode" && node.name !== "CodeBlock") return;
+            const firstFrom = view.state.doc.lineAt(node.from).from;
+            const lastFrom = view.state.doc.lineAt(node.to).from;
             for (let pos = node.from; pos <= node.to; ) {
               const line = view.state.doc.lineAt(pos);
               if (line.from > last) {
-                b.add(line.from, line.from, codeLine);
+                const isFirst = line.from === firstFrom;
+                const isLast = line.from === lastFrom;
+                b.add(line.from, line.from, isFirst && isLast ? codeOnly : isFirst ? codeFirst : isLast ? codeLast : codeMid);
                 last = line.from;
               }
               pos = line.to + 1;
@@ -118,12 +186,13 @@ const highlight = HighlightStyle.define([
   },
   { tag: t.quote, color: "var(--muted)" },
   { tag: [t.processingInstruction, t.meta, t.contentSeparator], color: "var(--faint)" },
-  { tag: [t.keyword, t.operator], color: "var(--accent-ink)" },
-  { tag: [t.string, t.special(t.string)], color: "var(--positive)" },
-  { tag: [t.number, t.bool], color: "var(--mark-ink)" },
-  { tag: t.atom, color: "var(--faint)" }, // task markers [ ] stay neutral; orange is for tags
-  { tag: t.comment, color: "var(--faint)" },
-  { tag: [t.function(t.variableName), t.typeName, t.className], color: "var(--accent-ink)" },
+  // Code uses neutral steps only: blue means link, orange means tag, green means saved.
+  { tag: t.keyword, color: "var(--muted)", fontWeight: "600" },
+  { tag: t.operator, color: "var(--muted)" },
+  { tag: [t.string, t.special(t.string)], color: "var(--fg)" },
+  { tag: [t.number, t.bool], color: "var(--fg)" },
+  { tag: t.atom, color: "var(--faint)" }, // task markers [ ] stay neutral
+  { tag: t.comment, color: "var(--faint)", fontStyle: "italic" },
 ]);
 
 /** True when `pos` sits inside inline code or a code block. */
@@ -148,6 +217,11 @@ function decorator(matcher: MatchDecorator) {
   );
 }
 
+const formatting = Decoration.mark({ class: "cm-formatting" });
+const highlightMark = Decoration.mark({ class: "cm-highlight" });
+const MOD_CLICK =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "\u2318-click" : "Ctrl+click";
+
 const linkDecorations = (exists: () => (target: string) => boolean) =>
   decorator(
     new MatchDecorator({
@@ -156,14 +230,26 @@ const linkDecorations = (exists: () => (target: string) => boolean) =>
         if (inCode(view, from)) return;
         const target = m[1].split("|")[0].split("#")[0].trim();
         const ok = !target || exists()(target);
-        add(
-          from,
-          to,
-          Decoration.mark({
-            class: ok ? "cm-wikilink" : "cm-wikilink cm-wikilink-ghost",
-            attributes: { "data-target": target, title: ok ? `Ctrl+click to open ${target}` : `${target} (not created yet)` },
-          }),
-        );
+        const open = m[0].startsWith("!") ? 3 : 2;
+        const pipe = m[1].indexOf("|");
+        const textFrom = pipe !== -1 && m[1].slice(pipe + 1).trim() ? from + open + pipe + 1 : from + open;
+        const textTo = pipe !== -1 && textFrom === from + open ? from + open + pipe : to - 2;
+        // Marks must be added in ascending order.
+        add(from, textFrom, formatting);
+        if (textTo > textFrom)
+          add(
+            textFrom,
+            textTo,
+            Decoration.mark({
+              class: ok ? "cm-wikilink" : "cm-wikilink cm-wikilink-ghost",
+              attributes: {
+                "data-target": target,
+                title: ok ? `${MOD_CLICK} to open ${target}` : `${target} (not created yet; ${MOD_CLICK} to create it)`,
+              },
+            }),
+          );
+        if (to - 2 > textTo) add(textTo, to - 2, formatting);
+        add(to - 2, to, formatting);
       },
     }),
   );
@@ -184,13 +270,18 @@ const highlightDecorations = decorator(
     regexp: /==([^=\n]+)==/g,
     decorate: (add, from, to, _m, view) => {
       if (inCode(view, from)) return;
-      add(from, to, Decoration.mark({ class: "cm-highlight" }));
+      add(from, from + 2, formatting);
+      add(from + 2, to - 2, highlightMark);
+      add(to - 2, to, formatting);
     },
   }),
 );
 
 export function Editor({ initial, label, onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag, handleRef }: Props) {
   const host = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const labelSlot = useRef(new Compartment());
+  const hintId = useId();
   const cb = useRef({ onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag });
   useEffect(() => {
     cb.current = { onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag };
@@ -246,6 +337,7 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
           tagDecorations,
           highlightDecorations,
           codeBlocks,
+          livePreview({ openLink: (target, newTab) => cb.current.onOpenLink(target, newTab) }),
           keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, ...completionKeymap, indentWithTab]),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) cb.current.onChange(u.state.doc.toString());
@@ -272,27 +364,58 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
           EditorView.contentAttributes.of({
             spellcheck: "true",
             autocapitalize: "sentences",
-            "aria-label": label,
             "aria-multiline": "true",
+            "aria-describedby": hintId,
           }),
+          labelSlot.current.of(EditorView.contentAttributes.of({ "aria-label": label })),
+          searchPhrases,
         ],
       }),
     });
 
-    if (handleRef)
-      handleRef.current = {
-        focus: () => view.focus(),
-        scrollToLine: (line: number) => {
-          const l = view.state.doc.line(Math.min(line + 1, view.state.doc.lines));
-          view.dispatch({ selection: { anchor: l.from }, effects: EditorView.scrollIntoView(l.from, { y: "start", yMargin: 80 }) });
-          view.focus();
-        },
-      };
-
-    return () => view.destroy();
+    viewRef.current = view;
+    return () => {
+      viewRef.current = null;
+      view.destroy();
+    };
     // The editor is keyed by note id by the parent; `initial` only seeds it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <div ref={host} />;
+  // Keep the accessible name current when the note is renamed.
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: labelSlot.current.reconfigure(EditorView.contentAttributes.of({ "aria-label": label })),
+    });
+  }, [label]);
+
+  // Handle contract: set while mounted (and whenever the parent hands over a ref), reset to null
+  // on unmount or ref change if it is still ours, so a closed pane never receives focus calls.
+  useEffect(() => {
+    if (!handleRef) return;
+    const handle: EditorHandle = {
+      focus: () => viewRef.current?.focus(),
+      scrollToLine: (line: number) => {
+        const view = viewRef.current;
+        if (!view) return;
+        const l = view.state.doc.line(Math.min(line + 1, view.state.doc.lines));
+        view.dispatch({ selection: { anchor: l.from }, effects: EditorView.scrollIntoView(l.from, { y: "start", yMargin: 80 }) });
+        view.focus();
+      },
+    };
+    handleRef.current = handle;
+    return () => {
+      if (handleRef.current === handle) handleRef.current = null;
+    };
+  }, [handleRef]);
+
+  return (
+    <>
+      <div ref={host} />
+      <p id={hintId} className="sr-only">
+        Tab indents. To leave the editor, press Escape, then Tab. Ctrl+M (Shift+Option+M on Mac) switches Tab to moving
+        focus.
+      </p>
+    </>
+  );
 }
