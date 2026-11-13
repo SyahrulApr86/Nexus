@@ -77,8 +77,26 @@ function resolveImage(lookup: AttachmentLookup, target: string, alt: string) {
   if (!clean) return null;
   const ref = lookup(clean);
   if (!ref || kindOf(ref.mime) !== "image") return null;
+  const a = imageAlt(alt, ref.path);
+  return new ImageWidget(attachmentUrl(ref), a.alt, a.width, a.height);
+}
+
+/**
+ * Target and alt text of a wiki embed's inner text (between `![[` and `]]`), with the alt written
+ * so splitSize reads it: `photo.png|300` gives alt `|300` (size only, so the alt falls back to the
+ * file name), `photo.png|Caption` gives `Caption`, `photo.png|Caption|300x200` keeps both.
+ */
+export function wikiEmbedParts(inner: string): { target: string; alt: string } {
+  const pipe = inner.indexOf("|");
+  if (pipe === -1) return { target: inner, alt: "" };
+  const rest = inner.slice(pipe + 1);
+  return { target: inner.slice(0, pipe), alt: /^\d{1,5}(?:x\d{1,5})?$/.test(rest.trim()) ? `|${rest.trim()}` : rest };
+}
+
+/** Alt text and size of the Live Preview image for `alt` (as written) and the resolved file path. */
+export function imageAlt(alt: string, path: string) {
   const { text, width, height } = splitSize(alt);
-  return new ImageWidget(attachmentUrl(ref), text || baseName(ref.path), width, height);
+  return { alt: text || baseName(path), width, height };
 }
 
 function build(view: EditorView, lookup: AttachmentLookup): DecorationSet {
@@ -96,9 +114,8 @@ function build(view: EditorView, lookup: AttachmentLookup): DecorationSet {
   for (const { from, to } of view.visibleRanges) {
     const text = doc.sliceString(from, to);
     for (const m of text.matchAll(WIKI_EMBED)) {
-      const pipe = m[1].indexOf("|");
-      const target = pipe === -1 ? m[1] : m[1].slice(0, pipe);
-      const w = resolveImage(lookup, target, pipe === -1 ? "" : `x${m[1].slice(pipe)}`);
+      const { target, alt } = wikiEmbedParts(m[1]);
+      const w = resolveImage(lookup, target, alt);
       if (w) add(from + m.index!, from + m.index! + m[0].length, w);
     }
     for (const m of text.matchAll(MD_IMAGE)) {
