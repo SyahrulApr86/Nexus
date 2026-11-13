@@ -21,6 +21,9 @@ import type { Toast } from "./ui";
 import type { EditorHandle } from "./editor";
 import { basename, dirname, extractTags, extractWikiLinks, linkKey } from "@/lib/markdown/parse";
 import { signOut } from "@/lib/auth-client";
+/* templates-properties */
+import { applyDailyTemplate } from "./templates-daily";
+/* end templates-properties */
 import { writePrefsCookie, type LayoutPrefs, type LeftView, type RightView, type SortOrder } from "./prefs-cookie";
 
 /* ------------------------------------------------------------------ */
@@ -1220,11 +1223,14 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
       const res = await api.resolve(`Daily/${iso}`, true);
       if (!res.id) return;
       if (res.created) await refreshTree();
+      /* templates-properties: a new daily note starts from the daily note template */
+      if (res.created && (await applyDailyTemplate(res.id, iso, treeRef.current.notes))) bumpSignals(true, true);
+      /* end templates-properties */
       if (seq === navSeq.current) await open(res.id, "current", "edit", { focus: "editor" });
     } catch (e) {
       fail(e);
     }
-  }, [open, refreshTree, fail]);
+  }, [open, refreshTree, fail, bumpSignals]);
 
   /** Re-fetch cached notes in the background; open editors keep their state unless the text changed. */
   const revalidateCached = useCallback(() => {

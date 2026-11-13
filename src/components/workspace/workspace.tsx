@@ -41,6 +41,9 @@ import { SearchView } from "./search-view";
 import { BacklinksView, OutgoingView, OutlineView, TagsView } from "./right-views";
 import { TabGroup } from "./tab-group";
 import { Palette, type Command } from "./palette";
+/* templates-properties */
+import { TemplatePickerHost, templateCommands } from "./templates-picker";
+/* end templates-properties */
 import { SettingsDialog } from "./settings";
 import { Bar, IconButton, Menu, Toasts, useMenu } from "./ui";
 import { splitFrontmatter } from "@/lib/markdown/parse";
@@ -576,6 +579,9 @@ function Shell() {
             { id: "delete", label: "Delete current note", run: () => a.deleteNote(note) },
           ]
         : []),
+      /* templates-properties: palette entries */
+      ...(note ? templateCommands(note.id) : []),
+      /* end templates-properties */
       { id: "backlinks", label: "Show backlinks", run: () => a.showRight("backlinks") },
       { id: "outline", label: "Show outline", run: () => a.showRight("outline") },
       { id: "tags", label: "Show tags", run: () => a.showRight("tags") },
@@ -732,6 +738,9 @@ function Shell() {
         />
       )}
       {w.settingsOpen && <SettingsDialog section={w.settingsOpen} />}
+      {/* templates-properties */}
+      <TemplatePickerHost />
+      {/* end templates-properties */}
       <Toasts toasts={w.toasts} dismiss={a.dismissToast} />
     </div>
   );
