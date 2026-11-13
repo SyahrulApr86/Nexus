@@ -30,6 +30,7 @@ import {
   shallowEqual,
   useWorkspaceActions,
   useWorkspaceSelector,
+  type InitialPrefs,
   type User,
   type RightView,
   type LeftView,
@@ -45,9 +46,9 @@ import { Bar, IconButton, Menu, Toasts, useMenu } from "./ui";
 import { splitFrontmatter } from "@/lib/markdown/parse";
 
 
-export function Workspace({ user }: { user: User }) {
+export function Workspace({ user, initialPrefs }: { user: User; initialPrefs?: InitialPrefs }) {
   return (
-    <WorkspaceProvider user={user}>
+    <WorkspaceProvider user={user} initialPrefs={initialPrefs}>
       <Shell />
     </WorkspaceProvider>
   );
