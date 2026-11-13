@@ -123,7 +123,8 @@ function transform(bq: MdNode) {
 
 function walk(node: MdNode) {
   for (const child of node.children ?? []) {
-    if (child.type === "blockquote") transform(child);
+    // Generated callout content carries data.hName; never turn it into a callout again.
+    if (child.type === "blockquote" && !child.data?.hName) transform(child);
     walk(child); // callouts may nest inside callouts and lists
   }
 }

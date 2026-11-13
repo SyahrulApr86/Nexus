@@ -14,6 +14,20 @@ type Options = {
   chain?: string[];
 };
 
+let embedSeq = 0;
+
+/**
+ * Give an embed's ids (footnotes and their labels) a unique prefix, and point its
+ * in-page links and aria references at the new ids, so the page never holds the same
+ * id twice and footnote links stay inside their own note.
+ */
+function scopeIds(body: HTMLElement, prefix: string) {
+  for (const el of body.querySelectorAll<HTMLElement>("[id]")) el.id = prefix + el.id;
+  for (const a of body.querySelectorAll<HTMLAnchorElement>('a[href^="#"]')) a.setAttribute("href", `#${prefix}${a.getAttribute("href")!.slice(1)}`);
+  for (const el of body.querySelectorAll<HTMLElement>("[aria-describedby]"))
+    el.setAttribute("aria-describedby", prefix + el.getAttribute("aria-describedby"));
+}
+
 /** How many embed levels are drawn: an embed inside an embed, and no deeper. */
 export const MAX_EMBED_DEPTH = 2;
 
@@ -87,6 +101,7 @@ export async function hydrateEmbeds(root: HTMLElement, opts: Options): Promise<v
       }
       body.classList.remove("embed-note");
       body.innerHTML = opts.render(md);
+      scopeIds(body, `embed-${++embedSeq}-`);
       el.dataset.embedState = "ready";
       opts.onRendered?.(body);
       await hydrateEmbeds(body, { ...opts, depth: depth + 1, chain: [...chain, note.id] });

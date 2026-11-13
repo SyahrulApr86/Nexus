@@ -17,7 +17,8 @@ export function isBlockEmbed(md: string, from: number, to: number, target: strin
   if (ATTACHMENT.test(target.trim())) return false;
   const start = md.lastIndexOf("\n", from - 1) + 1;
   const endIdx = md.indexOf("\n", to);
-  const line = md.slice(start, endIdx === -1 ? undefined : endIdx);
+  // Quote, callout and list markers in front of the embed do not make it inline.
+  const line = md.slice(start, endIdx === -1 ? undefined : endIdx).replace(/^(?:[ \t]{0,3}>)*[ \t]{0,3}(?:(?:[-*+]|\d{1,9}[.)])[ \t]{1,4})?/, "");
   return line.trim() === md.slice(from, to);
 }
 
@@ -77,16 +78,20 @@ export function rehypeEmbeds() {
     if (!kids) return;
     for (let i = 0; i < kids.length; i++) {
       const k = kids[i];
-      if (k.type === "element" && k.tagName === "p") {
-        const meaningful = (k.children ?? []).filter((c) => !(c.type === "text" && !(c.value ?? "").trim()));
-        const only = meaningful[0];
-        if (
-          meaningful.length === 1 &&
-          only.type === "element" &&
-          only.tagName === "a" &&
-          String(only.properties?.href ?? "").startsWith("embed:")
-        ) {
-          kids[i] = toBlock(only);
+      if (k.type === "element" && (k.tagName === "p" || k.tagName === "li")) {
+        // Only embed links (and line breaks) here: one embed block per link.
+        const meaningful = (k.children ?? []).filter(
+          (c) => !(c.type === "text" && !(c.value ?? "").trim()) && !(c.type === "element" && c.tagName === "br"),
+        );
+        const allEmbeds =
+          meaningful.length > 0 &&
+          meaningful.every((c) => c.type === "element" && c.tagName === "a" && String(c.properties?.href ?? "").startsWith("embed:"));
+        if (allEmbeds) {
+          const blocks = meaningful.map(toBlock);
+          if (k.tagName === "p") {
+            kids.splice(i, 1, ...blocks);
+            i += blocks.length - 1;
+          } else k.children = blocks;
           continue;
         }
       }

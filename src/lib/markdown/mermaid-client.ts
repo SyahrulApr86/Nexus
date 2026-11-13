@@ -8,6 +8,8 @@ type Mermaid = (typeof import("mermaid"))["default"];
 
 let loading: Promise<Mermaid> | null = null;
 let seq = 0;
+// Rendered SVG by theme and source, so re-renders (task toggles, tree refreshes) are free.
+const cache = new Map<string, string>();
 
 const KINDS: [RegExp, string][] = [
   [/^(graph|flowchart)\b/, "Flowchart"],
@@ -113,12 +115,14 @@ export async function renderMermaid(root: HTMLElement, signal: { cancelled: bool
     return;
   }
   if (signal.cancelled) return;
+  const vars = themeVariables();
+  const themeKey = JSON.stringify(vars);
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: "strict",
     suppressErrorRendering: true,
     theme: "base",
-    themeVariables: themeVariables(),
+    themeVariables: vars,
     fontFamily: "var(--font-ui), ui-sans-serif, sans-serif",
   });
 
@@ -133,11 +137,20 @@ export async function renderMermaid(root: HTMLElement, signal: { cancelled: bool
       pre.before(host);
     }
     try {
-      const { svg } = await mermaid.render(`nexus-mermaid-${++seq}`, source);
+      const key = `${themeKey}\u0000${source}`;
+      let svg = cache.get(key);
+      if (!svg) {
+        svg = (await mermaid.render(`nexus-mermaid-${++seq}`, source)).svg;
+        if (cache.size > 100) cache.clear();
+        cache.set(key, svg);
+      }
       if (signal.cancelled) return;
       host.innerHTML = svg;
       host.setAttribute("role", "img");
       host.setAttribute("aria-label", describe(source));
+      // The source stays available to assistive tech as the diagram's description.
+      if (!pre.id) pre.id = `nexus-mermaid-source-${++seq}`;
+      host.setAttribute("aria-describedby", pre.id);
       const err = pre.previousElementSibling;
       if (err?.classList.contains("mermaid-error")) err.remove();
       pre.hidden = true;

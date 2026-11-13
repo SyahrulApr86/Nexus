@@ -122,8 +122,11 @@ export function extractHeadings(md: string): Heading[] {
   const masked = maskCode(md);
   const out: Heading[] = [];
   masked.split("\n").forEach((line, i) => {
-    const m = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
-    if (m) out.push({ level: m[1].length, text: m[2], line: i });
+    // Linear-time match; the optional closing #s are trimmed with string operations.
+    const m = /^(#{1,6})[ \t]+(.+)$/.exec(line);
+    if (!m) return;
+    const text = m[2].trimEnd().replace(/(?<=\s)#+$/, "").trimEnd();
+    if (text) out.push({ level: m[1].length, text, line: i });
   });
   return out;
 }
