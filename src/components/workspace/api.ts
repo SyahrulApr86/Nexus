@@ -36,15 +36,17 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new ApiError("You appear to be offline. Check your connection and try again.", 0);
   }
-  if (res.status === 401) {
-    // Outside React: a full navigation also drops the stale in-memory vault.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.assign("/login");
-    throw new ApiError("Your session ended. Sign in again.", 401);
-  }
+  // The caller decides what a 401 means: unsaved text must never be dropped by a redirect.
+  if (res.status === 401) throw new ApiError("Your session ended. Sign in again.", 401);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? `Request failed (${res.status})`, res.status);
+  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? fallbackMessage(res.status), res.status);
   return data as T;
+}
+
+function fallbackMessage(status: number) {
+  if (status === 413) return "That upload is too large. Try a smaller file.";
+  if (status >= 500) return "Nexus couldn’t finish that. Try again in a moment.";
+  return "That didn’t work. Reload the page and try again.";
 }
 
 const json = (body: unknown) => JSON.stringify(body);
@@ -73,6 +75,7 @@ export const api = {
   mkdir: (path: string) => req("/api/folders", { method: "POST", body: json({ path }) }),
   mvdir: (from: string, to: string) => req("/api/folders", { method: "PATCH", body: json({ from, to }) }),
   rmdir: (path: string) => req(`/api/folders?path=${encodeURIComponent(path)}`, { method: "DELETE" }),
+  vault: () => req<{ id: string; name: string }>("/api/vault"),
   importFiles: (files: File[]) => {
     const fd = new FormData();
     files.forEach((f) => fd.append("file", f));
