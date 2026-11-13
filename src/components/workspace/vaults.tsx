@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore }
 import { Check, ChevronsUpDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { api, ApiError, forgetVaultLayout, getActiveVault, goToVault, type VaultSummary } from "./api";
 import { useWorkspaceActions, useWorkspaceSelector } from "./store";
+import { exportActiveVault } from "./vaults-export";
 import { Bar, IconButton, Menu, Modal, nf, useMenu, type MenuItem } from "./ui";
 
 /*
@@ -118,7 +119,7 @@ export function VaultSwitcher() {
     "separator",
     { label: "Settings", shortcut: "Mod+,", onSelect: () => actions.setSettingsOpen("general") },
     { label: "Import notes…", onSelect: () => actions.setSettingsOpen("general") },
-    { label: "Export vault as .zip", onSelect: actions.exportVault },
+    { label: "Export vault as .zip", onSelect: () => void exportActiveVault(actions.notify) },
     "separator",
     { label: "Sign out", onSelect: actions.logout },
   ];

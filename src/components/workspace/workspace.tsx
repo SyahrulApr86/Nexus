@@ -46,6 +46,7 @@ import { splitFrontmatter } from "@/lib/markdown/parse";
 /* vaults-ui */
 import { VaultSwitcher, VaultsHost, openCreateVault, openVaults } from "./vaults";
 import { ShareHost, openShare } from "./share-dialog";
+import { exportActiveVault } from "./vaults-export";
 /* end vaults-ui */
 
 
@@ -551,8 +552,8 @@ function Shell() {
       { id: "left", label: "Toggle left sidebar", run: () => a.showLeft() },
       { id: "right", label: "Toggle right sidebar", run: () => a.showRight() },
       { id: "import", label: "Import notes", run: () => a.setSettingsOpen("general") },
-      { id: "export", label: "Export vault as .zip", run: a.exportVault },
       /* vaults-ui */
+      { id: "export", label: "Export vault as .zip", run: () => void exportActiveVault(a.notify) },
       { id: "vault-switch", label: "Switch vault…", run: openVaults },
       { id: "vault-create", label: "Create vault…", run: openCreateVault },
       /* end vaults-ui */
