@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { X } from "lucide-react";
 import { useWorkspace, type Theme } from "./store";
-import { IconButton, Modal, Shortcut } from "./ui";
+import { IconButton, Modal, Shortcut, isMac } from "./ui";
 
-const HOTKEYS: [string, string][] = [
+/** Label, keys, and the Mac keys when they differ by more than Mod. */
+const HOTKEYS: [string, string, string?][] = [
   ["Open quick switcher", "Mod+O"],
   ["Open command palette", "Mod+P"],
   ["Create new note", "Alt+N"],
@@ -21,7 +22,14 @@ const HOTKEYS: [string, string][] = [
   ["Navigate forward", "Ctrl+Alt+→"],
   ["Save now", "Mod+S"],
   ["Open settings", "Mod+,"],
+  ["Toggle the task on this line", "Mod+L"],
+  ["Follow the link at the cursor", "Alt+Enter"],
+  ["Follow the link in a new tab", "Shift+Alt+Enter"],
+  ["Leave the editor, then press Tab", "Esc"],
+  ["Make Tab move focus instead of indenting", "Ctrl+M", "Shift+Alt+M"],
 ];
+
+const noopSubscribe = () => () => {};
 
 const THEMES: { id: Theme; label: string; hint: string }[] = [
   { id: "system", label: "Match system", hint: "Light by day, navy at night, as your device sets it" },
@@ -43,6 +51,7 @@ function Row({ title, description, children }: { title: string; description?: st
 
 export function SettingsDialog({ section = "general" }: { section?: "general" | "hotkeys" }) {
   const w = useWorkspace();
+  const mac = useSyncExternalStore(noopSubscribe, isMac, () => false);
   const file = useRef<HTMLInputElement>(null);
   const close = () => w.actions.setSettingsOpen(false);
 
@@ -128,11 +137,11 @@ export function SettingsDialog({ section = "general" }: { section?: "general" | 
               Hotkeys
             </h3>
             <dl className="mt-3 grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
-              {HOTKEYS.map(([label, keys]) => (
+              {HOTKEYS.map(([label, keys, macKeys]) => (
                 <div key={label} className="flex items-center justify-between gap-3 text-[13px]">
                   <dt className="text-muted">{label}</dt>
                   <dd>
-                    <Shortcut keys={keys} />
+                    <Shortcut keys={mac && macKeys ? macKeys : keys} />
                   </dd>
                 </div>
               ))}

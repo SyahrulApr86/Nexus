@@ -306,7 +306,7 @@ export function Menu({
             fn();
           }
         }}
-        className="absolute min-w-52 rounded-lg border border-border bg-sheet py-1 text-[14px] shadow-[var(--shadow-float)]"
+        className="absolute max-h-[calc(100dvh-16px)] min-w-52 overflow-y-auto overscroll-contain rounded-lg border border-border bg-sheet py-1 text-[14px] shadow-[var(--shadow-float)]"
         style={pos}
       >
         {items.map((it, i) =>
@@ -520,7 +520,7 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: num
                 t.action!.run();
                 close(t.id, e.currentTarget);
               }}
-              className="shrink-0 rounded font-medium text-[var(--toast-link)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--toast-link)]"
+              className="shrink-0 whitespace-nowrap rounded font-medium text-[var(--toast-link)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--toast-link)]"
             >
               {t.action.label}
             </button>
