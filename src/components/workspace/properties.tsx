@@ -106,16 +106,34 @@ export function Properties({ id, gi, mode }: { id: string; gi: number; mode: Not
 
   const remove = (p: Property) => {
     const i = keys.indexOf(p.key);
+    // The note title sits just before this block; reading view has no editor to return to.
+    const title = root.current?.previousElementSibling?.querySelector<HTMLElement>("textarea, input");
     if (!commit((md) => removeProperty(md, p.key), `${p.key} removed`)) return;
     const next = keys[i + 1] ?? keys[i - 1];
-    focusSoon(() =>
-      next
-        ? root.current?.querySelector<HTMLElement>(`${rowSelector(next)} [data-role="key"]`)
-        : root.current?.querySelector<HTMLElement>("[data-role='add']"),
-    );
+    if (next) {
+      focusSoon(() => root.current?.querySelector<HTMLElement>(`${rowSelector(next)} [data-role="key"]`));
+    } else if (!adding) {
+      // That was the last property: the block goes away with the frontmatter, so focus the note.
+      const h = handle.current;
+      if (mode === "edit" && h) requestAnimationFrame(() => h.focus());
+      else focusSoon(() => title);
+    } else {
+      focusSoon(() => root.current?.querySelector<HTMLElement>("[data-role='add']"));
+    }
   };
 
-  const rename = (p: Property, to: string) => commit((md) => renameProperty(md, p.key, to), `${p.key} renamed to ${to}`);
+  const rename = (p: Property, to: string) => {
+    const done = commit((md) => renameProperty(md, p.key, to), `${p.key} renamed to ${to}`);
+    // Rows are keyed by position, so the focused field survives the rename. If the new name
+    // changes the value's input type (a list key, say), put focus back on the renamed key.
+    if (done)
+      requestAnimationFrame(() => {
+        const a = document.activeElement;
+        if (!a || a === document.body || !a.isConnected)
+          root.current?.querySelector<HTMLElement>(`${rowSelector(to)} [data-role="key"]`)?.focus();
+      });
+    return done;
+  };
 
   const add = (key: string) => {
     const k = key.trim();
@@ -151,9 +169,10 @@ export function Properties({ id, gi, mode }: { id: string; gi: number; mode: Not
       <div id={bodyId} hidden={collapsed}>
         {properties.length > 0 && (
           <ul className="props-list" aria-label="Properties">
-            {properties.map((p) => (
+            {properties.map((p, i) => (
               <PropertyRow
-                key={p.key}
+                // By position, not name: a rename must not remount the row and drop focus.
+                key={i}
                 p={p}
                 keys={keys}
                 onRename={(to) => rename(p, to)}
@@ -244,6 +263,7 @@ function KeyInput({ value, keys, onCommit, autoFocus }: { value: string; keys: s
   if (prev !== value) {
     setPrev(value);
     setDraft(value);
+    setError(null);
   }
   const errId = useId();
   const others = keys.filter((k) => k !== value);
@@ -311,7 +331,7 @@ function PropertyRow({
 }: {
   p: Property;
   keys: string[];
-  onRename: (to: string) => void;
+  onRename: (to: string) => boolean | void;
   onValue: (v: PropValue) => void;
   onType: (t: PropType) => void;
   onRemove: () => void;
