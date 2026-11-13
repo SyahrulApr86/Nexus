@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useSyncExternalStore } from "react";
-import { Compartment, EditorState, RangeSetBuilder } from "@codemirror/state";
+import { Compartment, EditorState, RangeSetBuilder, type Extension } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -29,7 +29,16 @@ import { tags as t } from "@lezer/highlight";
 import { frontmatterEnd, livePreview } from "./live-preview";
 import { isMac } from "./ui";
 
-export type EditorHandle = { scrollToLine: (line: number) => void; focus: () => void };
+export type EditorHandle = {
+  scrollToLine: (line: number) => void;
+  focus: () => void;
+  /* templates-properties: insert at the cursor (templates) and rewrite frontmatter (properties) */
+  /** The caret's offset in the note text. */
+  cursor: () => number;
+  /** Replace a range as one undoable edit, past any edit filters; `select` puts the caret there (new text offsets). */
+  apply: (change: { from: number; to: number; insert: string }, select?: number) => void;
+  /* end templates-properties */
+};
 
 type Props = {
   initial: string;
@@ -41,6 +50,8 @@ type Props = {
   onOpenLink: (target: string, newTab: boolean) => void;
   onOpenTag: (tag: string) => void;
   handleRef?: React.RefObject<EditorHandle | null>;
+  /** templates-properties: extra extensions, read when the editor mounts (it is keyed to remount). */
+  extensions?: Extension[];
 };
 
 /* Note text is the document: Literata on a ~70ch measure. Chrome stays in the UI face. */
@@ -332,7 +343,7 @@ const highlightDecorations = decorator(
   }),
 );
 
-export function Editor({ initial, label, onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag, handleRef }: Props) {
+export function Editor({ initial, label, onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag, handleRef, extensions }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const labelSlot = useRef(new Compartment());
@@ -427,6 +438,7 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
           }),
           labelSlot.current.of(EditorView.contentAttributes.of({ "aria-label": label })),
           searchPhrases,
+          extensions ?? [],
         ],
       }),
     });
@@ -460,6 +472,22 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
         view.dispatch({ selection: { anchor: l.from }, effects: EditorView.scrollIntoView(l.from, { y: "start", yMargin: 80 }) });
         view.focus();
       },
+      /* templates-properties */
+      cursor: () => viewRef.current?.state.selection.main.head ?? 0,
+      apply: (change, select) => {
+        const view = viewRef.current;
+        if (!view) return;
+        const to = Math.min(change.to, view.state.doc.length);
+        view.dispatch({
+          changes: { from: Math.min(change.from, to), to, insert: change.insert },
+          selection: select === undefined ? undefined : { anchor: select },
+          scrollIntoView: select !== undefined,
+          // Programmatic: frontmatter guards (properties-extension.tsx) must not block it.
+          filter: false,
+          userEvent: "input.properties",
+        });
+      },
+      /* end templates-properties */
     };
     handleRef.current = handle;
     return () => {

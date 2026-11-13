@@ -52,6 +52,7 @@ export function Reader({
   onOpenLink,
   onOpenTag,
   onToggleTask,
+  hideFrontmatter,
 }: {
   content: string;
   /** The open note; lets the embed cycle guard stop at the note itself. */
@@ -60,6 +61,8 @@ export function Reader({
   onOpenLink: (t: string, newTab?: boolean) => void;
   onOpenTag: (t: string) => void;
   onToggleTask: (content: string) => void;
+  /** templates-properties: the properties block shows the frontmatter, so the raw box is hidden. */
+  hideFrontmatter?: boolean;
 }) {
   const ref = useRef<HTMLElement>(null);
   // After a task toggle: the toggled box's offset, and which own callouts were open.
@@ -149,7 +152,7 @@ export function Reader({
   return (
     <article
       ref={ref}
-      className="reading"
+      className={hideFrontmatter ? "reading hide-frontmatter" : "reading"}
       dangerouslySetInnerHTML={{ __html: html }}
       onAuxClick={(e) => {
         if (e.button !== 1) return;
