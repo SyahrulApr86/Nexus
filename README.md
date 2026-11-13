@@ -235,6 +235,16 @@ Satu daftar catatan berurutan per vault, di tabel `bookmark`. Bookmark ikut terh
 | DELETE | `/api/bookmarks?noteId=` | Menghapus bookmark. `404` kalau catatan itu tidak di-bookmark. |
 | PATCH | `/api/bookmarks`, body `{ order: noteId[] }` | Menomori ulang `position` sesuai `order`. Id yang tidak di-bookmark di vault ini diabaikan. Bookmark yang tidak disebut menyusul dengan urutan lamanya. Hasil daftar baru. |
 
+## Kolaborasi real-time
+
+Service `collab` (folder `collab/`, detail di [collab/README.md](collab/README.md)) menyinkronkan satu catatan antar-tab dan antar-perangkat secara live dengan Yjs lewat WebSocket di `/collab?note=<id>`. Socket diautentikasi dengan cookie sesi app yang sama, dicek Origin-nya, dan hanya membuka catatan di vault milik pengguna. Perubahan disimpan ke `note.content` 2 detik setelah ketikan terakhir lewat fungsi yang sama dengan `PATCH`, dan tulisan REST ke catatan yang sedang terbuka di-merge ke dokumen live.
+
+```bash
+pnpm collab:dev               # lokal, 127.0.0.1:3001 (COLLAB_PORT)
+```
+
+Di produksi compose menjalankan service `collab` dari image yang sama dengan `app`. Arahkan `/collab` di reverse proxy ke `127.0.0.1:COLLAB_PORT` (default 3001) dengan header `Upgrade`; contoh Caddy dan Nginx ada di collab/README.md. Editor belum tersambung ke service ini (track editor berikutnya).
+
 ## Belum ada (roadmap)
 
 - Live preview ala Obsidian (sembunyikan sintaks markdown di baris yang tidak aktif)
