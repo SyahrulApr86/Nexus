@@ -5,10 +5,10 @@ import {
   closeAction,
   collabUrl,
   initials,
-  needsRestSave,
   presenceColors,
   presenceLabel,
   presenceSlot,
+  rejoinText,
   safeColor,
   seedSplices,
 } from "../../src/components/workspace/collab/mode";
@@ -93,12 +93,42 @@ describe("collab mode: REST to live never loses text", () => {
   });
 });
 
-describe("collab mode: live to REST", () => {
-  it("saves over REST unless the server already has the text", () => {
-    expect(needsRestSave("abc", "abc")).toBe(false);
-    expect(needsRestSave("abcd", "abc")).toBe(true);
-    // The server copy could not be fetched (offline): save, the outbox and conflict flow take it from there.
-    expect(needsRestSave("abc", undefined)).toBe(true);
+describe("collab mode: a dropped socket never overwrites edits it missed", () => {
+  const confirmed = "# Plan\n\nintro\n\nmiddle\n\nend\n";
+
+  it("takes the server copy when a stale client typed nothing after the stall", () => {
+    // A stopped receiving; B typed and the service saved it. A must not PATCH its stale text back.
+    const server = confirmed.replace("middle", "middle B edit A never received");
+    expect(rejoinText(confirmed, confirmed, server)).toBe(server);
+  });
+
+  it("merges the stale client's own edit with the one it missed", () => {
+    const server = confirmed.replace("end", "end, from B");
+    const mine = confirmed.replace("intro", "intro, from A");
+    expect(rejoinText(confirmed, mine, server)).toBe("# Plan\n\nintro, from A\n\nmiddle\n\nend, from B\n");
+  });
+
+  it("keeps this device's text when the server has nothing new", () => {
+    const mine = confirmed + "typed during the outage\n";
+    expect(rejoinText(confirmed, mine, confirmed)).toBe(mine);
+  });
+
+  it("recognises an edit that reached the service just before the drop", () => {
+    const mine = confirmed.replace("intro", "intro, from A");
+    const server = mine.replace("end", "end, from B");
+    expect(rejoinText(confirmed, mine, server)).toBe(server);
+    expect(rejoinText(confirmed, mine, mine)).toBe(mine);
+  });
+
+  it("leaves overlapping edits to the conflict flow", () => {
+    const mine = confirmed.replace("middle", "middle by A");
+    const server = confirmed.replace("middle", "middle by B");
+    expect(rejoinText(confirmed, mine, server)).toBeNull();
+  });
+
+  it("without a confirmed base only an identical copy counts as saved", () => {
+    expect(rejoinText(undefined, "same", "same")).toBe("same");
+    expect(rejoinText(undefined, "mine", "theirs")).toBeNull();
   });
 });
 

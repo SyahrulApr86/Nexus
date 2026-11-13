@@ -39,7 +39,7 @@ import { AttachmentsProvider } from "./attachments/context";
 /* end attachments-ui */
 /* collab-editor: live notes save through the collab service, not PATCH */
 import { setCollabHost, writeLive, type LeaveReason } from "./collab/session";
-import { needsRestSave } from "./collab/mode";
+import { rejoinText } from "./collab/mode";
 /* end collab-editor */
 
 /* ------------------------------------------------------------------ */
@@ -979,7 +979,7 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
           if (settled()) setSave("saved");
           return { server: serverText.current.get(id), local: live.current.get(id) ?? notesRef.current[id]?.content };
         },
-        leave: (id: string, docText: string, reason: LeaveReason) => {
+        leave: (id: string, docText: string, reason: LeaveReason, confirmed?: string) => {
           if (!collabLive.current.delete(id)) return;
           if (deleted.current.has(id)) return;
           // The editor's text is the newest; the document's is the same unless no editor is bound.
@@ -999,20 +999,32 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
             queue(id, text, 0);
             return;
           }
-          // Dropped (service down, network gone, too large): save the text over REST against the server's current copy.
+          // Dropped (service down, network gone, too large). The socket may have stalled before it closed, so
+          // the server copy can hold edits this device never received: merge from the last text the service
+          // confirmed instead of overwriting them. Changes that overlap keep the old base and answer 409.
           const run = api
             .get(id)
-            .then(
-              (fresh) => {
-                baseAt.current.set(id, fresh.updatedAt);
-                serverText.current.set(id, fresh.content);
-                return fresh.content;
-              },
-              () => undefined,
-            )
-            .then((server) => {
+            .catch(() => null)
+            .then((fresh) => {
+              if (collabLive.current.has(id) || deleted.current.has(id)) return;
               const now = live.current.get(id) ?? text;
-              if (needsRestSave(now, server) && !collabLive.current.has(id)) queue(id, now, SAVE_DELAY);
+              // Not fetched (offline): save against the old base; the outbox and the 409 flow take it from there.
+              const merged = fresh ? rejoinText(confirmed, now, fresh.content) : null;
+              if (!fresh || merged === null) {
+                queue(id, now, SAVE_DELAY);
+                return;
+              }
+              baseAt.current.set(id, fresh.updatedAt);
+              serverText.current.set(id, fresh.content);
+              if (merged !== now) {
+                // Edits from others that arrived only on the server: the editor shows them too.
+                live.current.set(id, merged);
+                setNotes((m) => (m[id] ? { ...m, [id]: { ...m[id], content: merged, updatedAt: fresh.updatedAt, rev: m[id].rev + 1 } } : m));
+              }
+              if (merged !== fresh.content) {
+                writeDraft(id, merged);
+                queue(id, merged, SAVE_DELAY);
+              } else if (settled()) setSave("saved");
             })
             .finally(() => baseReady.current.delete(id));
           baseReady.current.set(id, run);

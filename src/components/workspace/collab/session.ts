@@ -35,8 +35,12 @@ export type LeaveReason = "graceful" | "dropped" | Exclude<CloseAction, "reconne
 export type CollabHost = {
   /** Mark the note live. Resolves with the REST base and the newest local text, or null to stay on REST. */
   enter: (noteId: string) => Promise<{ server: string | undefined; local: string | undefined } | null>;
-  /** The note is back on REST autosave; `text` is what the shared document last held. */
-  leave: (noteId: string, text: string, reason: LeaveReason) => void;
+  /**
+   * The note is back on REST autosave. `text` is what the shared document last held; `confirmed` is
+   * what it held when the service last sent anything (undefined when it never went live), the base
+   * for merging with a server copy that may hold edits this device never received.
+   */
+  leave: (noteId: string, text: string, reason: LeaveReason, confirmed?: string) => void;
   notify: (message: string) => void;
 };
 
@@ -81,6 +85,8 @@ class Session {
   private provider: WebsocketProvider | null = null;
   private undo: Y.UndoManager | null = null;
   private live = false;
+  /** The shared text when the service last sent a frame (sync, update or awareness). */
+  private confirmed: string | undefined;
   private failures = 0;
   private stopped = false; // 4404 or 4413: this note does not go live again on this page
   private retry: ReturnType<typeof setTimeout> | undefined;
@@ -156,6 +162,12 @@ class Session {
     this.set("connecting", []);
     provider.awareness.setLocalStateField("user", { name: user.name || "Someone", ...presenceColors(presenceSlot(user.name)) });
     provider.awareness.on("change", () => this.readPeers());
+    // Any frame from the service means this device had everything it sent up to then.
+    const confirm = (_: unknown, origin: unknown) => {
+      if (origin === provider && provider === this.provider && this.live) this.confirmed = this.text?.toString();
+    };
+    doc.on("update", confirm);
+    provider.awareness.on("update", confirm);
     provider.on("status", ({ status }: { status: string }) => {
       if (status === "connected") everOpened = true;
     });
@@ -191,6 +203,7 @@ class Session {
     }
     this.failures = 0;
     const doc = text.toString();
+    this.confirmed = doc;
     const local = start.local ?? doc;
     const splices = seedSplices(start.server, doc, local);
     if (splices.length)
@@ -236,9 +249,10 @@ class Session {
     const action = closeAction(code);
     const wasLive = this.live;
     const text = this.text?.toString() ?? "";
+    const confirmed = this.confirmed;
     this.teardown();
     if (!everOpened && !configured()) unavailableUntil = Date.now() + PROBE_PAUSE;
-    if (wasLive && host) host.leave(this.noteId, text, action === "reconnect" ? "dropped" : action);
+    if (wasLive && host) host.leave(this.noteId, text, action === "reconnect" ? "dropped" : action, confirmed);
     if (action === "too-large") host?.notify("This note is too large to edit live, over 5 MiB. Changes save the usual way.");
     if (action === "signed-out") halted = true;
     if (action === "deleted" || action === "too-large") this.stopped = true;
@@ -268,6 +282,7 @@ class Session {
     for (const b of this.bound) b.unbind();
     this.bound.clear();
     this.live = false;
+    this.confirmed = undefined;
     const provider = this.provider;
     this.provider = null;
     this.undo?.destroy();

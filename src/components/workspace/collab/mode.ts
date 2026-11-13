@@ -98,11 +98,32 @@ export function seedSplices(server: string | undefined, doc: string, editor: str
 }
 
 /**
- * Live to REST: does the editor's text need a REST save?
- * `server` is the note text a fresh GET returned (undefined when it could not be fetched).
+ * Live to REST after a dropped socket: the text to keep, merged three ways.
+ *
+ * - `confirmed`: the shared text when the service last sent this device anything (undefined when the
+ *   note never went live). Everything after it may not have reached this device, or the service.
+ * - `mine`: what the editor shows now.
+ * - `server`: the note text a fresh GET returned, which the service may have saved with edits from
+ *   others that never arrived here (a stalled or half-open socket).
+ *
+ * Returns the text both sides' changes add up to, or null when they touch or overlap: then the save
+ * must answer 409 and the user picks (Keep mine / Load theirs). Never overwrites someone else's edit.
  */
-export function needsRestSave(text: string, server: string | undefined): boolean {
-  return server === undefined || text !== server;
+export function rejoinText(confirmed: string | undefined, mine: string, server: string): string | null {
+  if (mine === server) return server;
+  if (confirmed === undefined) return null;
+  if (mine === confirmed) return server;
+  if (server === confirmed) return mine;
+  const a = simpleDiffString(confirmed, mine);
+  const b = simpleDiffString(confirmed, server);
+  const [x, y] = a.index + a.remove < b.index ? [a, b] : b.index + b.remove < a.index ? [b, a] : [null, null];
+  if (x && y)
+    return confirmed.slice(0, x.index) + x.insert + confirmed.slice(x.index + x.remove, y.index) + y.insert + confirmed.slice(y.index + y.remove);
+  // The service may already hold this device's change (sent just before the drop) plus someone else's:
+  // then the server copy differs from the editor only away from that change.
+  const c = simpleDiffString(mine, server);
+  if (c.index + c.remove < a.index || c.index > a.index + a.insert.length) return server;
+  return null;
 }
 
 /** The number of people on a note, said the way the view header says it. */

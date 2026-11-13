@@ -53,10 +53,10 @@ import { splitFrontmatter } from "@/lib/markdown/parse";
 import { VaultSwitcher, VaultsHost, openCreateVault, openVaults } from "./vaults";
 import { ShareHost, openShare } from "./share-dialog";
 import { exportActiveVault } from "./vaults-export";
+/* end vaults-ui */
 /* collab-editor */
 import { useCollab } from "./collab/use-collab";
 /* end collab-editor */
-/* end vaults-ui */
 
 
 export function Workspace({ user, initialPrefs }: { user: User; initialPrefs?: InitialPrefs }) {
