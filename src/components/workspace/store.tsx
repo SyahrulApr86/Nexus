@@ -918,6 +918,19 @@ function useWorkspaceState(user: User) {
     window.history.replaceState(null, "", url);
   }, [focusView, restoring]);
 
+  // The browser tab names the focused note. The server title comes back when the workspace unmounts.
+  const titleName =
+    focusView.type === "note" ? (notes[focusView.id]?.name ?? index.byId.get(focusView.id)?.name ?? null) : focusView.type === "graph" ? "Graph view" : null;
+  useEffect(() => {
+    const before = document.title;
+    return () => {
+      document.title = before;
+    };
+  }, []);
+  useEffect(() => {
+    document.title = titleName ? `${titleName} — Nexus` : "Nexus";
+  }, [titleName]);
+
   // Load notes that become visible (restored tabs, history steps) and are not cached yet.
   useEffect(() => {
     for (const g of layout.groups) {
@@ -1297,11 +1310,21 @@ function useWorkspaceState(user: User) {
 
   const logout = useCallback(async () => {
     await flushAll();
-    await signOut();
+    let ok = false;
+    try {
+      ok = !(await signOut()).error;
+    } catch {
+      ok = false;
+    }
+    // A failed sign-out must not look like one that worked: the session would still be valid.
+    if (!ok) {
+      notify("Couldn’t sign out. Check your connection and try again.", { tone: "error" });
+      return;
+    }
     // A full reload clears every cached note from memory after signing out.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign("/login");
-  }, [flushAll]);
+  }, [flushAll, notify]);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
