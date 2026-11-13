@@ -37,10 +37,6 @@ test("share link: create, open signed out, revoke, then the link stops working",
 });
 
 test("a revoked or unknown share link answers HTTP 404", async ({ page, api }) => {
-  // Known app bug: src/proxy.ts returns a 404 rewrite for dead links (tests/integration/proxy.test.ts
-  // calls it directly), but the production server still answers 200 with the not-found view.
-  // Remove test.fail once /s/<dead token> returns 404 from `next start`.
-  test.fail(true, "src/proxy.ts 404 is not applied by `next start`: dead /s/ links answer 200");
   const note = await api.createNote("Shared then revoked", "Gone soon.");
   const created = await page.request.post(`/api/notes/${note.id}/share`, { headers: JSON_HEADERS, data: {} });
   expect(created.ok()).toBe(true);

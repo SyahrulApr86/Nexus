@@ -10,14 +10,14 @@ import { describeDb } from "./fixtures";
 
 /*
  * src/proxy.ts: /s/<token> answers a dead link with a real 404 before the page streams, and lets
- * a live one through untouched. The page renders the same "not available" view either way.
+ * a live one through untouched. A dead link gets a small 404 page with the same wording as the page's not-found view.
  */
 
 const { proxy, config } = await import("@/proxy");
 
 const status = async (path: string) => {
   const res = await proxy(new NextRequest(new URL(path, "http://app.test")));
-  return { status: res.status, rewrite: res.headers.get("x-middleware-rewrite"), next: res.headers.get("x-middleware-next") };
+  return { status: res.status, res, next: res.headers.get("x-middleware-next") };
 };
 
 describeDb("share proxy", () => {
@@ -48,7 +48,7 @@ describeDb("share proxy", () => {
     expect(r.next).toBe("1");
   });
 
-  it("answers 404 for a malformed, unknown, revoked or expired link, rendering the same page", async () => {
+  it("answers 404 for a malformed, unknown, revoked or expired link, with the same not-found wording", async () => {
     const revoked = await createShare(vaultId, noteId);
     await revokeShare(userId, revoked.id);
     const expired = await createShare(vaultId, noteId, { expiresInDays: 1 });
@@ -58,8 +58,10 @@ describeDb("share proxy", () => {
     for (const token of ["short", "A".repeat(43), revoked.token, expired.token]) {
       const r = await status(`/s/${token}`);
       expect(r.status, token.slice(0, 6)).toBe(404);
-      // A rewrite to the same URL: the page's own not-found view, now with a 404 status.
-      expect(new URL(r.rewrite!).pathname).toBe(`/s/${token}`);
+      // A self-contained page with the not-found wording, never cached or indexed.
+      expect(r.res.headers.get("content-type")).toMatch(/^text\/html/);
+      expect(r.res.headers.get("cache-control")).toBe("no-store");
+      expect(await r.res.text()).toContain("<h1>This link is not available</h1>");
     }
   });
 
