@@ -646,7 +646,8 @@ export type ImportResult = { created: number; updated: number; skipped: { path: 
  * is skipped and listed in `skipped`. The write is set-based (a few queries per 500 files), runs one
  * import per vault at a time (else 429) and is rolled back when the vault would exceed its quota.
  */
-export async function importNotes(vaultId: string, files: { path: string; content: string }[]): Promise<ImportResult> {
+/** The notes an import would write, by normalised path, after the per-file checks importNotes applies. */
+function planImport(files: { path: string; content: string }[]) {
   const skipped: ImportResult["skipped"] = [];
   const byPath = new Map<string, string>();
   let repeats = 0;
@@ -670,7 +671,31 @@ export async function importNotes(vaultId: string, files: { path: string; conten
     if (byPath.has(path)) repeats++;
     byPath.set(path, content);
   }
+  return { byPath, skipped, repeats };
+}
 
+export type ImportPreview = { conflicts: string[]; total: number };
+
+/**
+ * Dry run of importNotes: the same per-file checks, then one read per 500 paths. `conflicts` are
+ * the paths (sorted) that already hold a note and would be overwritten; `total` counts the notes the
+ * import would write. Writes nothing.
+ */
+export async function previewImport(vaultId: string, files: { path: string; content: string }[]): Promise<ImportPreview> {
+  const { byPath } = planImport(files);
+  const conflicts: string[] = [];
+  for (const part of chunks([...byPath.keys()], IMPORT_CHUNK)) {
+    const rows = await db
+      .select({ path: note.path })
+      .from(note)
+      .where(and(eq(note.vaultId, vaultId), inArray(note.path, part)));
+    for (const r of rows) conflicts.push(r.path);
+  }
+  return { conflicts: conflicts.sort(), total: byPath.size };
+}
+
+export async function importNotes(vaultId: string, files: { path: string; content: string }[]): Promise<ImportResult> {
+  const { byPath, skipped, repeats } = planImport(files);
   let created = 0;
   let updated = repeats; // a path repeated within one import counts as an update, as if written twice
   await db.transaction(async (tx) => {
