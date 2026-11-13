@@ -29,6 +29,11 @@ import { GraphView } from "./graph-view";
 import { Bar, IconButton, Menu, Shortcut, useMenu, type MenuItem } from "./ui";
 import { dirname } from "@/lib/markdown/parse";
 import { openShare } from "./share-dialog"; // vaults-ui
+/* templates-properties */
+import { Properties } from "./properties";
+import { hideFrontmatter } from "./properties-extension";
+import { useTemplatePrefs } from "./templates-settings";
+/* end templates-properties */
 
 /** Focus an element once it exists (checked each frame, for up to half a second). */
 function focusWhenReady(find: () => HTMLElement | null | undefined, tries = 30) {
@@ -411,6 +416,10 @@ function InlineTitle({
   );
 }
 
+/* templates-properties */
+const HIDE_FRONTMATTER = [hideFrontmatter];
+/* end templates-properties */
+
 /** In edit mode the editor owns the text, so the host ignores published text; the reader shows it. */
 const sameForMode = (mode: "edit" | "read") => (a: CachedNote | undefined, b: CachedNote | undefined) =>
   a === b || (sameNoteMeta(a, b) && a!.rev === b!.rev && (mode === "edit" || a!.content === b!.content));
@@ -436,6 +445,10 @@ function NoteView({ id, mode, gi, focused, onClose }: { id: string; mode: "edit"
   const handle = w.handle;
   const ready = !!note;
   const { peekFocusRequest, clearFocusRequest } = actions;
+  /* templates-properties */
+  const showProperties = useTemplatePrefs().showProperties;
+  const formFrontmatter = showProperties !== "source";
+  /* end templates-properties */
 
   // Focus the note once it has mounted, when the open asked for it (quick switcher, new note, drawer).
   // Wait a frame: a freshly mounted editor can be recreated within the same commit.
@@ -487,10 +500,15 @@ function NoteView({ id, mode, gi, focused, onClose }: { id: string; mode: "edit"
         inputRef={titleRef}
         onDone={() => (mode === "edit" ? handle.current?.focus() : undefined)}
       />
+      {/* templates-properties */}
+      {showProperties === "visible" && <Properties id={note.id} gi={gi} mode={mode} />}
+      {/* end templates-properties */}
       {mode === "edit" ? (
         <Editor
           // A new rev means the server text replaced what this editor showed: remount with it.
-          key={`${note.id}:${note.rev}`}
+          // templates-properties: switching how frontmatter shows remounts it too.
+          key={`${note.id}:${note.rev}:${formFrontmatter ? "form" : "source"}`}
+          extensions={formFrontmatter ? HIDE_FRONTMATTER : undefined}
           label={`${note.name}, note text`}
           initial={w.liveContent(note.id)}
           onChange={(c) => actions.onChange(note.id, c)}
@@ -509,6 +527,7 @@ function NoteView({ id, mode, gi, focused, onClose }: { id: string; mode: "edit"
           onOpenLink={actions.openLink}
           onOpenTag={actions.openTag}
           onToggleTask={(c) => actions.onChange(note.id, c)}
+          hideFrontmatter={formFrontmatter}
         />
       )}
     </div>

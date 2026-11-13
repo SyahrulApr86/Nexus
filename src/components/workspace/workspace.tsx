@@ -40,6 +40,9 @@ import { SearchView } from "./search-view";
 import { BacklinksView, OutgoingView, OutlineView, TagsView } from "./right-views";
 import { TabGroup } from "./tab-group";
 import { Palette, type Command } from "./palette";
+/* templates-properties */
+import { TemplatePickerHost, templateCommands } from "./templates-picker";
+/* end templates-properties */
 import { SettingsDialog } from "./settings";
 import { IconButton, Toasts } from "./ui";
 import { splitFrontmatter } from "@/lib/markdown/parse";
@@ -546,6 +549,9 @@ function Shell() {
             { id: "share", label: "Share note…", run: () => openShare(note) }, // vaults-ui
           ]
         : []),
+      /* templates-properties: palette entries */
+      ...(note ? templateCommands(note.id) : []),
+      /* end templates-properties */
       { id: "backlinks", label: "Show backlinks", run: () => a.showRight("backlinks") },
       { id: "outline", label: "Show outline", run: () => a.showRight("outline") },
       { id: "tags", label: "Show tags", run: () => a.showRight("tags") },
@@ -710,6 +716,9 @@ function Shell() {
       <VaultsHost />
       <ShareHost />
       {/* end vaults-ui */}
+      {/* templates-properties */}
+      <TemplatePickerHost />
+      {/* end templates-properties */}
       <Toasts toasts={w.toasts} dismiss={a.dismissToast} />
     </div>
   );
