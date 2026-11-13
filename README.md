@@ -235,6 +235,39 @@ Satu daftar catatan berurutan per vault, di tabel `bookmark`. Bookmark ikut terh
 | DELETE | `/api/bookmarks?noteId=` | Menghapus bookmark. `404` kalau catatan itu tidak di-bookmark. |
 | PATCH | `/api/bookmarks`, body `{ order: noteId[] }` | Menomori ulang `position` sesuai `order`. Id yang tidak di-bookmark di vault ini diabaikan. Bookmark yang tidak disebut menyusul dengan urutan lamanya. Hasil daftar baru. |
 
+## API vault dan tautan publik
+
+Backend untuk banyak vault per user dan tautan publik baca-saja ke satu catatan. UI-nya (pemilih vault, dialog bagikan) belum ada.
+
+### Vault aktif
+
+Setiap endpoint vault yang sudah ada (catatan, folder, pencarian, graph, tag, riwayat, bookmark, impor, ekspor, `GET /api/vault`) membaca header `X-Nexus-Vault: <id vault>`. Tanpa header (atau header kosong) dipakai vault default, yaitu vault tertua milik user. Id yang bukan milik user, id yang sudah dihapus, dan id yang formatnya salah dijawab `404` yang sama. Logikanya satu tempat, `requireVault()` di `src/lib/session.ts`.
+
+| Aturan | Nilai |
+|---|---|
+| Vault per user | Maksimal 20. Nama 1 sampai 100 karakter, tanpa garis miring, unik per user tanpa membedakan huruf besar. |
+| Kuota | Per vault seperti sebelumnya (20.000 catatan, 500 MiB), plus total per user setara 5 vault (`assertUserQuota` di `src/lib/vaults.ts`). |
+| Hapus vault | Hanya dengan body `{ confirm: "<nama vault persis>" }`. Vault terakhir tidak bisa dihapus. Semua isinya ikut terhapus, termasuk tautan publik. |
+
+| Method | Endpoint | Hasil |
+|---|---|---|
+| GET | `/api/vaults` | `[{ id, name, createdAt, isDefault, notes }]`, tertua dulu |
+| POST | `/api/vaults`, body `{ name }` | `201` dengan vault baru. `409` kalau nama sudah dipakai atau sudah 20 vault. |
+| PATCH | `/api/vaults/[id]`, body `{ name }` | Ganti nama. `404` untuk vault user lain. |
+| DELETE | `/api/vaults/[id]`, body `{ confirm }` | `400` kalau nama tidak cocok, `409` kalau ini vault terakhir. |
+
+### Tautan publik
+
+Tabel `share`. Token 32 byte acak (base64url) hanya ditampilkan sekali saat dibuat; yang disimpan hanya `sha256(token)`. Tautan berhenti berlaku saat dicabut, saat kedaluwarsa, atau saat catatannya dihapus.
+
+| Method | Endpoint | Hasil |
+|---|---|---|
+| POST | `/api/notes/[id]/share`, body `{ expiresInDays?: 1..365 \| null }` | `201` dengan `{ id, noteId, createdAt, expiresAt, url }`. `url` hanya muncul di sini. Maksimal 10 tautan aktif per catatan. |
+| GET | `/api/notes/[id]/share` | Tautan aktif catatan itu, `[{ id, noteId, createdAt, expiresAt }]`, tanpa token |
+| DELETE | `/api/shares/[id]` | Mencabut tautan dari vault mana pun milik user. Idempoten. `404` untuk tautan user lain. |
+
+Halaman publik `/s/<token>` tidak butuh login. Isinya dirender dengan renderer markdown yang sama (sudah disanitasi), lalu `[[wikilink]]` dan embed catatan jadi teks biasa (catatan lain tidak bisa dibuka dan tidak terlihat ada atau tidaknya), `#tag` jadi label tanpa tautan, dan gambar dari situs lain jadi tautan. Halaman ini memakai `noindex`, `Referrer-Policy: no-referrer`, CSP tambahan yang lebih ketat (gambar hanya dari origin ini), dan rate limit 60 tampilan per menit per IP. Token tak dikenal, dicabut, atau kedaluwarsa mendapat halaman "This link is not available" yang sama. Karena Cache Components mengirim shell lebih dulu, status HTTP-nya tetap `200` dengan `noindex`.
+
 ## Belum ada (roadmap)
 
 - Live preview ala Obsidian (sembunyikan sintaks markdown di baris yang tidak aktif)
