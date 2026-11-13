@@ -115,7 +115,6 @@ export function Palette({
           className="h-12 w-full border-b border-rule bg-transparent px-4 text-[16px] outline-none placeholder:text-faint"
         />
         <ul id={listId} role="listbox" aria-label="Results" className="max-h-[min(50vh,420px)] overflow-y-auto p-1.5">
-          {items.length === 0 && <li className="px-3 py-3 text-faint">No matching {mode === "notes" ? "notes" : "commands"}</li>}
           {items.map((item, i) => (
             <li
               key={item.id}
@@ -158,6 +157,15 @@ export function Palette({
             </li>
           ))}
         </ul>
+        {items.length === 0 && (
+          <p role="status" className="px-4 pb-3 pt-1.5 text-muted">
+            {mode === "commands"
+              ? "No matching commands"
+              : notes.length === 0
+                ? "No notes yet. Type a name, then press Enter to create your first note."
+                : "No matching notes"}
+          </p>
+        )}
         <div className="flex items-center gap-4 border-t border-rule px-4 py-2 text-[12px] text-faint">
           <span className="inline-flex items-center gap-1.5">
             <Shortcut keys="↑" /> <Shortcut keys="↓" /> to move

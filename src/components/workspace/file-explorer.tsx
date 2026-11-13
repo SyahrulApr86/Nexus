@@ -60,6 +60,17 @@ function flatten(root: Dir, expanded: Set<string>, sort: SortOrder): Row[] {
   return rows;
 }
 
+/** [width %, depth]: two folders, one of them open, then loose notes. */
+const SKELETON_ROWS: [number, number][] = [
+  [44, 0],
+  [36, 0],
+  [62, 1],
+  [48, 1],
+  [70, 0],
+  [54, 0],
+  [40, 0],
+];
+
 const SORT_LABELS: Record<SortOrder, string> = {
   "name-asc": "File name (A to Z)",
   "name-desc": "File name (Z to A)",
@@ -97,7 +108,7 @@ const TreeRow = memo(function TreeRow({
       data-more=""
       aria-haspopup="menu"
       aria-label={`More options for ${name}`}
-      className="ml-auto grid size-11 shrink-0 place-items-center rounded-md text-faint opacity-0 transition-opacity hover:bg-hover hover:text-fg group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100 md:size-7"
+      className="ml-auto grid size-11 shrink-0 place-items-center rounded-md text-faint opacity-0 transition-opacity hover:bg-hover hover:text-fg group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100 md:size-7 md:pointer-coarse:size-11"
     >
       <EllipsisVertical aria-hidden="true" className="size-4 stroke-[1.5]" />
     </button>
@@ -117,7 +128,7 @@ const TreeRow = memo(function TreeRow({
         {...common}
         aria-expanded={open}
         aria-selected={false}
-        className={`group flex h-11 cursor-pointer select-none items-center gap-1 rounded-md text-muted outline-offset-[-2px] transition-colors hover:bg-hover hover:text-fg md:h-7 ${
+        className={`group flex h-11 cursor-pointer select-none items-center gap-1 rounded-md text-muted outline-offset-[-2px] transition-colors hover:bg-hover hover:text-fg md:h-7 md:pointer-coarse:h-11 ${
           dropTarget ? "bg-active" : ""
         }`}
       >
@@ -137,7 +148,7 @@ const TreeRow = memo(function TreeRow({
       aria-selected={active}
       aria-current={active ? "page" : undefined}
       draggable
-      className={`group flex h-11 cursor-pointer select-none items-center rounded-md outline-offset-[-2px] transition-colors md:h-7 ${
+      className={`group flex h-11 cursor-pointer select-none items-center rounded-md outline-offset-[-2px] transition-colors md:h-7 md:pointer-coarse:h-11 ${
         active ? "bg-active font-medium text-accent-ink" : "text-fg hover:bg-hover"
       }`}
     >
@@ -401,10 +412,18 @@ export function FileExplorer() {
         {...dropProps}
       >
         {w.treeStatus === "loading" && (
-          <div role="status" className="space-y-3 px-2 py-2">
-            <span className="sr-only">Loading notes</span>
-            {[72, 56, 88, 64, 48].map((x, i) => (
-              <Bar key={i} w={`${x}%`} h={10} />
+          <div role="status">
+            <span className="sr-only">Loading notes…</span>
+            {/* Rows at the size and indent of the tree that replaces them, so nothing shifts. */}
+            {SKELETON_ROWS.map(([width, depth], i) => (
+              <div
+                key={i}
+                aria-hidden="true"
+                className="flex h-11 items-center md:h-7 md:pointer-coarse:h-11"
+                style={{ paddingLeft: 28 + depth * 16 }}
+              >
+                <Bar w={`${width}%`} h={10} />
+              </div>
             ))}
           </div>
         )}
