@@ -220,6 +220,8 @@ export const noteRevision = pgTable(
   (t) => [
     // nullsFirst: drizzle defaults to NULLS LAST, which plain `ORDER BY created_at DESC` cannot use.
     index("note_revision_note_created_idx").on(t.noteId, t.createdAt.desc().nullsFirst()),
+    // ON DELETE CASCADE from vault (and user, through vault) needs this to avoid a full scan.
+    index("note_revision_vault_idx").on(t.vaultId),
     check(
       "note_revision_reason_check",
       sql`${t.reason} in (${sql.raw(revisionReasons.map((r) => `'${r}'`).join(", "))})`,

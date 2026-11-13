@@ -1,0 +1,1 @@
+CREATE INDEX "note_revision_vault_idx" ON "note_revision" USING btree ("vault_id");
