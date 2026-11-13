@@ -160,7 +160,12 @@ describe("auth hardening", () => {
 
   it("refuses an http:// base URL in production, except localhost", () => {
     expect(() => assertSecureBaseUrl("http://notes.example.com", "production")).toThrow();
+    // A missing URL must throw whatever the shell exports (a dev .env sets an http://localhost URL).
+    vi.stubEnv("BETTER_AUTH_URL", "");
     expect(() => assertSecureBaseUrl(undefined, "production")).toThrow();
+    expect(() => assertSecureBaseUrl("", "production")).toThrow();
+    vi.stubEnv("BETTER_AUTH_URL", "http://localhost:3000");
+    expect(() => assertSecureBaseUrl("", "production")).toThrow();
     expect(() => assertSecureBaseUrl("https://notes.example.com", "production")).not.toThrow();
     expect(() => assertSecureBaseUrl("http://localhost:3000", "production")).not.toThrow();
     expect(() => assertSecureBaseUrl("http://notes.example.com", "development")).not.toThrow();
