@@ -17,6 +17,9 @@ import {
   splitFrontmatter,
 } from "@/lib/markdown/parse";
 import { HttpError } from "@/lib/session";
+// --- canvas track: .canvas notes (JSON Canvas) ---
+import { canvasLinks, canvasText, isCanvasPath, rewriteCanvasLinks } from "@/lib/canvas";
+// --- end canvas track ---
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Exec = typeof db | Tx;
@@ -92,7 +95,10 @@ async function assertVaultQuota(tx: Exec, vaultId: string) {
 /* ------------------------------------------------------------------ */
 
 /** Distinct outgoing links and tags of one note, capped at LIMITS.linksPerNote / tagsPerNote. */
-function indexOf(content: string, fm: Record<string, unknown>) {
+function indexOf(content: string, fm: Record<string, unknown>, path?: string) {
+  // --- canvas track: a canvas links through its file cards and text cards, and tags through its text ---
+  if (path && isCanvasPath(path)) return canvasIndexOf(content);
+  // --- end canvas track ---
   const seen = new Set<string>();
   const links: { target: string; embed: boolean }[] = [];
   for (const l of extractWikiLinks(content)) {
@@ -108,10 +114,35 @@ function indexOf(content: string, fm: Record<string, unknown>) {
   return { links, tags };
 }
 
-async function reindex(tx: Exec, vaultId: string, noteId: string, content: string, fm = frontmatterOf(content)) {
+// --- canvas track ---
+/** indexOf for a .canvas note: file cards that point at notes, [[links]] and #tags in text cards. */
+function canvasIndexOf(content: string) {
+  const seen = new Set<string>();
+  const links: { target: string; embed: boolean }[] = [];
+  for (const l of canvasLinks(content)) {
+    const target = linkKey(l.target);
+    const k = `${target}|${l.embed}`;
+    if (!target || seen.has(k)) continue;
+    seen.add(k);
+    links.push({ target, embed: l.embed });
+    if (links.length >= LIMITS.linksPerNote) break;
+  }
+  const tags = extractTags(canvasText(content), {}).slice(0, LIMITS.tagsPerNote);
+  return { links, tags };
+}
+
+/** A canvas keeps its extension through a rename; a note cannot be renamed into a canvas. */
+function keepKind(oldPath: string, next: string) {
+  if (isCanvasPath(oldPath)) return isCanvasPath(next) ? next : `${next}.canvas`;
+  if (isCanvasPath(next)) throw new HttpError(400, "A note cannot be renamed to a .canvas file");
+  return next;
+}
+// --- end canvas track ---
+
+async function reindex(tx: Exec, vaultId: string, noteId: string, content: string, fm = frontmatterOf(content), path?: string) {
   await tx.delete(link).where(eq(link.sourceId, noteId));
   await tx.delete(tag).where(eq(tag.noteId, noteId));
-  const idx = indexOf(content, fm);
+  const idx = indexOf(content, fm, path);
   if (idx.links.length) await tx.insert(link).values(idx.links.map((l) => ({ ...l, sourceId: noteId, vaultId })));
   if (idx.tags.length) await tx.insert(tag).values(idx.tags.map((t) => ({ noteId, vaultId, tag: t })));
 }
@@ -144,6 +175,18 @@ async function ensureFolders(tx: Exec, vaultId: string, notePath: string) {
 
 /** `path`, or the first free "path N", in one query (the new-note flow creates many "Untitled N"). */
 async function uniquePath(tx: Exec, vaultId: string, path: string, excludeId?: string) {
+  // --- canvas track: "Board.canvas" is followed by "Board 1.canvas", the extension stays last ---
+  if (isCanvasPath(path)) {
+    const stem = path.slice(0, -".canvas".length);
+    const rows = await tx
+      .select({ id: note.id, path: note.path })
+      .from(note)
+      .where(and(eq(note.vaultId, vaultId), or(eq(note.path, path), like(note.path, `${escapeLike(stem)} %.canvas`))));
+    const used = new Set(rows.filter((t) => t.id !== excludeId).map((t) => t.path));
+    if (!used.has(path)) return path;
+    for (let i = 1; ; i++) if (!used.has(`${stem} ${i}.canvas`)) return `${stem} ${i}.canvas`;
+  }
+  // --- end canvas track ---
   const taken = await tx
     .select({ id: note.id, path: note.path })
     .from(note)
@@ -449,7 +492,7 @@ export async function createNote(vaultId: string, rawPath: string, content = "")
       .insert(note)
       .values({ vaultId, path, name: basename(path), content, frontmatter: fm })
       .returning({ id: note.id, path: note.path, name: note.name });
-    await reindex(tx, vaultId, n.id, content, fm);
+    await reindex(tx, vaultId, n.id, content, fm, path); // canvas track: path picks the indexer
     await assertVaultQuota(tx, vaultId);
     return n;
   });
@@ -471,11 +514,11 @@ export async function updateContent(
       .update(note)
       .set({ content, frontmatter: fm })
       .where(and(eq(note.vaultId, vaultId), eq(note.id, id)))
-      .returning({ id: note.id, updatedAt: note.updatedAt });
+      .returning({ id: note.id, updatedAt: note.updatedAt, path: note.path }); // canvas track: path
     if (!n) throw new HttpError(404, "Note not found");
-    await reindex(tx, vaultId, id, content, fm);
+    await reindex(tx, vaultId, id, content, fm, n.path); // canvas track: path picks the indexer
     if (grew) await assertVaultQuota(tx, vaultId);
-    return n;
+    return { id: n.id, updatedAt: n.updatedAt };
   });
 }
 
@@ -500,7 +543,7 @@ function rewriteLinks(content: string, oldKeys: Set<string>, newTarget: string) 
 
 export async function renameNote(vaultId: string, id: string, rawPath: string, baseUpdatedAt?: Date) {
   const old = await getOwned(vaultId, id);
-  const clean = normalizePath(rawPath);
+  const clean = keepKind(old.path, normalizePath(rawPath)); // canvas track
   validatePath(clean);
   if (clean === old.path) {
     if (baseUpdatedAt && old.updatedAt.getTime() !== baseUpdatedAt.getTime())
@@ -524,11 +567,20 @@ export async function renameNote(vaultId: string, id: string, rawPath: string, b
     let updatedLinks = 0;
     for (const s of sources) {
       const [src] = await tx.select({ content: note.content }).from(note).where(eq(note.id, s.id));
-      const next = rewriteLinks(src.content, oldKeys, newTarget);
+      // --- canvas track: a canvas source points its file cards at the new path ---
+      const next = isCanvasPath(s.path)
+        ? rewriteCanvasLinks(
+            src.content,
+            (t) => oldKeys.has(linkKey(t)),
+            isCanvasPath(path) ? path : `${path}.md`,
+            (text) => rewriteLinks(text, oldKeys, newTarget),
+          )
+        : rewriteLinks(src.content, oldKeys, newTarget);
+      // --- end canvas track ---
       if (next !== null) {
         await snapshotBeforeWrite(tx, vaultId, s.id, next, "rename");
         await tx.update(note).set({ content: next }).where(eq(note.id, s.id));
-        await reindex(tx, vaultId, s.id, next);
+        await reindex(tx, vaultId, s.id, next, undefined, s.path); // canvas track: path
         updatedLinks++;
       }
     }
@@ -759,7 +811,7 @@ export async function importNotes(
       const tagRows: (typeof tag.$inferInsert)[] = [];
       for (const v of values) {
         const id = idByPath.get(v.path)!;
-        const idx = indexOf(v.content, v.frontmatter);
+        const idx = indexOf(v.content, v.frontmatter, v.path); // canvas track: path picks the indexer
         for (const l of idx.links) linkRows.push({ sourceId: id, vaultId, ...l });
         for (const t of idx.tags) tagRows.push({ noteId: id, vaultId, tag: t });
       }

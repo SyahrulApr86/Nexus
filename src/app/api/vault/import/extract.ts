@@ -109,7 +109,7 @@ export async function extractVault(
     const name = file.name;
     if (name.endsWith("/") || name.length > limits.maxNameLength) return;
     if (isIgnored(name)) return;
-    const note = /\.md$/i.test(name);
+    const note = /\.(md|canvas)$/i.test(name); // canvas track: .canvas files are notes too
     if (!note && !(limits.maxAttachmentBytes && ALLOWED_EXTENSIONS.has(extensionOf(name)))) return;
     if (file.compression !== 0 && file.compression !== 8) return; // unsupported method: skip
     budget.files++;

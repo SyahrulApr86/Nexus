@@ -18,7 +18,7 @@ const LIMITS = {
 
 /**
  * POST multipart/form-data with field "file": either a .zip of an Obsidian vault or one or more
- * .md files. From a zip, notes (.md) and attachments (images, PDFs, audio and video, the upload
+ * .md (or .canvas) files. From a zip, notes (.md), canvases (.canvas) and attachments (images, PDFs, audio and video, the upload
  * allowlist of src/lib/attachments/sniff.ts) are imported; .obsidian/ config and other files are
  * skipped. Limits (all enforced on real bytes, before anything is written): 51 MiB request, 500
  * parts, 5 MiB per note, 25 MiB per attachment (a larger one is skipped), 200 MiB and 20,000 files
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
         for (const e of vault.notes) notes.push({ path: e.name.slice(root.length), content: e.content });
         for (const e of vault.files) files.push({ path: e.name.slice(root.length), data: e.data });
         for (const e of vault.skipped) tooLarge.push({ path: e.name.slice(root.length), reason: e.reason });
-      } else if (/\.md$/i.test(up.name)) {
+      } else if (/\.(md|canvas)$/i.test(up.name)) { // canvas track: a loose .canvas file imports like a note
         if (up.size > LIMITS.maxFileBytes) throw new HttpError(413, "A note is larger than 5 MiB");
         budget.totalBytes += up.size;
         budget.files++;
