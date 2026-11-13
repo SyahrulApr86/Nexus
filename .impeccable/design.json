@@ -1,0 +1,348 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-14T00:00:00+07:00",
+  "title": "Design System: Nexus",
+  "extensions": {
+    "colorMeta": {
+      "ink-navy": {
+        "role": "neutral",
+        "displayName": "Ink Navy",
+        "canonical": "#02070a",
+        "tonalRamp": [
+          "#020304",
+          "#020405",
+          "#020507",
+          "#020608",
+          "#272c2e",
+          "#676a6c",
+          "#a6a8a9",
+          "#e0e1e1"
+        ]
+      },
+      "link-blue": {
+        "role": "primary",
+        "displayName": "Link Blue",
+        "canonical": "#0297de",
+        "tonalRamp": [
+          "#022739",
+          "#024564",
+          "#026291",
+          "#0280bd",
+          "#27a6e2",
+          "#67c0eb",
+          "#a6daf3",
+          "#e0f2fb"
+        ]
+      },
+      "link-blue-ink": {
+        "role": "primary",
+        "displayName": "Link Blue Ink",
+        "canonical": "#01669a",
+        "tonalRamp": [
+          "#011b28",
+          "#012f46",
+          "#014364",
+          "#015783",
+          "#277ca9",
+          "#66a3c2",
+          "#a6c9db",
+          "#e0ecf2"
+        ]
+      },
+      "tag-orange": {
+        "role": "secondary",
+        "displayName": "Tag Orange",
+        "canonical": "#fc734d",
+        "tonalRamp": [
+          "#401e14",
+          "#723423",
+          "#a44b32",
+          "#d66241",
+          "#fc8867",
+          "#fdab94",
+          "#fdcec0",
+          "#feeee9"
+        ]
+      },
+      "tag-orange-ink": {
+        "role": "secondary",
+        "displayName": "Tag Orange Ink",
+        "canonical": "#b42a03",
+        "tonalRamp": [
+          "#2e0c02",
+          "#521402",
+          "#751c02",
+          "#992302",
+          "#bf4928",
+          "#d27f67",
+          "#e4b4a6",
+          "#f6e5e0"
+        ]
+      },
+      "highlight-peach": {
+        "role": "secondary",
+        "displayName": "Highlight Peach",
+        "canonical": "#ffd9cc",
+        "tonalRamp": [
+          "#413734",
+          "#73625c",
+          "#a68d85",
+          "#d9b8ad",
+          "#ffded3",
+          "#ffe8e0",
+          "#fff1ed",
+          "#fffaf8"
+        ]
+      },
+      "frame-mist": {
+        "role": "neutral",
+        "displayName": "Frame Mist",
+        "canonical": "#f1f4f7",
+        "tonalRamp": [
+          "#3d3e3f",
+          "#6d6e70",
+          "#9d9fa1",
+          "#cdcfd2",
+          "#f3f5f8",
+          "#f6f8fa",
+          "#fafbfc",
+          "#fdfdfe"
+        ]
+      },
+      "sheet-white": {
+        "role": "neutral",
+        "displayName": "Sheet White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#414141",
+          "#737373",
+          "#a6a6a6",
+          "#d9d9d9",
+          "#ffffff",
+          "#ffffff",
+          "#ffffff",
+          "#ffffff"
+        ]
+      },
+      "control-slate": {
+        "role": "neutral",
+        "displayName": "Control Slate",
+        "canonical": "#7d8c99",
+        "tonalRamp": [
+          "#202427",
+          "#394045",
+          "#515b64",
+          "#6a7782",
+          "#909da8",
+          "#b1bac1",
+          "#d1d6db",
+          "#eff1f2"
+        ]
+      },
+      "negative-red": {
+        "role": "error",
+        "displayName": "Negative Red",
+        "canonical": "#c4242a",
+        "tonalRamp": [
+          "#320a0c",
+          "#591114",
+          "#80181c",
+          "#a61e23",
+          "#cc4449",
+          "#db7b7f",
+          "#eab2b4",
+          "#f7e4e5"
+        ]
+      },
+      "positive-green": {
+        "role": "success",
+        "displayName": "Positive Green",
+        "canonical": "#247b50",
+        "tonalRamp": [
+          "#0a2015",
+          "#113825",
+          "#185034",
+          "#1e6844",
+          "#448e6a",
+          "#7baf96",
+          "#b2d0c1",
+          "#e4efea"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "note-title": {
+        "displayName": "Note title",
+        "purpose": "Inline title, the note's h1."
+      },
+      "note-body": {
+        "displayName": "Note body",
+        "purpose": "Reading and Live Preview text on a 700px measure."
+      },
+      "ui-body": {
+        "displayName": "Interface body",
+        "purpose": "Menus, rows, settings, sidebars."
+      },
+      "ui-label": {
+        "displayName": "Label",
+        "purpose": "Status bar, captions, metadata; sentence case."
+      },
+      "dialog-title": {
+        "displayName": "Dialog title",
+        "purpose": "Auth card and modal headings."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Fenced code blocks only."
+      }
+    },
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 12px 32px rgb(2 7 10 / 0.14), 0 2px 6px rgb(2 7 10 / 0.08)",
+        "purpose": "Menus, palette, dialogs, toasts, drag ghost (light)."
+      },
+      {
+        "name": "float-dark",
+        "value": "0 16px 40px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.4)",
+        "purpose": "Same, dark theme."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-quint",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Toasts, view transitions, menu entry; 150–200ms; off under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "<768px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one primary action in a form or dialog.",
+      "html": "<button class=\"ds-btn-primary\">Create vault</button>",
+      "css": ".ds-btn-primary{height:44px;padding:0 16px;border:0;border-radius:8px;background:var(--accent, #0297de);color:#02070a;font:500 14px/20px 'Hanken Grotesk',ui-sans-serif,sans-serif;cursor:pointer;transition:filter .15s} .ds-btn-primary:hover{filter:brightness(.95)} .ds-btn-primary:focus-visible{outline:2px solid var(--focus, #01669a);outline-offset:2px}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Confirms a destructive action in a dialog.",
+      "html": "<button class=\"ds-btn-danger\">Replace notes</button>",
+      "css": ".ds-btn-danger{height:40px;padding:0 16px;border:0;border-radius:8px;background:var(--negative, #c4242a);color:#fff;font:500 14px/20px 'Hanken Grotesk',ui-sans-serif,sans-serif;cursor:pointer} .ds-btn-danger:hover{background:var(--negative-hover, #a91f24)} .ds-btn-danger:focus-visible{outline:2px solid var(--focus, #01669a);outline-offset:2px}"
+    },
+    {
+      "name": "Icon Button",
+      "kind": "button",
+      "refersTo": "icon-button",
+      "description": "Ribbon and toolbar actions, always labelled.",
+      "html": "<button class=\"ds-icon-btn\" aria-label=\"New note\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg></button>",
+      "css": ".ds-icon-btn{display:inline-grid;place-items:center;width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:var(--faint, #566470);cursor:pointer} .ds-icon-btn:hover{background:var(--hover, #e9eef2);color:var(--fg, #02070a)} .ds-icon-btn:focus-visible{outline:2px solid var(--focus, #01669a);outline-offset:2px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Form input on a sheet.",
+      "html": "<label class=\"ds-label\">Email<input class=\"ds-input\" type=\"email\" placeholder=\"name@example.com\"></label>",
+      "css": ".ds-label{display:grid;gap:8px;font:500 14px/20px 'Hanken Grotesk',sans-serif;color:var(--fg, #02070a)} .ds-input{height:44px;padding:0 12px;border:1px solid var(--control, #7d8c99);border-radius:8px;background:var(--sheet, #fff);color:var(--fg, #02070a);font:400 16px 'Hanken Grotesk',sans-serif} .ds-input:focus-visible{outline:2px solid var(--focus, #01669a);outline-offset:2px}"
+    },
+    {
+      "name": "Tree Row",
+      "kind": "nav",
+      "refersTo": "tree-row",
+      "description": "File explorer rows; the active note is tinted.",
+      "html": "<div class=\"ds-tree\"><div class=\"ds-row\">Inbox</div><div class=\"ds-row ds-row-active\">Meeting notes</div><div class=\"ds-row\">Reading list</div></div>",
+      "css": ".ds-tree{width:240px;padding:4px;background:var(--frame, #f1f4f7);font:400 14px/20px 'Hanken Grotesk',sans-serif} .ds-row{height:28px;display:flex;align-items:center;padding:0 8px;border-radius:6px;color:var(--muted, #36424c);cursor:pointer} .ds-row:hover{background:var(--hover, #e9eef2)} .ds-row-active{background:var(--active, #e4eaef);color:var(--fg, #02070a)}"
+    },
+    {
+      "name": "Tag and Highlight",
+      "kind": "chip",
+      "refersTo": "tag-chip",
+      "description": "Orange marks: #tags and ==highlights==.",
+      "html": "<p class=\"ds-note\">Draft for <span class=\"ds-tag\">#research</span> with a <mark class=\"ds-hl\">key finding</mark>.</p>",
+      "css": ".ds-note{font:400 17px/1.65 Literata,Georgia,serif;color:var(--fg, #02070a)} .ds-tag{padding:0 4px;border-radius:4px;background:var(--mark-soft, #ffe8e0);color:var(--mark-ink, #b42a03)} .ds-hl{padding:0 2px;border-radius:2px;background:var(--hl, #ffd9cc);color:inherit}"
+    },
+    {
+      "name": "Note Sheet",
+      "kind": "card",
+      "refersTo": "note-sheet",
+      "description": "The signature surface: the note on a white sheet inside the frame.",
+      "html": "<div class=\"ds-frame\"><article class=\"ds-sheet\"><h1 class=\"ds-title\">Meeting notes</h1><p class=\"ds-body\">Agreed to ship the import preview. See <a class=\"ds-link\" href=\"#\">Roadmap</a>.</p></article></div>",
+      "css": ".ds-frame{padding:8px;background:var(--frame, #f1f4f7)} .ds-sheet{padding:32px 40px;border:1px solid var(--border, #dce3e9);border-radius:14px;background:var(--sheet, #fff)} .ds-title{margin:0 0 12px;font:600 28px/36px Literata,Georgia,serif;letter-spacing:-0.01em;color:var(--fg, #02070a)} .ds-body{margin:0;max-width:700px;font:400 17px/1.65 Literata,Georgia,serif;color:var(--fg, #02070a)} .ds-link{color:var(--accent-ink, #01669a);text-decoration-thickness:1px;text-underline-offset:2px} .ds-link:focus-visible{outline:2px solid var(--focus, #01669a);outline-offset:2px}"
+    },
+    {
+      "name": "Toast",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Feedback with an optional action and a dismiss button.",
+      "html": "<div class=\"ds-toast\" role=\"status\"><span>Renamed. Updated links in 3 notes</span><button class=\"ds-toast-act\">Undo</button><button class=\"ds-toast-x\" aria-label=\"Dismiss\">×</button></div>",
+      "css": ".ds-toast{display:inline-flex;align-items:center;gap:12px;padding:6px 6px 6px 16px;border-radius:8px;background:var(--toast-bg, #02070a);color:var(--toast-fg, #fff);font:400 14px/20px 'Hanken Grotesk',sans-serif;box-shadow:var(--shadow-float, 0 12px 32px rgb(2 7 10 / .14), 0 2px 6px rgb(2 7 10 / .08))} .ds-toast-act{border:0;background:none;color:var(--toast-link, #7fd0f6);font:500 14px/20px inherit;white-space:nowrap;cursor:pointer} .ds-toast-act:hover{text-decoration:underline} .ds-toast-x{width:28px;height:28px;border:0;border-radius:6px;background:none;color:inherit;cursor:pointer} .ds-toast-x:focus-visible,.ds-toast-act:focus-visible{outline:2px solid var(--toast-link, #7fd0f6);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Note Is the Sheet",
+    "overview": "Nexus is a working notebook, not a dashboard. Every screen is built around one white sheet (navy in dark mode) where a note is read and written, set inside a quiet blue-grey frame that Obsidian users already know: ribbon, file explorer, tab bar and right sidebar on the frame, the note on the sheet. The frame is tinted from the navy's own hue and stays low in chroma, so it recedes. The sheet is where the contrast, the serif and the colour live.\n\nDensity is that of a desktop tool: 28px tree rows, 14px interface text, hairline borders, no shadows at rest. Brand shows only in precise details: the double-bracket mark set in type, blue that always means \"this moves you\" and orange that always means \"this is marked\". The interface refuses the look of a generated dashboard: no coloured nav pills, tinted icon tiles, gradient chrome, glows, glass or the old purple accent.\n\nOn a phone the same vault becomes one sheet with drawers. Phones are first-class devices, not degraded desktops: touch targets grow and safe areas are respected, but the hierarchy stays the same.",
+    "keyCharacteristics": [
+      "An L-shaped tinted frame around an inset white sheet with 14px corners.",
+      "Two colour meanings and nothing else: blue moves, orange marks.",
+      "Serif for the person's writing, grotesque for the interface, mono for code.",
+      "Flat at rest; a shadow appears only on things that float (menus, dialogs, toasts).",
+      "Light and dark follow the system; dark is navy, never grey-black."
+    ],
+    "rules": [
+      {
+        "name": "The Two Meanings Rule",
+        "body": "Blue moves you (links, active item, focus, primary action). Orange marks things (#tags, ==highlights==, search hits). Neither colour is ever used for decoration, and they never swap jobs.",
+        "section": "colors"
+      },
+      {
+        "name": "The Checked Pair Rule",
+        "body": "Every text/ground pair is ≥ 4.5:1 and every control edge and focus ring is ≥ 3:1, in both themes. New tokens are added to `src/app/globals.css` with their ratio, never as raw hex in a component.",
+        "section": "colors"
+      },
+      {
+        "name": "The Writing Wears Serif Rule",
+        "body": "Only text the person wrote is set in Literata. Anything the product says is Hanken Grotesk.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Sheet Rule",
+        "body": "Nothing that sits in the layout casts a shadow. Only things that float above it do.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use blue only for movement (links, active item, focus, primary action) and orange only for marks (tags, highlights, search hits).",
+      "Do add every new colour as a token in `src/app/globals.css`, for both themes, with its contrast ratio checked (≥ 4.5:1 text, ≥ 3:1 edges and rings).",
+      "Do keep the note on the sheet: Literata at 17px on a 700px measure, with the inline title as the h1.",
+      "Do follow Obsidian's conventions (ribbon, explorer, tabs, backlinks, command palette, hotkeys) when a choice is open; users arrive with Obsidian habits.",
+      "Do use motion only as feedback (view transitions on note change, 150–200ms quint ease) and honour `prefers-reduced-motion`.",
+      "Do write interface copy in English, sentence case, naming the action (\"Create vault\", \"Replace notes\")."
+    ],
+    "donts": [
+      "Don't use gradients, glows, glass or coloured nav pills, or put icons in tinted tiles.",
+      "Don't add shadows to anything that sits in the layout; only floating surfaces get the Float shadow.",
+      "Don't use tracked-out capital labels or a monospace face for non-code labels.",
+      "Don't put coloured side borders thicker than 1px on callouts, cards or rows.",
+      "Don't use emoji in interface copy, or bring back the old purple accent.",
+      "Don't set small text in Link Blue (#0297de) on white; use Link Blue Ink."
+    ]
+  }
+}
