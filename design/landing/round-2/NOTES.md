@@ -42,7 +42,7 @@ One moment: the hero's typed tokens settle into the gutter (opacity and a 0.35em
 
 ## Implementation
 
-- `src/app/page.tsx`: metadata (title, description, canonical, robots index/follow, Open Graph, Twitter card, `metadataBase` from `NEXT_PUBLIC_APP_URL`).
+- `src/app/page.tsx`: `generateMetadata` (title, description, canonical, robots index/follow, Open Graph, Twitter card). `metadataBase` is the origin of `BETTER_AUTH_URL` (then `NEXT_PUBLIC_APP_URL`), read at request time after `connection()`, because a Docker image is built without `.env` and a build-time value would bake in `http://localhost:3000`. The Host header is not used. A `<Suspense>` marker that awaits `connection()` declares the request-time metadata; the page body stays in the prerendered shell (`◐ /`).
 - `src/app/opengraph-image.tsx`: next/og card of the hero. Fonts in `src/app/fonts/`: Literata (opsz 72, wght 500) and JetBrains Mono (wght 400) instanced from the google/fonts OFL variable files and subset to Latin; OFL texts alongside. No Reserved Font Names.
 - `src/components/landing/`: `landing.tsx` (sections), `vault-link.tsx` (async server link in `<Suspense>`; the prerendered fallback is `/login`; no session cookie means no auth lookup), `copy-button.tsx`, `landing.css`.
 - Styles are a plain prefixed stylesheet (`lp-*`), not a CSS module: the turbopack rule for `*.css` in `next.config.ts` runs CSS modules through the Tailwind loader as plain CSS, so module class names come out `undefined`. If that rule is narrowed to non-module CSS, the file can become a module.
@@ -53,6 +53,11 @@ One moment: the hero's typed tokens settle into the gutter (opacity and a 0.35em
 - accesslint 0.21 (94 rules): 0 violations at 1440 dark, 390 light, 390 dark, and 780 light.
 - Keyboard: Tab order wordmark → Self-host → Open your vault → hero button → Self-host → Copy → code block (scrollable, focusable) → footer links; every stop shows the `--focus` ring; targets 44 px tall (copy 36 px).
 - Signed out: every "Open your vault" → `/login`. Signed in: → `/vault`.
+
+## Verification, round-2 fixes (2026-11-14)
+
+- Reflow at 320 CSS px (WCAG 1.4.10): the hero link targets use normal spaces (they wrap), and under 22.5rem the note size is 1.875rem so "13 November —" fits. Text ranges of the hero checked against the sheet's inner edge at 320, 340, 360, 361, 365, 375, 390, 720 and 1440, light and dark: none past it; scrollWidth = clientWidth. Only the code block scrolls, inside its own focusable `pre`.
+- Production build with `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` unset, then the standalone server run with `BETTER_AUTH_URL=https://notes.example.com`: canonical, og:url, og:image and twitter:image all use that origin; a forged Host header does not change them; `/opengraph-image` returns 200 image/png.
 
 ## Open for the owner
 
