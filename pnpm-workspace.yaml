@@ -1,9 +1,21 @@
 # Dependency build scripts are denied by default. None are needed:
 # @prisma/client and better-sqlite3 are unused optional peers of better-auth,
-# and esbuild (drizzle-kit/tsx) resolves its platform binary without postinstall.
+# and esbuild (drizzle-kit) resolves its platform binary without postinstall.
 allowBuilds:
   '@prisma/client': false
   better-sqlite3: false
   esbuild: false
   sharp: false
   unrs-resolver: false
+
+# Supply chain. A version must be at least 24 h old before it is installed; setting this
+# explicitly makes pnpm refuse a younger one instead of quietly excluding it.
+minimumReleaseAge: 1440
+# Refuse a version published with weaker trust evidence (e.g. no provenance) than an earlier
+# version of the same package. Exceptions go in trustPolicyExclude, pinned to one exact
+# package@version after review, never a whole package or a wildcard.
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  # Reviewed 2026-11: a 3.x maintenance release published by hand on 2025-04-21 by the same
+  # maintainer (jounqin) who publishes the 4.x line with provenance. Dev-only (eslint-config-next).
+  - eslint-import-resolver-typescript@3.10.1
