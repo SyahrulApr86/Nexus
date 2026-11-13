@@ -1,37 +1,41 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
   CalendarDays,
   ChevronsUpDown,
-  CircleHelp,
-  FilePen,
+  FilePlus,
   FileSearch,
   Files,
   GitFork,
   Hash,
-  Info,
+  Keyboard,
   Link2,
   ListTree,
   Menu as MenuIcon,
   PanelLeft,
+  PanelRight,
   Pencil,
   Search,
   Settings,
   SquareTerminal,
   Waypoints,
 } from "lucide-react";
-import { WorkspaceProvider, useWorkspace, type User, type RightView, type LeftView } from "./store";
+import { WorkspaceProvider, useWorkspace, type User, type RightView, type LeftView, type SettingsSection } from "./store";
 import { FileExplorer } from "./file-explorer";
 import { SearchView } from "./search-view";
 import { BacklinksView, OutgoingView, OutlineView, TagsView } from "./right-views";
-import { TabGroup } from "./tab-group";
+import { TabGroup, useShortcutText } from "./tab-group";
 import { Palette, type Command } from "./palette";
 import { SettingsDialog } from "./settings";
-import { IconButton, Menu, Toasts, useMenu } from "./ui";
+import { Bar, IconButton, Menu, Toasts, useMenu } from "./ui";
+import { splitFrontmatter } from "@/lib/markdown/parse";
+
+// Contract with settings.tsx: it takes the section to open at ("hotkeys" scrolls to and focuses that heading).
+const SettingsAt = SettingsDialog as React.ComponentType<{ section?: SettingsSection }>;
 
 export function Workspace({ user }: { user: User }) {
   return (
@@ -63,43 +67,113 @@ function Wordmark() {
 /* Ribbon                                                              */
 /* ------------------------------------------------------------------ */
 
-function Ribbon() {
+function Ribbon({ inert }: { inert: boolean }) {
   const w = useWorkspace();
   const a = w.actions;
+  const keys = useShortcutText();
   return (
-    <nav aria-label="Ribbon" className="hidden w-11 shrink-0 flex-col items-center pb-2 md:flex">
+    <nav aria-label="Ribbon" inert={inert} className="hidden w-11 shrink-0 flex-col items-center pb-2 md:flex">
+      {/* The mark stays on screen when the left sidebar (which carries the full wordmark) is hidden. */}
       <div className="flex h-10 items-center">
-        <IconButton
-          label={w.prefs.leftOpen ? "Hide left sidebar" : "Show left sidebar"}
-          aria-pressed={w.prefs.leftOpen}
-          onClick={() => a.showLeft()}
-        >
-          <PanelLeft />
-        </IconButton>
+        {!w.prefs.leftOpen && (
+          <span translate="no" className="select-none text-[15px] font-semibold tracking-[-0.01em]">
+            <span aria-hidden="true" className="text-accent-ink">
+              [[]]
+            </span>
+            <span className="sr-only">Nexus</span>
+          </span>
+        )}
       </div>
       <div className="mt-2 flex flex-col items-center gap-1">
-        <IconButton label="Open quick switcher" shortcut="Ctrl+O" onClick={() => a.setPalette("notes")}>
+        <IconButton label={w.prefs.leftOpen ? "Hide left sidebar" : "Show left sidebar"} onClick={() => a.showLeft()}>
+          <PanelLeft />
+        </IconButton>
+        <IconButton label="Open quick switcher" shortcut={keys("Mod+O")} onClick={() => a.setPalette("notes")}>
           <FileSearch />
         </IconButton>
-        <IconButton label="Open graph view" shortcut="Ctrl+G" onClick={() => a.openView({ type: "graph" }, "tab")}>
+        <IconButton label="Open graph view" shortcut={keys("Mod+G")} onClick={() => a.openView({ type: "graph" }, "tab")}>
           <GitFork />
         </IconButton>
-        <IconButton label="Open today’s daily note" shortcut="Ctrl+D" onClick={() => a.dailyNote()}>
+        <IconButton label="Open today’s daily note" shortcut={keys("Mod+D")} onClick={() => a.dailyNote()}>
           <CalendarDays />
         </IconButton>
-        <IconButton label="Open command palette" shortcut="Ctrl+P" onClick={() => a.setPalette("commands")}>
+        <IconButton label="Open command palette" shortcut={keys("Mod+P")} onClick={() => a.setPalette("commands")}>
           <SquareTerminal />
         </IconButton>
       </div>
       <div className="mt-auto flex flex-col items-center gap-1">
-        <IconButton label="Hotkeys and help" onClick={() => a.setSettingsOpen(true)}>
-          <CircleHelp />
+        <IconButton label="Keyboard shortcuts" onClick={() => a.setSettingsOpen("hotkeys")}>
+          <Keyboard />
         </IconButton>
-        <IconButton label="Settings" shortcut="Ctrl+," onClick={() => a.setSettingsOpen(true)}>
+        <IconButton label="Settings" shortcut={keys("Mod+,")} onClick={() => a.setSettingsOpen("general")}>
           <Settings />
         </IconButton>
       </div>
     </nav>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Sidebar view tabs: roving tabindex, arrows, Home and End            */
+/* ------------------------------------------------------------------ */
+
+function ViewTabs<T extends string>({
+  label,
+  prefix,
+  views,
+  value,
+  onSelect,
+  manual,
+  className,
+}: {
+  label: string;
+  prefix: string;
+  views: { id: T; label: string; Icon: typeof Files }[];
+  value: T;
+  onSelect: (id: T) => void;
+  /** Arrow keys only move focus; Enter or Space selects (for views that take focus when shown). */
+  manual?: boolean;
+  className: string;
+}) {
+  const onKeyDown = (e: ReactKeyboardEvent, i: number) => {
+    const n =
+      e.key === "ArrowRight" || e.key === "ArrowDown"
+        ? (i + 1) % views.length
+        : e.key === "ArrowLeft" || e.key === "ArrowUp"
+          ? (i - 1 + views.length) % views.length
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? views.length - 1
+              : -1;
+    if (n < 0) return;
+    e.preventDefault();
+    if (!manual) onSelect(views[n].id);
+    document.getElementById(`${prefix}-tab-${views[n].id}`)?.focus();
+  };
+  return (
+    <div role="tablist" aria-label={label} className={className}>
+      {views.map(({ id, label: name, Icon }, i) => (
+        <button
+          key={id}
+          id={`${prefix}-tab-${id}`}
+          type="button"
+          role="tab"
+          aria-selected={value === id}
+          aria-controls={`${prefix}-panel`}
+          tabIndex={value === id ? 0 : -1}
+          aria-label={name}
+          title={name}
+          onClick={() => onSelect(id)}
+          onKeyDown={(e) => onKeyDown(e, i)}
+          className={`grid size-8 place-items-center rounded-md transition-colors ${
+            value === id ? "bg-active text-fg" : "text-faint hover:bg-hover hover:text-fg"
+          }`}
+        >
+          <Icon aria-hidden="true" className="size-[18px] stroke-[1.5]" />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -120,11 +194,13 @@ function VaultSwitcher() {
       <button
         type="button"
         aria-haspopup="menu"
+        aria-expanded={!!m.anchor}
+        aria-label={w.vaultName ? `Vault: ${w.vaultName}` : "Vault"}
         onClick={(e) => m.openBelow(e.currentTarget)}
         className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-hover"
       >
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">My Vault</span>
+          {w.vaultName ? <span className="block truncate font-medium">{w.vaultName}</span> : <Bar w="55%" h={12} />}
         </span>
         <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 stroke-[1.5] text-faint" />
       </button>
@@ -134,8 +210,8 @@ function VaultSwitcher() {
           label="Vault"
           onClose={m.close}
           items={[
-            { label: "Settings", shortcut: "Mod+,", onSelect: () => w.actions.setSettingsOpen(true) },
-            { label: "Import notes…", onSelect: () => w.actions.setSettingsOpen(true) },
+            { label: "Settings", shortcut: "Mod+,", onSelect: () => w.actions.setSettingsOpen("general") },
+            { label: "Import notes…", onSelect: () => w.actions.setSettingsOpen("general") },
             { label: "Export vault as .zip", onSelect: w.actions.exportVault },
             "separator",
             { label: "Sign out", onSelect: w.actions.logout },
@@ -152,8 +228,13 @@ function LeftSidebar() {
   const open = w.drawer === "left";
   return (
     <aside
+      id="left-sidebar"
       aria-label="Left sidebar"
-      className={`fixed inset-y-0 left-0 z-40 flex w-[85vw] max-w-80 flex-col border-r border-border bg-frame shadow-[var(--shadow-float)] transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)]
+      role={open ? "dialog" : undefined}
+      aria-modal={open || undefined}
+      tabIndex={-1}
+      inert={!!w.drawer && !open}
+      className={`fixed inset-y-0 left-0 z-40 flex w-[85vw] max-w-80 flex-col border-r border-border bg-frame shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)]
         md:static md:z-auto md:w-[260px] md:max-w-none md:shrink-0 md:translate-x-0 md:border-r-0 md:shadow-none md:visible
         ${open ? "visible translate-x-0" : "invisible -translate-x-full"}
         ${w.prefs.leftOpen ? "md:flex" : "md:hidden"}`}
@@ -161,26 +242,18 @@ function LeftSidebar() {
     >
       <div className="flex h-10 shrink-0 items-center justify-between pl-3 pr-1">
         <Wordmark />
-        <div role="tablist" aria-label="Left sidebar views" className="flex items-center gap-0.5">
-          {LEFT_VIEWS.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={view === id}
-              aria-label={label}
-              title={label}
-              onClick={() => w.actions.setLeftView(id)}
-              className={`grid size-8 place-items-center rounded-md transition-colors ${
-                view === id ? "bg-active text-fg" : "text-faint hover:bg-hover hover:text-fg"
-              }`}
-            >
-              <Icon aria-hidden="true" className="size-[18px] stroke-[1.5]" />
-            </button>
-          ))}
-        </div>
+        {/* Manual activation: the search view takes focus when it appears. */}
+        <ViewTabs
+          label="Left sidebar views"
+          prefix="left"
+          views={LEFT_VIEWS}
+          value={view}
+          onSelect={w.actions.setLeftView}
+          manual
+          className="flex items-center gap-0.5"
+        />
       </div>
-      <div role="tabpanel" aria-label={view === "files" ? "Files" : "Search"} className="min-h-0 flex-1">
+      <div id="left-panel" role="tabpanel" aria-labelledby={`left-tab-${view}`} className="min-h-0 flex-1">
         {view === "files" ? <FileExplorer /> : <SearchView />}
       </div>
       <VaultSwitcher />
@@ -202,33 +275,28 @@ function RightSidebar() {
   const current = RIGHT_VIEWS.find((v) => v.id === view)!;
   return (
     <aside
+      id="right-sidebar"
       aria-label="Right sidebar"
-      className={`fixed inset-y-0 right-0 z-40 flex w-[85vw] max-w-80 flex-col border-l border-border bg-frame shadow-[var(--shadow-float)] transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)]
+      role={open ? "dialog" : undefined}
+      aria-modal={open || undefined}
+      tabIndex={-1}
+      inert={!!w.drawer && !open}
+      className={`fixed inset-y-0 right-0 z-40 flex w-[85vw] max-w-80 flex-col border-l border-border bg-frame shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)] max-lg:pr-[env(safe-area-inset-right)]
         lg:static lg:z-auto lg:w-[280px] lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:border-l-0 lg:shadow-none lg:visible
         ${open ? "visible translate-x-0" : "invisible translate-x-full"}
         ${w.prefs.rightOpen ? "lg:flex" : "lg:hidden"}`}
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div role="tablist" aria-label="Right sidebar views" className="flex h-10 shrink-0 items-center gap-0.5 px-2">
-        {RIGHT_VIEWS.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={view === id}
-            aria-label={label}
-            title={label}
-            onClick={() => w.actions.setRightView(id)}
-            className={`grid size-8 place-items-center rounded-md transition-colors ${
-              view === id ? "bg-active text-fg" : "text-faint hover:bg-hover hover:text-fg"
-            }`}
-          >
-            <Icon aria-hidden="true" className="size-[18px] stroke-[1.5]" />
-          </button>
-        ))}
-      </div>
-      <div role="tabpanel" aria-label={current.label} className="min-h-0 flex-1 overflow-y-auto px-2 pb-6">
-        <h2 className="px-2 pb-2 pt-1 text-[13px] text-faint">
+      <ViewTabs
+        label="Right sidebar views"
+        prefix="right"
+        views={RIGHT_VIEWS}
+        value={view}
+        onSelect={w.actions.setRightView}
+        className="flex h-10 shrink-0 items-center gap-0.5 px-2"
+      />
+      <div id="right-panel" role="tabpanel" aria-labelledby={`right-tab-${view}`} className="min-h-0 flex-1 overflow-y-auto px-2 pb-6">
+        <h2 className="px-2 pb-0 pt-3 text-[13px] text-faint">
           {current.label}
           {view !== "tags" && w.activeNote && <span className="text-muted"> for {w.activeNote.name}</span>}
         </h2>
@@ -247,37 +315,49 @@ function RightSidebar() {
 
 const nf = new Intl.NumberFormat("en");
 
+/** Words of prose: markdown syntax (list markers, task boxes, fences, link targets) is not counted. */
 function countWords(s: string) {
-  const m = s.replace(/^---[\s\S]*?---\n?/, "").match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu);
+  const body = splitFrontmatter(s)
+    .body.replace(/^([ \t]*)(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?/gm, "$1")
+    .replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, "")
+    .replace(/\]\([^)\s]*(?:\s+"[^"]*")?\)/g, "]")
+    .replace(/\[\[([^\]|]*)\|([^\]]*)\]\]/g, "$2")
+    .replace(/<!--[\s\S]*?-->|%%[\s\S]*?%%/g, " ");
+  const m = body.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu);
   return m ? m.length : 0;
 }
 
+const SAVE_TEXT = {
+  saved: "Saved",
+  dirty: "Unsaved changes",
+  saving: "Saving…",
+  error: "Couldn’t save",
+  signedOut: "Signed out, not saved",
+} as const;
+
+/** Text only, in the bar's own grey; colour only when something is wrong. */
 function SaveLabel() {
   const w = useWorkspace();
-  const text = { saved: "Saved", dirty: "Unsaved changes", saving: "Saving…", error: "Couldn’t save, retrying" }[w.save];
-  return (
-    <span className={`inline-flex items-center gap-1.5 ${w.save === "error" ? "text-negative" : ""}`}>
-      <span
-        aria-hidden="true"
-        className={`size-1.5 rounded-full ${w.save === "saved" ? "bg-positive" : w.save === "error" ? "bg-negative" : "bg-mark"}`}
-      />
-      {text}
-    </span>
-  );
+  const bad = w.save === "error" || w.save === "signedOut";
+  return <span className={bad ? "text-negative" : undefined}>{SAVE_TEXT[w.save]}</span>;
 }
 
-function StatusBar() {
+function StatusBar({ inert }: { inert: boolean }) {
   const w = useWorkspace();
   const note = w.activeNote;
   const words = useMemo(() => (note ? countWords(note.content) : 0), [note]);
   return (
     <footer
       aria-label="Status bar"
-      className="hidden h-7 shrink-0 items-center justify-end gap-4 px-4 text-[12px] text-faint md:flex"
+      inert={inert}
+      className="box-content hidden h-7 shrink-0 items-center justify-end gap-4 px-4 text-[12px] text-faint md:flex"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
+      {/* First, so its changing width never moves the counters. Errors are announced by a toast. */}
+      <SaveLabel />
       {note && (
         <>
-          <button type="button" onClick={() => w.actions.showRight("backlinks")} className="tabular rounded px-1 hover:text-fg">
+          <button type="button" onClick={() => w.actions.showRight("backlinks")} className="tabular -mx-1 rounded px-1 hover:text-fg">
             {nf.format(note.backlinks.length)} {note.backlinks.length === 1 ? "backlink" : "backlinks"}
           </button>
           <span className="tabular">
@@ -288,67 +368,112 @@ function StatusBar() {
           </span>
         </>
       )}
-      <span role="status" aria-live="polite">
-        <SaveLabel />
-      </span>
     </footer>
   );
 }
 
-function PhoneTopBar() {
+function PhoneTopBar({ inert }: { inert: boolean }) {
   const w = useWorkspace();
   const v = w.focusView;
+  const bad = w.save === "error" || w.save === "signedOut";
   return (
     <header
-      className="flex h-12 shrink-0 items-center gap-1 border-b border-rule bg-sheet px-1 md:hidden"
+      inert={inert}
+      className="box-content grid h-12 shrink-0 grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-1 border-b border-rule bg-frame px-1 md:hidden"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
-      <IconButton label="Open files and search" className="size-11" onClick={() => w.actions.showLeft()}>
+      <IconButton
+        label="Open files and search"
+        aria-expanded={w.drawer === "left"}
+        aria-controls="left-sidebar"
+        className="size-11 justify-self-start"
+        onClick={() => w.actions.showLeft()}
+      >
         <MenuIcon />
       </IconButton>
-      <p className="min-w-0 flex-1 truncate text-center font-medium">
-        {v.type === "graph" ? "Graph view" : (w.activeNote?.name ?? "Nexus")}
+      <p className="flex min-w-0 items-center justify-center gap-1.5 font-medium">
+        <span className="truncate">{v.type === "graph" ? "Graph view" : (w.activeNote?.name ?? "Nexus")}</span>
+        {bad && (
+          <span className="shrink-0" title={SAVE_TEXT[w.save]}>
+            <span aria-hidden="true" className="block size-1.5 rounded-full bg-negative" />
+            <span className="sr-only">{SAVE_TEXT[w.save]}</span>
+          </span>
+        )}
       </p>
-      {v.type === "note" && (
+      <div className="flex items-center gap-1 justify-self-end">
+        {v.type === "note" && (
+          <IconButton
+            label={v.mode === "edit" ? "Switch to reading view" : "Switch to editing view"}
+            className="size-11"
+            onClick={() => w.actions.setMode()}
+          >
+            {v.mode === "edit" ? <BookOpen /> : <Pencil />}
+          </IconButton>
+        )}
         <IconButton
-          label={v.mode === "edit" ? "Switch to reading view" : "Switch to editing view"}
+          label="Open links and outline"
+          aria-expanded={w.drawer === "right"}
+          aria-controls="right-sidebar"
           className="size-11"
-          onClick={() => w.actions.setMode()}
+          onClick={() => w.actions.showRight()}
         >
-          {v.mode === "edit" ? <BookOpen /> : <Pencil />}
+          <PanelRight />
         </IconButton>
-      )}
-      <IconButton label="Open links and outline" className="size-11" onClick={() => w.actions.showRight()}>
-        <Info />
-      </IconButton>
+      </div>
     </header>
   );
 }
 
-function PhoneBottomBar() {
+/** A labelled phone bar button: icon over a 12px word, at least 56x56. */
+function PhoneBarButton({
+  label,
+  text,
+  primary,
+  children,
+  ...props
+}: { label: string; text: string; primary?: boolean; children: React.ReactNode } & React.ComponentProps<"button">) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      className={`flex h-14 min-w-14 flex-1 flex-col items-center justify-center gap-1 rounded-md text-[12px] leading-none transition-colors active:bg-hover disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-5 [&_svg]:stroke-[1.5] ${
+        primary ? "font-medium text-accent-ink" : "text-faint"
+      }`}
+      {...props}
+    >
+      <span aria-hidden="true" className="contents">
+        {children}
+      </span>
+      <span aria-hidden="true">{text}</span>
+    </button>
+  );
+}
+
+function PhoneBottomBar({ inert }: { inert: boolean }) {
   const w = useWorkspace();
   const t = w.focusTab;
   return (
     <nav
       aria-label="Phone navigation"
-      className="flex shrink-0 items-center justify-around border-t border-rule bg-frame md:hidden"
+      inert={inert}
+      className="flex shrink-0 items-center justify-around border-t border-rule bg-frame px-1 md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <IconButton label="Navigate back" className="size-12" disabled={!t || t.index === 0} onClick={w.actions.back}>
+      <PhoneBarButton label="Navigate back" text="Back" disabled={!t || t.index === 0} onClick={w.actions.back}>
         <ArrowLeft />
-      </IconButton>
-      <IconButton label="Navigate forward" className="size-12" disabled={!t || t.index >= t.history.length - 1} onClick={w.actions.forward}>
+      </PhoneBarButton>
+      <PhoneBarButton label="Navigate forward" text="Forward" disabled={!t || t.index >= t.history.length - 1} onClick={w.actions.forward}>
         <ArrowRight />
-      </IconButton>
-      <IconButton label="Find or create a note" className="size-12" onClick={() => w.actions.setPalette("notes")}>
+      </PhoneBarButton>
+      <PhoneBarButton label="Find or create a note" text="Find" onClick={() => w.actions.setPalette("notes")}>
         <FileSearch />
-      </IconButton>
-      <IconButton label="New note" className="size-12" onClick={() => w.actions.newNote("")}>
-        <FilePen />
-      </IconButton>
-      <IconButton label="Commands" className="size-12" onClick={() => w.actions.setPalette("commands")}>
+      </PhoneBarButton>
+      <PhoneBarButton label="New note" text="New" primary onClick={() => w.actions.newNote("")}>
+        <FilePlus />
+      </PhoneBarButton>
+      <PhoneBarButton label="Commands" text="Commands" onClick={() => w.actions.setPalette("commands")}>
         <SquareTerminal />
-      </IconButton>
+      </PhoneBarButton>
     </nav>
   );
 }
@@ -357,10 +482,22 @@ function PhoneBottomBar() {
 /* Shell                                                               */
 /* ------------------------------------------------------------------ */
 
+const PHONE = "(max-width: 767px)";
+const subscribePhone = (cb: () => void) => {
+  const m = window.matchMedia(PHONE);
+  m.addEventListener("change", cb);
+  return () => m.removeEventListener("change", cb);
+};
+const usePhone = () => useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE).matches, () => false);
+
+// macOS Option composes characters (Option+T is "†", Option+N a dead key), so fall back to the physical key.
+const ALT_CODES: Record<string, string> = { KeyN: "n", KeyT: "t", KeyW: "w", BracketRight: "]", BracketLeft: "[" };
+
 function Shell() {
   const w = useWorkspace();
   const a = w.actions;
   const note = w.activeNote;
+  const phone = usePhone();
 
   const commands: Command[] = useMemo(
     () => [
@@ -369,12 +506,14 @@ function Shell() {
       { id: "daily", label: "Open today’s daily note", shortcut: "Mod+D", run: a.dailyNote },
       { id: "search", label: "Search in all notes", shortcut: "Mod+Shift+F", run: () => a.showLeft("search") },
       { id: "graph", label: "Open graph view", shortcut: "Mod+G", run: () => a.openView({ type: "graph" }, "tab") },
-      { id: "graph-split", label: "Open graph view to the right", run: () => a.openView({ type: "graph" }, "split") },
+      // One pane on a phone: no "to the right".
+      ...(phone ? [] : [{ id: "graph-split", label: "Open graph view to the right", run: () => a.openView({ type: "graph" }, "split") }]),
       { id: "mode", label: "Toggle reading and editing view", shortcut: "Mod+E", run: () => a.setMode() },
       { id: "tab", label: "New tab", shortcut: "Alt+T", run: () => a.openView({ type: "empty" }, "tab") },
+      { id: "close-tab", label: "Close current tab", shortcut: "Alt+W", run: () => a.closeTab(w.layout.focus, w.focusGroup?.active ?? 0) },
       ...(note
         ? [
-            { id: "split", label: "Open current note to the right", run: () => a.open(note.id, "split") },
+            ...(phone ? [] : [{ id: "split", label: "Open current note to the right", run: () => a.open(note.id, "split") }]),
             { id: "rename", label: "Rename current note", run: () => a.renameNote(note) },
             { id: "reveal", label: "Reveal current note in file explorer", run: () => a.reveal(note.path) },
             { id: "delete", label: "Delete current note", run: () => a.deleteNote(note) },
@@ -385,99 +524,157 @@ function Shell() {
       { id: "tags", label: "Show tags", run: () => a.showRight("tags") },
       { id: "left", label: "Toggle left sidebar", run: () => a.showLeft() },
       { id: "right", label: "Toggle right sidebar", run: () => a.showRight() },
-      { id: "import", label: "Import notes", run: () => a.setSettingsOpen(true) },
+      { id: "import", label: "Import notes", run: () => a.setSettingsOpen("general") },
       { id: "export", label: "Export vault as .zip", run: a.exportVault },
       { id: "theme-system", label: "Theme: match system", run: () => a.setTheme("system") },
       { id: "theme-light", label: "Theme: light", run: () => a.setTheme("light") },
       { id: "theme-dark", label: "Theme: dark", run: () => a.setTheme("dark") },
-      { id: "settings", label: "Open settings", shortcut: "Mod+,", run: () => a.setSettingsOpen(true) },
+      { id: "settings", label: "Open settings", shortcut: "Mod+,", run: () => a.setSettingsOpen("general") },
+      { id: "hotkeys", label: "Show keyboard shortcuts", run: () => a.setSettingsOpen("hotkeys") },
       { id: "logout", label: "Sign out", run: a.logout },
     ],
-    [a, note],
+    [a, note, phone, w.layout.focus, w.focusGroup],
   );
 
-  // Hotkeys. Browsers keep Ctrl+N/T/W/Tab for themselves, so those actions use Alt.
+  // The hotkey handler reads the latest view through a ref, so it is registered once.
+  const now = useRef({ focus: w.layout.focus, active: w.focusGroup?.active ?? 0, view: w.focusView });
+  useLayoutEffect(() => {
+    now.current = { focus: w.layout.focus, active: w.focusGroup?.active ?? 0, view: w.focusView };
+  });
+
+  // Hotkeys, in the capture phase so the app's own keys win over the editor's.
+  // Browsers keep Ctrl+N/T/W/Tab for themselves, so those actions use Alt.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.isComposing || e.defaultPrevented) return;
+      // A modal (palette, settings, prompts) owns the keyboard while open.
+      if (document.querySelector("dialog[open]")) return;
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
       const run = (fn: () => void) => {
         e.preventDefault();
+        e.stopPropagation();
         fn();
       };
       if (mod && e.altKey && e.key === "ArrowLeft") return run(a.back);
       if (mod && e.altKey && e.key === "ArrowRight") return run(a.forward);
       if (e.altKey && !mod) {
-        if (k === "n") return run(() => a.newNote(""));
-        if (k === "t") return run(() => a.openView({ type: "empty" }, "tab"));
-        if (k === "w") return run(() => a.closeTab(w.layout.focus, w.focusGroup?.active ?? 0));
-        if (e.key === "]") return run(() => a.cycleTab(1));
-        if (e.key === "[") return run(() => a.cycleTab(-1));
+        const ak = /^[a-z[\]]$/i.test(e.key) ? k : ALT_CODES[e.code];
+        if (ak === "n") return run(() => a.newNote(""));
+        if (ak === "t") return run(() => a.openView({ type: "empty" }, "tab"));
+        if (ak === "w") return run(() => a.closeTab(now.current.focus, now.current.active));
+        if (ak === "]") return run(() => a.cycleTab(1));
+        if (ak === "[") return run(() => a.cycleTab(-1));
         return;
       }
-      if (!mod) return;
+      // Ctrl+Alt+G and friends stay with the editor.
+      if (!mod || e.altKey) return;
+      if (k === "f" && e.shiftKey) return run(() => a.showLeft("search"));
+      if (e.shiftKey) return;
       if (k === "o") run(() => a.setPalette("notes"));
       else if (k === "p") run(() => a.setPalette("commands"));
-      else if (k === "n" && !e.shiftKey) run(() => a.newNote(""));
+      else if (k === "n") run(() => a.newNote(""));
       else if (k === "e") run(() => a.setMode());
       else if (k === "g") run(() => a.openView({ type: "graph" }, "tab"));
       else if (k === "d") run(a.dailyNote);
-      else if (k === "f" && e.shiftKey) run(() => a.showLeft("search"));
-      else if (k === "s") run(() => w.focusView.type === "note" && a.flush(w.focusView.id));
-      else if (k === ",") run(() => a.setSettingsOpen(true));
+      else if (k === "s") run(() => now.current.view.type === "note" && a.flush(now.current.view.id));
+      else if (k === ",") run(() => a.setSettingsOpen("general"));
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [a, w.layout.focus, w.focusGroup, w.focusView]);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [a]);
 
-  // Escape closes an open drawer on the phone.
+  // Drawers act as modal dialogs on narrow screens: focus moves in, the rest is inert,
+  // Escape or the scrim closes and returns focus to the button that opened it.
+  const opener = useRef<HTMLElement | null>(null);
+  const backToOpener = useRef(false);
+  const closeDrawer = () => {
+    backToOpener.current = true;
+    a.setDrawer(null);
+  };
   useEffect(() => {
     if (!w.drawer) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && a.setDrawer(null);
+    const id = w.drawer === "left" ? "left-sidebar" : "right-sidebar";
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // Retry for a few frames: the drawer is still visibility:hidden in the commit that opens it.
+    let raf = 0;
+    let tries = 20;
+    const focusIn = () => {
+      const aside = document.getElementById(id);
+      (aside?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ?? aside)?.focus();
+      if (!aside?.contains(document.activeElement) && tries-- > 0) raf = requestAnimationFrame(focusIn);
+    };
+    raf = requestAnimationFrame(focusIn);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      backToOpener.current = true;
+      a.setDrawer(null);
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("keydown", onKey);
+      const aside = document.getElementById(id);
+      const back = backToOpener.current;
+      backToOpener.current = false;
+      requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (active && active !== document.body && !aside?.contains(active)) return; // focus already moved on
+        // Dismissed: back to the trigger. Closed by opening something: into the note.
+        if (back && opener.current?.isConnected) opener.current.focus();
+        else document.getElementById("workbench")?.focus();
+      });
+    };
   }, [w.drawer, a]);
 
+  const covered = !!w.drawer;
+
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-frame text-fg">
+    <div
+      className="flex h-dvh flex-col overflow-hidden bg-frame text-fg"
+      style={{ paddingLeft: "env(safe-area-inset-left)", paddingRight: "env(safe-area-inset-right)" }}
+    >
       <a
         href="#workbench"
+        inert={covered}
         className="sr-only z-50 rounded-md bg-sheet px-3 py-2 focus:not-sr-only focus:fixed focus:left-2 focus:top-2"
       >
         Skip to note
       </a>
-      <PhoneTopBar />
+      <PhoneTopBar inert={covered} />
       <div className="flex min-h-0 flex-1">
-        <Ribbon />
+        <Ribbon inert={covered} />
         <LeftSidebar />
-        <main id="workbench" tabIndex={-1} className="flex min-w-0 flex-1 gap-2 outline-none">
+        <main id="workbench" tabIndex={-1} inert={covered} className="flex min-w-0 flex-1 gap-2 outline-none">
           {w.layout.groups.map((g, gi) => (
             <TabGroup key={g.key} gi={gi} />
           ))}
         </main>
         <RightSidebar />
       </div>
-      <StatusBar />
-      <PhoneBottomBar />
+      <StatusBar inert={covered} />
+      <PhoneBottomBar inert={covered} />
 
-      {w.drawer && (
-        <div
-          aria-hidden="true"
-          className={`fixed inset-0 z-30 bg-[var(--scrim)] ${w.drawer === "left" ? "md:hidden" : "lg:hidden"}`}
-          onClick={() => a.setDrawer(null)}
-        />
-      )}
+      {/* Always mounted so it fades with the drawer instead of popping. */}
+      <div
+        aria-hidden="true"
+        onClick={closeDrawer}
+        className={`fixed inset-0 z-30 bg-[var(--scrim)] transition-opacity duration-200 ease-[var(--ease-out-quint)] ${
+          w.drawer === "left" ? "md:hidden" : "lg:hidden"
+        } ${w.drawer ? "opacity-100" : "pointer-events-none opacity-0"}`}
+      />
       {w.palette && (
         <Palette
+          key={w.palette}
           mode={w.palette}
           notes={w.tree.notes}
           commands={commands}
-          onOpen={(id, newTab) => a.open(id, newTab ? "tab" : "current")}
+          onOpen={(id, newTab) => a.open(id, newTab ? "tab" : "current", "edit", { focus: "editor" })}
           onCreate={(name) => a.createAndOpen(name)}
           onClose={() => a.setPalette(null)}
         />
       )}
-      {w.settingsOpen && <SettingsDialog />}
+      {w.settingsOpen && <SettingsAt section={w.settingsOpen} />}
       <Toasts toasts={w.toasts} dismiss={a.dismissToast} />
     </div>
   );
