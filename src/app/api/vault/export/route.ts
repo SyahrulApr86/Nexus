@@ -3,6 +3,7 @@ import { exportAttachmentPage } from "@/lib/attachments";
 import { readBlobBytes } from "@/lib/attachments/storage";
 import { isUnsafePath } from "@/lib/markdown/parse";
 import { exportPage } from "@/lib/notes";
+import { isCanvasPath } from "@/lib/canvas"; // canvas track
 import { HttpError, handle, logError, rateLimit, requireVault } from "@/lib/session";
 
 /** Notes read per query; only this page's contents are in memory at a time. */
@@ -15,7 +16,7 @@ const DEFLATE = /\.(svg|wav|pdf)$/i;
 const running = new Set<string>();
 
 /**
- * Download the whole vault as an Obsidian-compatible zip: notes as .md files, then attachments at
+ * Download the whole vault as an Obsidian-compatible zip: notes as .md files (canvases as .canvas), then attachments at
  * their own paths (extension included).
  *
  * Streamed: notes are read in pages by path (keyset pagination), each note is deflated as it
@@ -53,7 +54,8 @@ export async function GET(req: Request) {
             const rows = await exportPage(vaultId, after, PAGE);
             for (const n of rows) {
               if (isUnsafePath(n.path)) continue;
-              const entry = new ZipDeflate(`${n.path}.md`, { level: 6 });
+              // canvas track: a canvas is stored with its extension and leaves as the .canvas file Obsidian opens.
+              const entry = new ZipDeflate(isCanvasPath(n.path) ? n.path : `${n.path}.md`, { level: 6 });
               zip.add(entry);
               entry.push(strToU8(n.content), true);
             }

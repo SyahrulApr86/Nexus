@@ -44,6 +44,7 @@ import { Palette, type Command } from "./palette";
 /* templates-properties */
 import { TemplatePickerHost, templateCommands } from "./templates-picker";
 /* end templates-properties */
+import { newCanvas } from "./canvas/create"; // canvas track
 import { SettingsDialog } from "./settings";
 import { IconButton, Toasts } from "./ui";
 import { splitFrontmatter } from "@/lib/markdown/parse";
@@ -535,6 +536,7 @@ function Shell() {
   const commands: Command[] = useMemo(
     () => [
       { id: "new", label: "Create new note", shortcut: "Alt+N", run: () => a.newNote("") },
+      { id: "new-canvas", label: "Create new canvas", run: () => void newCanvas(a, "") }, // canvas track
       { id: "open", label: "Open quick switcher", shortcut: "Mod+O", run: () => a.setPalette("notes") },
       { id: "daily", label: "Open today’s daily note", shortcut: "Mod+D", run: a.dailyNote },
       { id: "search", label: "Search in all notes", shortcut: "Mod+Shift+F", run: () => a.showLeft("search") },
