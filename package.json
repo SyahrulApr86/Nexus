@@ -51,7 +51,9 @@
     "server-only": "^0.0.1",
     "unified": "^11.0.5",
     "ws": "8.22.2",
+    "y-codemirror.next": "0.3.6",
     "y-protocols": "1.0.7",
+    "y-websocket": "3.1.0",
     "yjs": "13.6.33",
     "zod": "^4.6.7"
   },
@@ -68,8 +70,7 @@
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
     "typescript": "^5",
-    "vitest": "^5.1.0",
-    "y-websocket": "3.1.0"
+    "vitest": "^5.1.0"
   },
   "packageManager": "pnpm@11.17.0"
 }
