@@ -11,6 +11,34 @@ type FieldErrors = { email?: string; password?: string };
 // The same shape better-auth accepts on the server, checked here so the message is ours, not the browser's.
 const EMAIL = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 
+const UNREACHABLE = "Nexus can’t be reached. Check your connection and try again.";
+/**
+ * One message for every sign-up failure the server does not explain safely, including an email that
+ * already has an account: naming that case would tell anyone which emails are registered.
+ */
+export const SIGNUP_FAILED = "That vault can’t be created. If you already have one, sign in instead.";
+export const SIGNUP_DISABLED = "Creating vaults is turned off on this server. Sign in, or ask its owner for an account.";
+export const TOO_MANY = "Too many attempts. Wait a minute, then try again.";
+export const BAD_CREDENTIALS = "That email and password don’t match. Check them and try again.";
+/** Sign-up failures are shown no sooner than this, so a fast "already exists" looks like any other failure. */
+const SIGNUP_MIN_MS = 800;
+
+type AuthError = { code?: string; status?: number };
+type Outcome = { email?: string; password?: string; form?: string };
+
+/** Fixed copy for a Better Auth error; the server's own message is never shown. */
+export function describeAuthError(err: AuthError, isSignup: boolean): Outcome {
+  const code = err.code ?? "";
+  if (code === "INVALID_EMAIL") return { email: "Enter an email address like name@example.com." };
+  if (code === "PASSWORD_TOO_SHORT") return { password: "Use at least 8 characters." };
+  if (code === "PASSWORD_TOO_LONG") return { password: "Use at most 128 characters." };
+  if (!err.status) return { form: UNREACHABLE };
+  if (err.status === 429) return { form: TOO_MANY };
+  if (isSignup) return { form: code === "EMAIL_PASSWORD_SIGN_UP_DISABLED" ? SIGNUP_DISABLED : SIGNUP_FAILED };
+  if (err.status === 401 || code === "INVALID_EMAIL_OR_PASSWORD") return { form: BAD_CREDENTIALS };
+  return { form: "Something went wrong. Try again." };
+}
+
 function validate(email: string, password: string, isSignup: boolean): FieldErrors {
   const errors: FieldErrors = {};
   if (!email) errors.email = "Enter your email.";
@@ -52,6 +80,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     setBusy(true);
     setError(null);
     setFieldErrors({});
+    const started = performance.now();
     let res;
     try {
       res = isSignup
@@ -60,21 +89,19 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     } catch {
       flushSync(() => {
         setBusy(false);
-        setError("Nexus can’t be reached. Check your connection and try again.");
+        setError(UNREACHABLE);
       });
       focusField("email");
       return;
     }
     if (res.error) {
-      const code = res.error.code;
-      const next: FieldErrors = {};
-      let formError: string | null = null;
-      if (code === "INVALID_EMAIL") next.email = "Enter an email address like name@example.com.";
-      else if (code === "PASSWORD_TOO_SHORT") next.password = "Use at least 8 characters.";
-      else if (res.error.status === 401 || code === "INVALID_EMAIL_OR_PASSWORD")
-        formError = "That email and password don’t match. Check them and try again.";
-      else if (!res.error.status) formError = "Nexus can’t be reached. Check your connection and try again.";
-      else formError = res.error.message ?? "Something went wrong. Try again.";
+      const out = describeAuthError(res.error, isSignup);
+      const next: FieldErrors = { email: out.email, password: out.password };
+      const formError = out.form ?? null;
+      if (isSignup) {
+        const wait = SIGNUP_MIN_MS - (performance.now() - started);
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      }
       flushSync(() => {
         setBusy(false);
         setFieldErrors(next);
