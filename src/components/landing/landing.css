@@ -181,6 +181,12 @@
 .lp-note .lp-line + .lp-line {
   margin-top: 0.06em;
 }
+/* Reflow at 320 CSS px (WCAG 1.4.10): "13 November —" stays on one line and inside the sheet. */
+@media (max-width: 22.5rem) {
+  .lp-note {
+    font-size: 1.875rem;
+  }
+}
 
 .lp-promise {
   display: grid;

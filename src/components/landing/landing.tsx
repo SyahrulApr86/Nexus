@@ -103,14 +103,14 @@ export function Landing() {
                   <Tok hang i={0}>
                     [[
                   </Tok>
-                  <span className="lp-target">Project&nbsp;kickoff</span>
+                  <span className="lp-target">Project kickoff</span>
                   <Tok i={1}>]]</Tok> moved
                 </span>
                 <span className="lp-line">
                   <Tok hang i={2}>
                     [[
                   </Tok>
-                  <span className="lp-target">Q4&nbsp;roadmap</span>
+                  <span className="lp-target">Q4 roadmap</span>
                   <Tok i={3}>]]</Tok> up a week.
                 </span>
                 <span className="lp-line">
