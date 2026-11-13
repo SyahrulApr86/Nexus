@@ -15,7 +15,7 @@ Antarmuka berbahasa Inggris dengan tata letak Obsidian: ribbon, file explorer da
 | Rename | Ganti nama atau pindah catatan otomatis memperbarui semua link yang mengarah ke catatan itu |
 | Navigasi | File explorer (keyboard: panah, Enter, F2, Delete, Shift+F10), tab dengan riwayat ←/→ per tab, split ke kanan, quick switcher, command palette |
 | Panel kanan | Linked mentions (dengan konteks baris), unlinked mentions dengan tombol Link, outgoing links, tags, outline |
-| Cari | Full-text search Postgres; `#tag` di kotak cari menampilkan catatan bertag |
+| Cari | Full-text search Postgres dengan operator ala Obsidian (lihat [Sintaks pencarian](#sintaks-pencarian)); `#tag` saja di kotak cari menampilkan catatan bertag |
 | Graph | Tab graph view (force-directed, zoom, pan, pinch, filter nama atau `#tag`), mode daftar untuk keyboard dan screen reader |
 | Lainnya | Daily note, checklist yang bisa diklik di mode baca, `==highlight==`, tema ikut sistem/terang/navy |
 | Data | Impor vault Obsidian (`.zip` atau `.md`) dan ekspor `.zip` dari Settings |
@@ -38,6 +38,29 @@ Antarmuka berbahasa Inggris dengan tata letak Obsidian: ribbon, file explorer da
 | Settings | `Ctrl/⌘+,` |
 
 Browser mengunci `Ctrl+N`, `Ctrl+T`, `Ctrl+W`, dan `Ctrl+Tab`, jadi aksi itu memakai `Alt`.
+
+### Sintaks pencarian
+
+Kotak Search memakai operator ala Obsidian. Huruf besar/kecil tidak dibedakan, termasuk nama operator dan `OR`.
+
+| Sintaks | Arti | Contoh |
+|---|---|---|
+| `kata kata` | Semua kata harus ada, dicocokkan sebagai awalan (`rea` menemukan `reading`) | `rapat anggaran` |
+| `"frasa"` | Kata berurutan, kata terakhir sebagai awalan | `"daftar bacaan"` |
+| `-kata`, `-"frasa"` | Kecualikan; berlaku juga untuk operator dan grup | `rendang -santan`, `-tag:arsip`, `-(a OR b)` |
+| `a OR b` | Salah satu cocok. Spasi (AND) mengikat lebih kuat: `a b OR c` berarti `(a b) OR c` | `rendang OR soto` |
+| `( … )` | Pengelompokan | `(rendang OR soto) tag:resep` |
+| `file:teks` | Nama catatan mengandung teks | `file:roadmap`, `file:"rapat mingguan"` |
+| `path:teks` | Path catatan mengandung teks (cari per folder) | `path:Projects/Nexus` |
+| `tag:#nama` atau `tag:nama` | Catatan punya tag itu atau tag turunannya (`nama/…`) | `tag:project` juga menemukan `#project/nexus` |
+| `line:( … )` | Semua term ada di baris yang sama | `line:(campur tepung)`, `line:"brown fox"`, `line:(mix -flour)` |
+
+- Query kosong atau yang hanya berisi operator (misalnya `tag:resep` atau `-draft`) mengembalikan catatan yang lolos filter, urut path, tanpa snippet. Snippet dengan penanda `<< >>` hanya muncul kalau ada kata atau frasa positif.
+- Input rusak tidak menghasilkan error: kutip yang tidak ditutup berlaku sampai akhir, sedangkan kurung yang tidak seimbang, `-` sendirian, `OR` yang menggantung, dan operator kosong diabaikan. Query dipotong 200 karakter dan hasil maksimal 50 catatan. Untuk mencari kata "or", tulis `"or"`.
+- Setiap kata disaring menjadi huruf (beserta tanda diakritiknya), angka, `_`, dan `-` sebelum masuk `to_tsquery`, jadi karakter seperti `' & | ! : * ( ) \` tidak pernah menjadi sintaks tsquery. Semua nilai dari query dikirim sebagai parameter SQL lewat template `sql` Drizzle, wildcard `LIKE` (`%`, `_`, `\`) di-escape, dan setiap query selalu dibatasi `vault_id` milik user.
+- Kata dan frasa dicocokkan ke kolom `note.search` (tsvector `simple` dengan indeks GIN), satu `@@` per kelompok AND/OR, sehingga indeks GIN tetap terpakai.
+- `line:` dijalankan di SQL, bukan dengan regex atau filter di TypeScript: konten dipecah per baris dengan `string_to_table`, lalu tiap baris diuji dengan `to_tsvector('simple', baris) @@ to_tsquery(...)`. Aturan katanya sama dengan pencarian biasa (awalan, frasa, negasi), tidak ada regex yang dibangun dari input user, dan isi catatan tidak perlu dikirim ke aplikasi. Kandidat dipersempit dulu oleh indeks GIN sebelum baris dipecah.
+- Implementasi: `src/lib/search.ts` (`parseQuery` mengubah query menjadi AST, lalu AST diterjemahkan ke SQL).
 
 ## Desain
 
@@ -94,6 +117,7 @@ pnpm db:migrate
 ```
 src/db/schema.ts              skema (auth + vault, folder, note, link, tag)
 src/lib/notes.ts              logika vault: CRUD, indexing link/tag, rename + rewrite link, search, graph, impor/ekspor
+src/lib/search.ts             pencarian ala Obsidian: parser query (AST) dan penerjemahnya ke SQL, dipakai /api/search
 src/lib/markdown/parse.ts     ekstraksi wikilink, tag, heading, frontmatter (dipakai server dan client)
 src/lib/markdown/render.ts    markdown ke HTML (sanitized) untuk mode baca
 src/app/api/*                 REST API (semua query dibatasi ke vault milik user)
