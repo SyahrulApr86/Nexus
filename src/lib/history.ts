@@ -10,18 +10,24 @@ import { HttpError } from "@/lib/session";
  * overwritten, its current content may be kept as a revision.
  *
  * - At most one revision per 5 minutes per note, so autosave does not flood
- *   the history. A restore always keeps one, so the restore can be undone.
+ *   the history. Restore and import replace the whole content from outside
+ *   the editor, so they always keep one: otherwise edits made since the last
+ *   revision would be lost.
  * - Nothing is kept when the content does not change or when it equals the
  *   newest revision.
- * - Each note keeps its 50 newest revisions, none older than 30 days. Pruning
- *   runs in the same transaction as the insert; reads also skip expired rows,
- *   so a note that is never written again does not show stale history.
+ * - Each note keeps its 50 newest revisions. Rows older than 30 days are
+ *   hidden from reads at once and deleted when that note next saves a
+ *   revision (same transaction as the insert). There is no periodic purge
+ *   yet, so expired rows of a note that is never written again stay in the
+ *   table until then.
  */
 
 const SNAPSHOT_INTERVAL = sql`interval '5 minutes'`;
 const RETENTION = sql`interval '30 days'`;
 const MAX_REVISIONS = 50;
 const PREVIEW_CHARS = 160;
+/** Reasons that bypass the 5-minute throttle (identical content is still skipped). */
+const ALWAYS_KEEP: ReadonlySet<RevisionReason> = new Set(["restore", "import"]);
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -59,7 +65,7 @@ export async function snapshotBeforeWrite(
     .orderBy(...newestFirst())
     .limit(1);
   if (newest?.same) return;
-  if (newest?.recent && reason !== "restore") return;
+  if (newest?.recent && !ALWAYS_KEEP.has(reason)) return;
 
   await tx.insert(noteRevision).values({ noteId, vaultId, content: current.content, reason });
 

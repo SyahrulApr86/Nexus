@@ -112,9 +112,9 @@ Sebelum isi catatan ditimpa (autosave, impor yang menimpa catatan, rewrite link 
 
 | Aturan | Nilai |
 |---|---|
-| Jarak antar revisi per catatan | Minimal 5 menit. Restore selalu menyimpan isi yang ditimpanya. |
+| Jarak antar revisi per catatan | Minimal 5 menit. Restore dan impor selalu menyimpan isi yang ditimpanya. |
 | Tidak disimpan | Isi tidak berubah, atau isi lama sama dengan revisi terbaru |
-| Retensi | 50 revisi terbaru per catatan, tidak ada yang lebih tua dari 30 hari |
+| Retensi | 50 revisi terbaru per catatan. Revisi yang lebih tua dari 30 hari langsung tidak tampil di API dan dihapus dari tabel saat catatan itu menyimpan revisi berikutnya; belum ada job pembersihan berkala. |
 
 | Method | Endpoint | Hasil |
 |---|---|---|
