@@ -28,7 +28,7 @@ import { WorkspaceProvider, useWorkspace, type User, type RightView, type LeftVi
 import { FileExplorer } from "./file-explorer";
 import { SearchView } from "./search-view";
 import { BacklinksView, OutgoingView, OutlineView, TagsView } from "./right-views";
-import { TabGroup, useShortcutText } from "./tab-group";
+import { TabGroup } from "./tab-group";
 import { Palette, type Command } from "./palette";
 import { SettingsDialog } from "./settings";
 import { Bar, IconButton, Menu, Toasts, useMenu } from "./ui";
@@ -68,7 +68,6 @@ function Wordmark() {
 function Ribbon({ inert }: { inert: boolean }) {
   const w = useWorkspace();
   const a = w.actions;
-  const keys = useShortcutText();
   return (
     <nav aria-label="Ribbon" inert={inert} className="hidden w-11 shrink-0 flex-col items-center pb-2 md:flex">
       {/* The mark stays on screen when the left sidebar (which carries the full wordmark) is hidden. */}
@@ -86,16 +85,16 @@ function Ribbon({ inert }: { inert: boolean }) {
         <IconButton label={w.prefs.leftOpen ? "Hide left sidebar" : "Show left sidebar"} onClick={() => a.showLeft()}>
           <PanelLeft />
         </IconButton>
-        <IconButton label="Open quick switcher" shortcut={keys("Mod+O")} onClick={() => a.setPalette("notes")}>
+        <IconButton label="Open quick switcher" shortcut="Mod+O" onClick={() => a.setPalette("notes")}>
           <FileSearch />
         </IconButton>
-        <IconButton label="Open graph view" shortcut={keys("Mod+G")} onClick={() => a.openView({ type: "graph" }, "tab")}>
+        <IconButton label="Open graph view" shortcut="Mod+G" onClick={() => a.openView({ type: "graph" }, "tab")}>
           <GitFork />
         </IconButton>
-        <IconButton label="Open today’s daily note" shortcut={keys("Mod+D")} onClick={() => a.dailyNote()}>
+        <IconButton label="Open today’s daily note" shortcut="Mod+D" onClick={() => a.dailyNote()}>
           <CalendarDays />
         </IconButton>
-        <IconButton label="Open command palette" shortcut={keys("Mod+P")} onClick={() => a.setPalette("commands")}>
+        <IconButton label="Open command palette" shortcut="Mod+P" onClick={() => a.setPalette("commands")}>
           <SquareTerminal />
         </IconButton>
       </div>
@@ -103,7 +102,7 @@ function Ribbon({ inert }: { inert: boolean }) {
         <IconButton label="Keyboard shortcuts" onClick={() => a.setSettingsOpen("hotkeys")}>
           <Keyboard />
         </IconButton>
-        <IconButton label="Settings" shortcut={keys("Mod+,")} onClick={() => a.setSettingsOpen("general")}>
+        <IconButton label="Settings" shortcut="Mod+," onClick={() => a.setSettingsOpen("general")}>
           <Settings />
         </IconButton>
       </div>
@@ -152,24 +151,21 @@ function ViewTabs<T extends string>({
   return (
     <div role="tablist" aria-label={label} className={className}>
       {views.map(({ id, label: name, Icon }, i) => (
-        <button
+        // IconButton: themed tooltip on hover and keyboard focus, 44px on touch.
+        <IconButton
           key={id}
           id={`${prefix}-tab-${id}`}
-          type="button"
           role="tab"
           aria-selected={value === id}
           aria-controls={`${prefix}-panel`}
           tabIndex={value === id ? 0 : -1}
-          aria-label={name}
-          title={name}
+          label={name}
           onClick={() => onSelect(id)}
           onKeyDown={(e) => onKeyDown(e, i)}
-          className={`grid size-8 place-items-center rounded-md transition-colors ${
-            value === id ? "bg-active text-fg" : "text-faint hover:bg-hover hover:text-fg"
-          }`}
+          className={value === id ? "bg-active text-fg!" : undefined}
         >
-          <Icon aria-hidden="true" className="size-[18px] stroke-[1.5]" />
-        </button>
+          <Icon />
+        </IconButton>
       ))}
     </div>
   );
@@ -195,7 +191,7 @@ function VaultSwitcher() {
         aria-expanded={!!m.anchor}
         aria-label={w.vaultName ? `Vault: ${w.vaultName}` : "Vault"}
         onClick={(e) => m.openBelow(e.currentTarget)}
-        className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-hover"
+        className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-hover pointer-coarse:h-11"
       >
         <span className="min-w-0 flex-1">
           {w.vaultName ? <span className="block truncate font-medium">{w.vaultName}</span> : <Bar w="55%" h={12} />}
@@ -233,12 +229,12 @@ function LeftSidebar() {
       tabIndex={-1}
       inert={!!w.drawer && !open}
       className={`fixed inset-y-0 left-0 z-40 flex w-[85vw] max-w-80 flex-col border-r border-border bg-frame shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)]
-        md:static md:z-auto md:w-[260px] md:max-w-none md:shrink-0 md:translate-x-0 md:border-r-0 md:shadow-none md:visible
+        max-md:pl-[env(safe-area-inset-left)] md:static md:z-auto md:w-[260px] md:max-w-none md:shrink-0 md:translate-x-0 md:border-r-0 md:shadow-none md:visible
         ${open ? "visible translate-x-0" : "invisible -translate-x-full"}
         ${w.prefs.leftOpen ? "md:flex" : "md:hidden"}`}
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="flex h-10 shrink-0 items-center justify-between pl-3 pr-1">
+      <div className="flex h-10 shrink-0 items-center justify-between pl-3 pr-1 pointer-coarse:h-12">
         <Wordmark />
         {/* Manual activation: the search view takes focus when it appears. */}
         <ViewTabs
@@ -271,6 +267,10 @@ function RightSidebar() {
   const view = w.prefs.rightView;
   const open = w.drawer === "right";
   const current = RIGHT_VIEWS.find((v) => v.id === view)!;
+  // The tree knows the name before the note body loads, so the heading does not change mid-load.
+  const fv = w.focusView;
+  const noteName = w.activeNote?.name ?? (fv.type === "note" ? w.tree.notes.find((n) => n.id === fv.id)?.name : undefined);
+  const heading = view !== "tags" && noteName ? `${current.label} for ${noteName}` : current.label;
   return (
     <aside
       id="right-sidebar"
@@ -291,12 +291,18 @@ function RightSidebar() {
         views={RIGHT_VIEWS}
         value={view}
         onSelect={w.actions.setRightView}
-        className="flex h-10 shrink-0 items-center gap-0.5 px-2"
+        className="flex h-10 shrink-0 items-center gap-0.5 px-2 pointer-coarse:h-12"
       />
-      <div id="right-panel" role="tabpanel" aria-labelledby={`right-tab-${view}`} className="min-h-0 flex-1 overflow-y-auto px-2 pb-6">
-        <h2 className="px-2 pb-0 pt-3 text-[13px] text-faint">
+      <div id="right-panel" role="tabpanel" aria-labelledby={`right-tab-${view}`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-6">
+        {/* One line: a long note name is cut with an ellipsis; the full text is in the tooltip. */}
+        <h2 className="truncate px-2 pb-0 pt-3 text-[13px] text-faint" title={heading}>
           {current.label}
-          {view !== "tags" && w.activeNote && <span className="text-muted"> for {w.activeNote.name}</span>}
+          {view !== "tags" && noteName && (
+            <span className="text-muted">
+              {" "}
+              for <span translate="no">{noteName}</span>
+            </span>
+          )}
         </h2>
         {view === "backlinks" && <BacklinksView />}
         {view === "outgoing" && <OutgoingView />}
@@ -351,8 +357,9 @@ function StatusBar({ inert }: { inert: boolean }) {
       className="box-content hidden h-7 shrink-0 items-center justify-end gap-4 px-4 text-[12px] text-faint md:flex"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      {/* First, so its changing width never moves the counters. Errors are announced by a toast. */}
-      <SaveLabel />
+      {/* First, so its changing width never moves the counters. Errors are announced by a toast.
+          The idle "Saved" waits for the note: while it loads there is nothing to have saved. */}
+      {(note || w.save !== "saved") && <SaveLabel />}
       {note && (
         <>
           <button type="button" onClick={() => w.actions.showRight("backlinks")} className="tabular -mx-1 rounded px-1 hover:text-fg">
