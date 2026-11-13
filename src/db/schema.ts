@@ -249,9 +249,36 @@ export const bookmark = pgTable(
   ],
 );
 
+/**
+ * A file stored next to the notes (image, PDF, audio, video). `path` is the vault-relative path
+ * WITH its extension ("Assets/photo.png"). The bytes live on disk, content-addressed by `sha256`
+ * under NEXUS_DATA_DIR (src/lib/attachments/storage.ts), so identical files in one vault share a blob.
+ */
+export const attachment = pgTable(
+  "attachment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => vault.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    sha256: text("sha256").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("attachment_vault_path_uq").on(t.vaultId, t.path),
+    // Blob reference counting (dedup and garbage collection) looks rows up by content.
+    index("attachment_vault_sha_idx").on(t.vaultId, t.sha256),
+    check("attachment_size_check", sql`${t.size} >= 0`),
+  ],
+);
+
 export const vaultRelations = relations(vault, ({ many }) => ({
   notes: many(note),
   folders: many(folder),
+  attachments: many(attachment),
 }));
 
 export const noteRelations = relations(note, ({ one, many }) => ({
