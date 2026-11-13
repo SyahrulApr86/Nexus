@@ -4,16 +4,17 @@
  * - Display math: `$$ … $$`, may span lines.
  * - Inline math follows the rule Obsidian uses: `$`, a non-space character, …, a
  *   non-space character, `$`, and the closing `$` is not followed by a digit. So
- *   "costs $5 and $10" stays text while `$x^2$` is math.
+ *   "costs $5 and $10" stays text while `$x^2$` is math. An inline formula never
+ *   crosses `[[`, `]]` or `==`, so wikilinks and highlights on the same line survive.
  *
- * Returns the positions of stray dollars (to escape as `\$`, so remark-math leaves
- * them alone) and a copy of the text with every formula blanked out, so wikilinks,
- * tags and highlights are never rewritten inside a formula.
+ * Returns the positions of stray dollars (escaped as `\$`, so remark-math leaves them
+ * alone) and the formula spans.
  */
-export function scanMath(masked: string): { escapes: number[]; blanked: string } {
+export function scanMath(masked: string): { escapes: number[]; spans: [number, number][] } {
   const escapes: number[] = [];
   const spans: [number, number][] = [];
-  const s = masked;
+  // Wikilink interiors are never math.
+  const s = masked.replace(/!?\[\[[^\[\]\n]*\]\]/g, (m) => " ".repeat(m.length));
   let i = 0;
   while (i < s.length) {
     const c = s[i];
@@ -44,6 +45,8 @@ export function scanMath(masked: string): { escapes: number[]; blanked: string }
           j++;
           continue;
         }
+        const pair = s.slice(j, j + 2);
+        if (pair === "[[" || pair === "]]" || pair === "==") break;
         if (s[j] === "$") {
           if (!/\s/.test(s[j - 1]) && !/\d/.test(s[j + 1] ?? "")) close = j;
           break;
@@ -58,8 +61,13 @@ export function scanMath(masked: string): { escapes: number[]; blanked: string }
       i++;
     }
   }
-  if (!spans.length) return { escapes, blanked: masked };
-  const chars = masked.split("");
+  return { escapes, spans };
+}
+
+/** `text` with the given spans replaced by spaces (line breaks kept). */
+export function blankSpans(text: string, spans: [number, number][]): string {
+  if (!spans.length) return text;
+  const chars = text.split("");
   for (const [from, to] of spans) for (let k = from; k < to; k++) if (chars[k] !== "\n") chars[k] = " ";
-  return { escapes, blanked: chars.join("") };
+  return chars.join("");
 }

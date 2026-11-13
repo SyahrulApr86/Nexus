@@ -5,13 +5,13 @@ import remarkMath from "remark-math";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkRehype from "remark-rehype";
 import rehypeSanitize, { defaultSchema, type Options as SanitizeSchema } from "rehype-sanitize";
-import rehypeKatex from "rehype-katex";
 import rehypeStringify from "rehype-stringify";
 import { maskCode, splitFrontmatter } from "./parse";
 import { stripComments } from "./comments";
-import { scanMath } from "./math";
+import { blankSpans, scanMath } from "./math";
 import { CALLOUT_TYPES, remarkCallouts } from "./callouts";
 import { embedLinkMarkdown, isBlockEmbed, rehypeEmbeds } from "./embeds";
+import { rehypeReadingView } from "./reading-view";
 
 const callouts = [...CALLOUT_TYPES];
 
@@ -28,6 +28,7 @@ const schema: SanitizeSchema = {
   attributes: {
     ...defaultSchema.attributes,
     a: [...(defaultSchema.attributes?.a ?? []), ["className", "ghost", "data-footnote-backref"]],
+    // Formulas stay as code here; math-client.ts renders them with KaTeX on demand.
     code: [["className", /^language-./, "math-inline", "math-display"]],
     div: [
       ...(defaultSchema.attributes?.div ?? []),
@@ -47,26 +48,32 @@ const processor = unified()
   .use(remarkCallouts)
   .use(remarkRehype)
   .use(rehypeSanitize, schema)
-  // Trusted transforms run after sanitising: embed blocks from sanitised links, and
-  // KaTeX (trust off, so \href, \url and \html* stay disabled).
+  // Trusted transforms on the sanitised tree: embed blocks, task labels, image
+  // loading and sizes, and dropping protocol-relative links.
   .use(rehypeEmbeds)
-  .use(rehypeKatex, { trust: false, strict: "warn", maxSize: 20, maxExpand: 500, errorColor: "var(--negative)" })
+  .use(rehypeReadingView)
   .use(rehypeStringify);
 
 // Link text: brackets, backslashes, dollars and "<" are literal (so a note named like a tag shows as text).
 const esc = (s: string) => s.replace(/[[\]\\$<]/g, (c) => `\\${c}`);
 
+// Private-use markers that stand for <mark>; user text may not contain them.
+const MARK_OPEN = "";
+const MARK_CLOSE = "";
+
 /**
  * Turn Obsidian syntax into plain markdown before parsing:
  *   [[Note|Alias]]  -> [Alias](wikilink:Note)
- *   ![[Note]]       -> an embed block when alone on its line, otherwise [↳ Note](wikilink:Note)
+ *   ![[Note]]       -> an embed block when it stands on its own line, otherwise [↳ Note](wikilink:Note)
  *   #tag            -> [#tag](tag:tag)
  *   ==text==        -> <mark>text</mark> (via private-use markers, since raw HTML is stripped)
  *   stray $         -> \$ (only real formulas reach remark-math)
  * Code spans, code blocks and formulas are left untouched.
  */
 function preprocess(md: string, exists: (target: string) => boolean): string {
-  const { escapes, blanked } = scanMath(maskCode(md));
+  const code = maskCode(md);
+  const { escapes, spans } = scanMath(code);
+  const blanked = blankSpans(code, spans);
   const stray = new Set(escapes);
   // Original text of a range, with stray dollars escaped (formulas stay intact).
   const original = (from: number, to: number) => {
@@ -99,7 +106,7 @@ function preprocess(md: string, exists: (target: string) => boolean): string {
   for (const m of blanked.matchAll(/==([^=\n]+)==/g)) {
     const from = m.index!;
     const to = from + m[0].length;
-    edits.push({ from, to, text: `${original(from + 2, to - 2)}` });
+    edits.push({ from, to, text: `${MARK_OPEN}${original(from + 2, to - 2)}${MARK_CLOSE}` });
   }
 
   edits.sort((a, b) => a.from - b.from);
@@ -115,11 +122,15 @@ function preprocess(md: string, exists: (target: string) => boolean): string {
 
 export function renderMarkdown(md: string, exists: (target: string) => boolean): string {
   const { yaml, body } = splitFrontmatter(md);
-  const html = String(processor.processSync(preprocess(stripComments(body), exists)));
-  // Mark dangling links (title="ghost" survives sanitize) with a class.
+  // Markers typed by the user are removed first, so only our own pairs remain.
+  const clean = body.replace(/[]/g, "");
+  const html = String(processor.processSync(preprocess(stripComments(clean), exists)));
   const marked = html
+    // Mark dangling links (title="ghost" survives sanitize) with a class.
     .replace(/<a href="wikilink:([^"]*)" title="ghost">/g, '<a href="wikilink:$1" class="ghost">')
-    .replace(/([\s\S]*?)/g, "<mark>$1</mark>");
+    // Linear: a marker pair can never contain another marker.
+    .replace(/([^]*)/g, "<mark>$1</mark>")
+    .replace(/[]/g, "");
   const fm = yaml ? `<div class="frontmatter">${escapeHtml(yaml)}</div>` : "";
   return fm + marked;
 }
