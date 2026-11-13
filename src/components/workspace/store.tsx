@@ -11,14 +11,15 @@ import {
   useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
   type RefObject,
 } from "react";
-import { api, ApiError, type FullNote, type Tree, type TreeNote } from "./api";
+import { api, ApiError, type ConflictNote, type FullNote, type Tree, type TreeNote } from "./api";
 import { useDialogs, type DialogApi } from "./dialogs";
 import type { Toast } from "./ui";
 import type { EditorHandle } from "./editor";
-import { basename, dirname, linkKey } from "@/lib/markdown/parse";
+import { basename, dirname, extractTags, extractWikiLinks, linkKey } from "@/lib/markdown/parse";
 import { signOut } from "@/lib/auth-client";
 
 /* ------------------------------------------------------------------ */
@@ -277,28 +278,121 @@ function clearDraft(id: string) {
 const narrowTarget = (target: OpenTarget): OpenTarget => (target === "split" && matches(PHONE) ? "tab" : target);
 const retryable = (status: number) => status === 0 || status === 408 || status === 429 || status >= 500;
 
+/** What a note links to and which tags it carries, as comparable strings: the refresh signals compare these. */
+function signals(md: string) {
+  const links = [...new Set(extractWikiLinks(md).map((l) => linkKey(l.target)))].sort().join("\n");
+  return { links, tags: extractTags(md).sort().join("\n") };
+}
+/** The one contiguous change that turns `base` into `next`: [from, to) in `base` becomes `text`. */
+function splice(base: string, next: string) {
+  const max = Math.min(base.length, next.length);
+  let from = 0;
+  while (from < max && base[from] === next[from]) from++;
+  let tail = 0;
+  while (tail < max - from && base[base.length - 1 - tail] === next[next.length - 1 - tail]) tail++;
+  return { from, to: base.length - tail, text: next.slice(from, next.length - tail) };
+}
+/**
+ * Three-way merge of two versions of `base`, each treated as one contiguous change.
+ * Returns null when the changes touch or overlap: then only the user can decide.
+ */
+function mergeEdits(base: string, mine: string, theirs: string): string | null {
+  if (mine === base || theirs === mine) return theirs;
+  if (theirs === base) return mine;
+  const a = splice(base, mine);
+  const b = splice(base, theirs);
+  const [x, y] = a.to < b.from ? [a, b] : b.to < a.from ? [b, a] : [null, null];
+  if (!x || !y) return null;
+  return base.slice(0, x.from) + x.text + base.slice(x.to, y.from) + y.text + base.slice(y.to);
+}
+const isConflictNote = (d: unknown): d is ConflictNote =>
+  !!d && typeof (d as ConflictNote).content === "string" && typeof (d as ConflictNote).updatedAt === "string";
+
 /* ------------------------------------------------------------------ */
 /* Context                                                             */
 /* ------------------------------------------------------------------ */
 
 export type User = { name: string; email: string };
 
-type WorkspaceValue = ReturnType<typeof useWorkspaceState>;
+export type WorkspaceValue = ReturnType<typeof useWorkspaceState>;
+export type WorkspaceActions = WorkspaceValue["actions"];
 const WorkspaceContext = createContext<WorkspaceValue | null>(null);
+const ActionsContext = createContext<WorkspaceActions | null>(null);
 
+/** The newest workspace value plus subscribers, so a selector re-renders only when its slice changes. */
+type WorkspaceStore = { get: () => WorkspaceValue; set: (v: WorkspaceValue) => void; subscribe: (fn: () => void) => () => void };
+const StoreContext = createContext<WorkspaceStore | null>(null);
+
+function createWorkspaceStore(initial: WorkspaceValue): WorkspaceStore {
+  let value = initial;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    set: (v) => {
+      if (v === value) return;
+      value = v;
+      listeners.forEach((fn) => fn());
+    },
+    subscribe: (fn) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+  };
+}
+
+/** Everything at once. Re-renders on every workspace change, including the published text while typing. */
 export function useWorkspace() {
   const v = use(WorkspaceContext);
   if (!v) throw new Error("useWorkspace must be used inside <WorkspaceProvider>");
   return v;
 }
 
+/** The actions only. Their identity never changes, so a component using just these never re-renders for workspace state. */
+export function useWorkspaceActions(): WorkspaceActions {
+  const a = use(ActionsContext);
+  if (!a) throw new Error("useWorkspaceActions must be used inside <WorkspaceProvider>");
+  return a;
+}
+
+/**
+ * One slice of the workspace. The component re-renders only when `isEqual` says
+ * the slice changed (Object.is by default, so return state as it is, or pass a
+ * shallow compare when the selector builds a new object or array).
+ */
+export function useWorkspaceSelector<T>(
+  selector: (w: WorkspaceValue) => T,
+  isEqual: (a: T, b: T) => boolean = Object.is,
+): T {
+  const store = use(StoreContext);
+  if (!store) throw new Error("useWorkspaceSelector must be used inside <WorkspaceProvider>");
+  // Memoised per store value and selector: getSnapshot must return the same result until something changed.
+  const cache = useRef<{ value: WorkspaceValue; selector: unknown; result: T } | null>(null);
+  const getSnapshot = () => {
+    const value = store.get();
+    const c = cache.current;
+    if (c?.value === value && c.selector === selector) return c.result;
+    const next = selector(value);
+    const result = c && isEqual(c.result, next) ? c.result : next;
+    cache.current = { value, selector, result };
+    return result;
+  };
+  return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
+}
+
 export function WorkspaceProvider({ user, children }: { user: User; children: ReactNode }) {
   const value = useWorkspaceState(user);
+  const [store] = useState(() => createWorkspaceStore(value));
+  // After commit, so selector subscribers never read a value React has not committed.
+  useLayoutEffect(() => store.set(value), [store, value]);
   return (
-    <WorkspaceContext value={value}>
-      {children}
-      {value.dialogNode}
-    </WorkspaceContext>
+    <StoreContext value={store}>
+      <ActionsContext value={value.actions}>
+        <WorkspaceContext value={value}>
+          {children}
+          {value.dialogNode}
+        </WorkspaceContext>
+      </ActionsContext>
+    </StoreContext>
   );
 }
 
@@ -321,6 +415,9 @@ function useWorkspaceState(user: User) {
   const [settingsOpen, setSettingsOpenState] = useState<false | SettingsSection>(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [version, setVersion] = useState(0);
+  // Narrower refresh signals: bumped only when links (backlinks, outgoing, graph) or tags changed.
+  const [linksVersion, setLinksVersion] = useState(0);
+  const [tagsVersion, setTagsVersion] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [theme, setThemeState] = useState<Theme>("system");
@@ -344,6 +441,15 @@ function useWorkspaceState(user: User) {
   const stuckToasts = useRef(new Map<string, number>()); // one toast per note whose save can't be retried
   const gone = useRef(new Set<string>()); // saves got 404: the note was deleted elsewhere; text kept as a draft
   const recoverRef = useRef<(id: string) => void>(() => {});
+  // Optimistic concurrency: the server's updatedAt (and text) this device last saw for each note.
+  const baseAt = useRef(new Map<string, string>());
+  const serverText = useRef(new Map<string, string>());
+  const conflicts = useRef(new Map<string, ConflictNote>()); // saves got 409: the note changed elsewhere
+  const conflictToasts = useRef(new Map<string, number[]>());
+  const force = useRef(new Set<string>()); // "Keep mine": the next save overwrites without a base
+  const deleted = useRef(new Set<string>()); // deleted from this device: late saves for these are moot
+  const renaming = useRef(0); // a rename is rewriting links on the server: saves wait so their base stays true
+  const resolveRef = useRef<(id: string, keep: "mine" | "theirs") => void>(() => {});
   const focusRequest = useRef<FocusRequest | null>(null);
   const navSeq = useRef(0);
   const toastSeq = useRef(0);
@@ -364,6 +470,16 @@ function useWorkspaceState(user: User) {
     saveRef.current = next;
     setSaveState(next);
   }, []);
+
+  /** Bump the refresh signals: `version` always, the narrower ones only when asked. */
+  const bumpSignals = useCallback((links: boolean, tags: boolean) => {
+    setVersion((v) => v + 1);
+    if (links) setLinksVersion((v) => v + 1);
+    if (tags) setTagsVersion((v) => v + 1);
+  }, []);
+  /** Nothing waits to save and nothing is stuck: the status can say "Saved". */
+  const settled = () =>
+    !pending.current.size && !savingNow.current.size && !gone.current.size && !conflicts.current.size && !signedOut.current;
 
   /* ---------------- derived ---------------- */
 
@@ -413,7 +529,7 @@ function useWorkspaceState(user: User) {
       .tags()
       .then((t) => (tagCache.current = t.map((x) => x.tag)))
       .catch(() => {});
-  }, [version]);
+  }, [tagsVersion]);
   const tagNames = useCallback(() => tagCache.current, []);
   /** The newest text of a note, including keystrokes not yet published to `notes`. */
   const liveContent = useCallback((id: string) => live.current.get(id) ?? notesRef.current[id]?.content ?? "", []);
@@ -483,9 +599,16 @@ function useWorkspaceState(user: User) {
           const fresh = await api.get(id);
           const cur = notesRef.current[id];
           const localText = live.current.get(id) ?? cur?.content;
-          const editing = pending.current.has(id) || savingNow.current.has(id);
+          const editing =
+            pending.current.has(id) || savingNow.current.has(id) || conflicts.current.has(id) || gone.current.has(id);
           const older = !!cur && Date.parse(fresh.updatedAt) < Date.parse(cur.updatedAt);
           let content = (editing || older) && localText !== undefined ? localText : fresh.content;
+          // The base for the next save moves only when this device has seen the server's text:
+          // a newer server text under local edits must still answer 409 when they are saved.
+          if (!older && (content === fresh.content || fresh.content === serverText.current.get(id) || !baseAt.current.has(id))) {
+            baseAt.current.set(id, fresh.updatedAt);
+            serverText.current.set(id, fresh.content);
+          }
           // A draft this device never managed to save, newer than the server copy.
           if (!cur && !editing) {
             const draft = readDraft(id);
@@ -542,6 +665,8 @@ function useWorkspaceState(user: User) {
   /* ---------------- saving ---------------- */
 
   const scheduleRef = useRef<(id: string, delay: number) => void>(() => {});
+  /** The persistent "deleted elsewhere" toast with its "Save as new note" action. Returns the toast id. */
+  const goneToastRef = useRef<(id: string) => number>(() => 0);
   const flushRef = useRef<(id: string) => Promise<void>>(async () => {});
 
   const schedule = useCallback((id: string, delay: number) => {
@@ -568,12 +693,26 @@ function useWorkspaceState(user: User) {
       }
       const p = pending.current.get(id);
       if (!p) return;
+      // A rename may be rewriting this note's links: the edit stays queued and is sent once it is done.
+      if (renaming.current) return;
       if (p.timer) clearTimeout(p.timer);
       pending.current.delete(id);
+      // Deleted here, or waiting for the user to pick a version: nothing to send.
+      if (deleted.current.has(id) || conflicts.current.has(id)) {
+        if (settled()) setSave("saved");
+        return;
+      }
       setSave("saving");
+      const base = force.current.has(id) ? undefined : baseAt.current.get(id);
       const run = (async () => {
         try {
-          const r = await api.save(id, p.content);
+          const r = await api.save(id, p.content, base);
+          force.current.delete(id);
+          baseAt.current.set(id, r.updatedAt);
+          const before = serverText.current.get(id);
+          serverText.current.set(id, p.content);
+          const was = before === undefined ? null : signals(before);
+          const now = signals(p.content);
           signedOut.current = false;
           lastFail.current.delete(id);
           const stuck = stuckToasts.current.get(id);
@@ -588,9 +727,41 @@ function useWorkspaceState(user: User) {
             saveToasts.current.splice(0).forEach(dismissToast);
             notify("All changes saved");
           }
-          setVersion((v) => v + 1);
+          bumpSignals(was?.links !== now.links, was?.tags !== now.tags);
         } catch (err) {
           const status = err instanceof ApiError ? err.status : 0;
+          // Deleted from this device while the save ran: the delete wins and nothing is left to keep.
+          if (deleted.current.has(id)) {
+            pending.current.delete(id);
+            clearDraft(id);
+            return;
+          }
+          if (status === 409 && err instanceof ApiError && isConflictNote((err.data as { note?: unknown })?.note)) {
+            // Changed on another device since this text was based on it. Keep the local text, stop
+            // autosaving it, and let the user pick: overwrite with theirs, or load theirs.
+            const theirs = (err.data as { note: ConflictNote }).note;
+            const e = pending.current.get(id);
+            if (e?.timer) clearTimeout(e.timer);
+            pending.current.delete(id);
+            writeDraft(id, live.current.get(id) ?? p.content);
+            conflicts.current.set(id, theirs);
+            lastFail.current.delete(id);
+            if (!conflictToasts.current.has(id)) {
+              const name = notesRef.current[id]?.name ?? "this note";
+              conflictToasts.current.set(id, [
+                notify(`“${name}” changed on another device, so your edits aren’t saved yet. Your text is kept here.`, {
+                  tone: "error",
+                  action: { label: "Keep mine", run: () => resolveRef.current(id, "mine") },
+                }),
+                notify(`Or replace your text in “${name}” with the other device’s version.`, {
+                  tone: "error",
+                  action: { label: "Load theirs", run: () => resolveRef.current(id, "theirs") },
+                }),
+              ]);
+            }
+            setSave("error");
+            return;
+          }
           lastFail.current.set(id, status);
           // Re-queue only if nothing newer was typed meanwhile; the newer edit wins.
           if (!pending.current.has(id)) pending.current.set(id, { content: p.content });
@@ -633,12 +804,7 @@ function useWorkspaceState(user: User) {
             if (!stuckToasts.current.has(id))
               stuckToasts.current.set(
                 id,
-                status === 404
-                  ? notify(`Couldn’t save “${name}”. It was deleted, maybe on another device. Your text is kept on this device.`, {
-                      tone: "error",
-                      action: { label: "Save as new note", run: () => recoverRef.current(id) },
-                    })
-                  : notify(`Couldn’t save “${name}”. ${(err as Error).message}`, { tone: "error" }),
+                status === 404 ? goneToastRef.current(id) : notify(`Couldn’t save “${name}”. ${(err as Error).message}`, { tone: "error" }),
               );
           }
           saveProblemShown.current = true;
@@ -648,7 +814,7 @@ function useWorkspaceState(user: User) {
           savingNow.current.delete(id);
         }
         if (pending.current.size) setSave("dirty");
-        else if (gone.current.size) setSave("error");
+        else if (gone.current.size || conflicts.current.size) setSave("error");
         else if (!savingNow.current.size) setSave("saved");
         // An edit whose timer fired while this save ran is still waiting: send it now.
         if (pending.current.has(id) && !pending.current.get(id)!.timer) void flushRef.current(id);
@@ -656,7 +822,7 @@ function useWorkspaceState(user: User) {
       savingNow.current.set(id, run);
       return run;
     },
-    [notify, dismissToast, setSave],
+    [notify, dismissToast, setSave, bumpSignals],
   );
 
   useLayoutEffect(() => {
@@ -681,14 +847,16 @@ function useWorkspaceState(user: User) {
   const onChange = useCallback(
     (id: string, content: string) => {
       live.current.set(id, content);
-      if (gone.current.has(id)) {
-        // Deleted elsewhere: nothing to save to. Keep the newest text on this device.
+      if (deleted.current.has(id)) return;
+      const held = gone.current.has(id) || conflicts.current.has(id);
+      if (held) {
+        // Deleted or changed elsewhere: nothing to save to until the user decides. Keep the newest text on this device.
         writeDraft(id, content);
       } else {
         const prev = pending.current.get(id);
         pending.current.set(id, { content, timer: prev?.timer });
       }
-      if (!signedOut.current && !gone.current.has(id)) {
+      if (!signedOut.current && !held) {
         schedule(id, SAVE_DELAY);
         if (saveRef.current !== "dirty") setSave("dirty");
       }
@@ -719,7 +887,9 @@ function useWorkspaceState(user: User) {
     const onPageHide = () => {
       keepDrafts();
       for (const [id, p] of pending.current) {
-        const body = JSON.stringify({ content: p.content });
+        if (deleted.current.has(id) || conflicts.current.has(id)) continue;
+        // With the base: a note changed elsewhere answers 409 and the draft stays for the next visit.
+        const body = JSON.stringify({ content: p.content, baseUpdatedAt: force.current.has(id) ? undefined : baseAt.current.get(id) });
         if (new Blob([body]).size > KEEPALIVE_LIMIT) continue; // too large for keepalive: the draft stays
         fetch(`/api/notes/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body, keepalive: true })
           .then((r) => r.ok && clearDraft(id))
@@ -727,7 +897,7 @@ function useWorkspaceState(user: User) {
       }
     };
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (pending.current.size || savingNow.current.size || signedOut.current || gone.current.size) {
+      if (pending.current.size || savingNow.current.size || signedOut.current || gone.current.size || conflicts.current.size) {
         keepDrafts();
         e.preventDefault();
       }
@@ -918,6 +1088,19 @@ function useWorkspaceState(user: User) {
     window.history.replaceState(null, "", url);
   }, [focusView, restoring]);
 
+  // The browser tab names the focused note. The server title comes back when the workspace unmounts.
+  const titleName =
+    focusView.type === "note" ? (notes[focusView.id]?.name ?? index.byId.get(focusView.id)?.name ?? null) : focusView.type === "graph" ? "Graph view" : null;
+  useEffect(() => {
+    const before = document.title;
+    return () => {
+      document.title = before;
+    };
+  }, []);
+  useEffect(() => {
+    document.title = titleName ? `${titleName} — Nexus` : "Nexus";
+  }, [titleName]);
+
   // Load notes that become visible (restored tabs, history steps) and are not cached yet.
   useEffect(() => {
     for (const g of layout.groups) {
@@ -1016,6 +1199,38 @@ function useWorkspaceState(user: User) {
     for (const id of Object.keys(notesRef.current)) void loadNote(id);
   }, [loadNote]);
 
+  /**
+   * Edits queued while a rename ran were based on the text from before its link rewrite. Fetch each
+   * such note; when the server copy moved, merge both changes and take the server's updatedAt as the
+   * new base. Overlapping changes are left alone: their save answers 409 and the user picks.
+   */
+  const rebaseHeld = useCallback(async () => {
+    await Promise.all(
+      [...pending.current.keys()].map(async (id) => {
+        const fresh = await api.get(id).catch(() => null);
+        const base = serverText.current.get(id);
+        if (!fresh || base === undefined || !pending.current.has(id)) return;
+        if (fresh.updatedAt === baseAt.current.get(id)) return;
+        const mine = live.current.get(id) ?? pending.current.get(id)!.content;
+        const merged = mergeEdits(base, mine, fresh.content);
+        if (merged === null) return;
+        baseAt.current.set(id, fresh.updatedAt);
+        serverText.current.set(id, fresh.content);
+        if (merged === mine) return;
+        live.current.set(id, merged);
+        pending.current.get(id)!.content = merged;
+        writeDraft(id, merged);
+        setNotes((m) => (m[id] ? { ...m, [id]: { ...m[id], content: merged, updatedAt: fresh.updatedAt, rev: m[id].rev + 1 } } : m));
+      }),
+    );
+  }, []);
+
+  /** Send the edits a rename held back. */
+  const resumeHeld = useCallback(() => {
+    if (renaming.current) return;
+    for (const [id, p] of pending.current) if (!p.timer) schedule(id, 0);
+  }, [schedule]);
+
   /** Returns true when the note was renamed. */
   const renameNote = useCallback(
     async (n: { id: string; path: string }, nextPath?: string): Promise<boolean> => {
@@ -1029,23 +1244,40 @@ function useWorkspaceState(user: User) {
           hint: "Links to this note are updated everywhere.",
         }));
       if (!target || target === n.path) return false;
-      await flush(n.id);
+      // The server rewrites links in every note that points here, which moves their updatedAt. Save every
+      // edit first, so each base is current and the revalidate below moves it past the rewrite.
+      await flushAll();
+      await Promise.all([...savingNow.current.values()]);
+      renaming.current++;
+      let held = true;
+      const release = () => {
+        if (!held) return;
+        held = false;
+        renaming.current--;
+        resumeHeld();
+      };
       try {
         const res = await api.rename(n.id, target);
+        // Text typed while the rename ran was held back. Where the server rewrote that note, fold
+        // the rewrite into the local text and move the base, so the held save is not a false conflict.
+        if (res.updatedLinks) await rebaseHeld();
+        release();
         await refreshTree();
         setNotes((m) => (m[n.id] ? { ...m, [n.id]: { ...m[n.id], path: res.path, name: res.name } } : m));
-        // Other notes may have had their links rewritten.
+        // Other notes may have had their links rewritten. The tag pane lists notes by name.
         revalidateCached();
-        setVersion((v) => v + 1);
+        const text = serverText.current.get(n.id);
+        bumpSignals(true, text === undefined || signals(text).tags !== "");
         if (res.updatedLinks)
           notify(`Renamed. Updated links in ${res.updatedLinks} ${res.updatedLinks === 1 ? "note" : "notes"}`);
         return true;
       } catch (e) {
+        release();
         fail(e);
         return false;
       }
     },
-    [dialog, flush, refreshTree, revalidateCached, notify, fail],
+    [dialog, flushAll, rebaseHeld, resumeHeld, refreshTree, revalidateCached, notify, fail, bumpSignals],
   );
 
   const forget = useCallback((ids: string[]) => {
@@ -1055,10 +1287,16 @@ function useWorkspaceState(user: User) {
       pending.current.delete(id);
       live.current.delete(id);
       gone.current.delete(id);
+      conflicts.current.delete(id);
+      force.current.delete(id);
+      baseAt.current.delete(id);
+      serverText.current.delete(id);
       lastFail.current.delete(id);
       const t = stuckToasts.current.get(id);
       stuckToasts.current.delete(id);
       if (t !== undefined) dismissToast(t);
+      conflictToasts.current.get(id)?.forEach(dismissToast);
+      conflictToasts.current.delete(id);
       clearDraft(id);
     }
     setNotes((m) => {
@@ -1076,8 +1314,16 @@ function useWorkspaceState(user: User) {
       const taken = new Set(treeRef.current.notes.map((n) => n.path.toLowerCase()));
       let path = `${base} (recovered)`;
       for (let i = 2; taken.has(path.toLowerCase()); i++) path = `${base} (recovered ${i})`;
+      // The toast with this action has just closed. Forget it, so a failure can offer the action again.
+      const shown = stuckToasts.current.get(id);
+      stuckToasts.current.delete(id);
+      if (shown !== undefined) dismissToast(shown);
       const n = await createAndOpen(path, content, "current", "editor");
-      if (!n) return; // createAndOpen showed why; the draft and the warning stay
+      if (!n) {
+        // createAndOpen showed why. Keep the draft and offer "Save as new note" again.
+        if (gone.current.has(id) && !stuckToasts.current.has(id)) stuckToasts.current.set(id, goneToastRef.current(id));
+        return;
+      }
       gone.current.delete(id);
       lastFail.current.delete(id);
       const t = stuckToasts.current.get(id);
@@ -1085,12 +1331,54 @@ function useWorkspaceState(user: User) {
       if (t !== undefined) dismissToast(t);
       dispatch({ type: "drop", ids: new Set([id]) });
       forget([id]);
-      if (!pending.current.size && !savingNow.current.size && !gone.current.size && !signedOut.current) setSave("saved");
+      if (settled()) setSave("saved");
     },
     [createAndOpen, dismissToast, forget, setSave],
   );
+
+  /** A save answered 409: overwrite the other version with this device's text, or take theirs. */
+  const resolveConflict = useCallback(
+    (id: string, keep: "mine" | "theirs") => {
+      const theirs = conflicts.current.get(id);
+      if (!theirs) return;
+      conflicts.current.delete(id);
+      conflictToasts.current.get(id)?.forEach(dismissToast);
+      conflictToasts.current.delete(id);
+      if (keep === "mine") {
+        force.current.add(id);
+        pending.current.set(id, { content: liveContent(id) });
+        void flushRef.current(id);
+        return;
+      }
+      const p = pending.current.get(id);
+      if (p?.timer) clearTimeout(p.timer);
+      pending.current.delete(id);
+      force.current.delete(id);
+      clearDraft(id);
+      live.current.set(id, theirs.content);
+      baseAt.current.set(id, theirs.updatedAt);
+      const before = serverText.current.get(id);
+      serverText.current.set(id, theirs.content);
+      // A new rev tells the editor to show the server text in place of what it holds.
+      setNotes((m) =>
+        m[id] ? { ...m, [id]: { ...m[id], content: theirs.content, updatedAt: theirs.updatedAt, rev: m[id].rev + 1 } } : m,
+      );
+      const was = before === undefined ? null : signals(before);
+      const now = signals(theirs.content);
+      bumpSignals(was?.links !== now.links, was?.tags !== now.tags);
+      if (settled()) setSave("saved");
+    },
+    [dismissToast, liveContent, bumpSignals, setSave],
+  );
+
   useLayoutEffect(() => {
     recoverRef.current = (id) => void recoverDeleted(id);
+    resolveRef.current = resolveConflict;
+    goneToastRef.current = (id) =>
+      notify(
+        `Couldn’t save “${notesRef.current[id]?.name ?? "this note"}”. It was deleted, maybe on another device. Your text is kept on this device.`,
+        { tone: "error", action: { label: "Save as new note", run: () => recoverRef.current(id) } },
+      );
   });
 
   const deleteNote = useCallback(
@@ -1102,21 +1390,29 @@ function useWorkspaceState(user: User) {
         danger: true,
       });
       if (!ok) return;
+      // From here on, saves for this note are moot: drop what waits, and let a save that is
+      // already running land before the delete so it cannot come back as a 404 afterwards.
+      deleted.current.add(n.id);
       const p = pending.current.get(n.id);
       if (p?.timer) clearTimeout(p.timer);
       pending.current.delete(n.id);
+      await savingNow.current.get(n.id);
       try {
         await api.remove(n.id);
+        const text = serverText.current.get(n.id);
         dispatch({ type: "drop", ids: new Set([n.id]) });
         forget([n.id]);
+        if (settled()) setSave("saved");
         await refreshTree();
-        setVersion((v) => v + 1);
+        bumpSignals(true, text === undefined || signals(text).tags !== "");
         notify(`Deleted “${n.name}”`);
       } catch (e) {
+        // Still there: the editor's text saves again from the next keystroke.
+        deleted.current.delete(n.id);
         fail(e);
       }
     },
-    [dialog, forget, refreshTree, notify, fail],
+    [dialog, forget, refreshTree, notify, fail, bumpSignals, setSave],
   );
 
   const moveNote = useCallback(
@@ -1161,12 +1457,12 @@ function useWorkspaceState(user: User) {
           return next;
         });
         revalidateCached();
-        setVersion((v) => v + 1);
+        bumpSignals(true, true);
       } catch (e) {
         fail(e);
       }
     },
-    [dialog, flushAll, refreshTree, revalidateCached, fail],
+    [dialog, flushAll, refreshTree, revalidateCached, fail, bumpSignals],
   );
 
   const deleteFolder = useCallback(
@@ -1181,17 +1477,27 @@ function useWorkspaceState(user: User) {
         danger: true,
       });
       if (!ok) return;
+      const ids = inside.map((n) => n.id);
+      for (const id of ids) {
+        deleted.current.add(id);
+        const p = pending.current.get(id);
+        if (p?.timer) clearTimeout(p.timer);
+        pending.current.delete(id);
+      }
+      await Promise.all(ids.map((id) => savingNow.current.get(id)));
       try {
         await api.rmdir(path);
-        dispatch({ type: "drop", ids: new Set(inside.map((n) => n.id)) });
-        forget(inside.map((n) => n.id));
+        dispatch({ type: "drop", ids: new Set(ids) });
+        forget(ids);
+        if (settled()) setSave("saved");
         await refreshTree();
-        setVersion((v) => v + 1);
+        bumpSignals(true, true);
       } catch (e) {
+        ids.forEach((id) => deleted.current.delete(id));
         fail(e);
       }
     },
-    [dialog, forget, refreshTree, fail],
+    [dialog, forget, refreshTree, fail, bumpSignals, setSave],
   );
 
   /* ---------------- panels ---------------- */
@@ -1266,18 +1572,43 @@ function useWorkspaceState(user: User) {
   const importFiles = useCallback(
     async (files: File[]) => {
       if (!files.length) return;
-      notify("Importing…");
+      const done = (r: { created: number; updated: number }) => {
+        revalidateCached();
+        bumpSignals(true, true);
+        notify(`Imported ${r.created} new and ${r.updated} updated ${r.created + r.updated === 1 ? "note" : "notes"}`);
+      };
       try {
+        // Saved text first, so the plan and the import see what this device shows.
+        await flushAll();
+        const plan = await api.importPlan(files);
+        if (!Array.isArray(plan.conflicts)) {
+          // A server without the dry run imported already. Report it rather than import twice.
+          await refreshTree();
+          done({ created: plan.created ?? 0, updated: plan.updated ?? 0 });
+          return;
+        }
+        const n = plan.conflicts.length;
+        if (n > 0) {
+          const shown = plan.conflicts.slice(0, 5).map((path) => `“${path}”`);
+          const more = n - shown.length;
+          const list = more > 0 ? `${shown.join(", ")} and ${more} more` : shown.join(", ").replace(/, ([^,]*)$/, " and $1");
+          const ok = await dialog.confirm({
+            title: `Replace ${n} existing ${n === 1 ? "note" : "notes"}?`,
+            body: `The import replaces the text of ${list} with the imported ${n === 1 ? "file" : "files"}.`,
+            confirm: n === 1 ? "Replace note" : "Replace notes",
+            danger: true,
+          });
+          if (!ok) return;
+        }
+        notify("Importing…");
         const r = await api.importFiles(files);
         await refreshTree();
-        revalidateCached();
-        setVersion((v) => v + 1);
-        notify(`Imported ${r.created} new and ${r.updated} updated ${r.created + r.updated === 1 ? "note" : "notes"}`);
+        done(r);
       } catch (e) {
         fail(e);
       }
     },
-    [notify, refreshTree, revalidateCached, fail],
+    [dialog, flushAll, notify, refreshTree, revalidateCached, fail, bumpSignals],
   );
 
   // A file download from an API route, not a page navigation.
@@ -1297,11 +1628,21 @@ function useWorkspaceState(user: User) {
 
   const logout = useCallback(async () => {
     await flushAll();
-    await signOut();
+    let ok = false;
+    try {
+      ok = !(await signOut()).error;
+    } catch {
+      ok = false;
+    }
+    // A failed sign-out must not look like one that worked: the session would still be valid.
+    if (!ok) {
+      notify("Couldn’t sign out. Check your connection and try again.", { tone: "error" });
+      return;
+    }
     // A full reload clears every cached note from memory after signing out.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign("/login");
-  }, [flushAll]);
+  }, [flushAll, notify]);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
@@ -1387,6 +1728,8 @@ function useWorkspaceState(user: User) {
     notes,
     noteErrors,
     version,
+    linksVersion,
+    tagsVersion,
     save,
     restoring,
     focusTick,
