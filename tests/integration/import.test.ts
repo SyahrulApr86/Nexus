@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { exportVault, getNote, importNotes, listTree } from "@/lib/notes";
+import { exportVault, getNote, importNotes, listTree, previewImport } from "@/lib/notes";
 import { describeDb, linksOf, tagsOf, useVaults } from "./fixtures";
 
 describeDb("importNotes", () => {
@@ -60,5 +60,23 @@ describeDb("importNotes", () => {
       ]),
     ).toEqual({ created: 1, updated: 1, skipped: [] });
     expect(await exportVault(v.a)).toEqual([{ path: "Same", content: "second" }]);
+  });
+  it("previews an import without writing (contract R2)", async () => {
+    await importNotes(v.a, [
+      { path: "Inbox/Idea.md", content: "old" },
+      { path: "Plan.md", content: "plan" },
+    ]);
+    const before = await listTree(v.a);
+    const preview = await previewImport(v.a, [
+      { path: "Plan.md", content: "new plan" },
+      { path: "Inbox/Idea.md", content: "new idea" },
+      { path: "Inbox/Idea.md", content: "repeated" },
+      { path: "Fresh/Note.md", content: "new" },
+      { path: "../..", content: "normalises to nothing" },
+      { path: "Big.md", content: "x".repeat(5 * 1024 * 1024 + 1) },
+    ]);
+    expect(preview).toEqual({ conflicts: ["Inbox/Idea", "Plan"], total: 3 });
+    expect(await listTree(v.a)).toEqual(before);
+    expect(await previewImport(v.b, [{ path: "Plan.md", content: "x" }])).toEqual({ conflicts: [], total: 1 });
   });
 });

@@ -1,4 +1,4 @@
-import { importNotes } from "@/lib/notes";
+import { importNotes, previewImport } from "@/lib/notes";
 import { HttpError, MiB, handle, rateLimit, readForm, requireVault } from "@/lib/session";
 import { commonRoot, extractMarkdown, type ExtractBudget } from "./extract";
 
@@ -22,11 +22,17 @@ const LIMITS = {
  * bytes, before any note is written): 51 MiB request, 500 parts, 5 MiB per note,
  * 200 MiB and 20,000 notes per import, 10 imports per user per hour.
  * Returns { created, updated, skipped: [{ path, reason }] }.
+ *
+ * With ?dryRun=1 the same body is parsed under the same limits but nothing is written: returns
+ * { conflicts: string[] (paths that already hold a note), total: number (notes it would write) }.
+ * Dry runs have their own, looser cap (30 per user per hour) and do not count as imports.
  */
 export async function POST(req: Request) {
   return handle(async () => {
     const { user, vaultId } = await requireVault();
-    rateLimit(`import:${user.id}`, 10, 60 * 60_000);
+    const dryRun = new URL(req.url).searchParams.get("dryRun") === "1";
+    if (dryRun) rateLimit(`import-preview:${user.id}`, 30, 60 * 60_000);
+    else rateLimit(`import:${user.id}`, 10, 60 * 60_000);
     const form = await readForm(req, MAX_REQUEST);
     const all = form.getAll("file");
     if (all.length > MAX_PARTS) throw new HttpError(413, "Too many files in one upload");
@@ -53,6 +59,6 @@ export async function POST(req: Request) {
         out.push({ path: up.name, content: await up.text() });
       }
     }
-    return importNotes(vaultId, out);
+    return dryRun ? previewImport(vaultId, out) : importNotes(vaultId, out);
   });
 }

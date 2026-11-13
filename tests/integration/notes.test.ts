@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { createNote, getNote, listTree, resolveLink, search, updateContent } from "@/lib/notes";
+import { createNote, getNote, listTree, renameNote, resolveLink, search, updateContent } from "@/lib/notes";
+import { HttpError } from "@/lib/session";
 import { describeDb, expectHttpError, linksOf, tagsOf, useVaults } from "./fixtures";
 
 describeDb("notes", () => {
@@ -132,6 +133,38 @@ describeDb("notes", () => {
       const meeting = await createNote(v.a, "Meeting notes", body);
       for (const q of ["", "   ", "&|!():*", "-", "_", "'"]) expect(await search(v.a, q)).toEqual([]);
       expect((await search(v.a, "roadmap:* | !(")).map((r) => r.id)).toEqual([meeting.id]);
+    });
+  });
+  describe("optimistic concurrency (contract R1)", () => {
+    it("writes when baseUpdatedAt matches and refuses a stale one with the current note", async () => {
+      const n = await createNote(v.a, "Shared", "v1");
+      const loaded = await getNote(v.a, n.id);
+      const first = await updateContent(v.a, n.id, "v2", "autosave", loaded.updatedAt);
+      expect(first.updatedAt.getTime()).not.toBe(loaded.updatedAt.getTime());
+
+      const err = await updateContent(v.a, n.id, "v3 from a stale tab", "autosave", loaded.updatedAt).catch((e) => e);
+      expect(err).toBeInstanceOf(HttpError);
+      expect(err.status).toBe(409);
+      expect(err.body).toEqual({ error: "conflict", note: { id: n.id, content: "v2", updatedAt: first.updatedAt } });
+      expect((await getNote(v.a, n.id)).content).toBe("v2");
+
+      // Without a base the write goes through, as before.
+      await updateContent(v.a, n.id, "v4");
+      expect((await getNote(v.a, n.id)).content).toBe("v4");
+    });
+
+    it("checks a rename against the base and leaves updatedAt alone on a move", async () => {
+      const n = await createNote(v.a, "Inbox/Moved", "body");
+      const loaded = await getNote(v.a, n.id);
+      await renameNote(v.a, n.id, "Archive/Moved", loaded.updatedAt);
+      const after = await getNote(v.a, n.id);
+      expect(after.path).toBe("Archive/Moved");
+      expect(after.updatedAt.getTime()).toBe(loaded.updatedAt.getTime());
+
+      await updateContent(v.a, n.id, "edited elsewhere");
+      const err = await renameNote(v.a, n.id, "Elsewhere/Moved", loaded.updatedAt).catch((e) => e);
+      expect(err.status).toBe(409);
+      expect((await getNote(v.a, n.id)).path).toBe("Archive/Moved");
     });
   });
 });

@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { note, tag } from "@/db/schema";
+import { HttpError } from "@/lib/session";
 
 /*
  * Obsidian-style vault search.
@@ -15,7 +16,9 @@ import { note, tag } from "@/db/schema";
  *   file:text        note name contains text           file:"meeting notes"  file:(plan OR roadmap)
  *   path:text        note path contains text (folders) path:Projects/Nexus
  *   tag:#name        note has the tag or a nested one   tag:work also finds #work/meetings
+ *   #name            the same as tag:name (a bare token shaped like a tag; "#2024" stays text)
  *   line:(a b)       all terms on the same line         line:"brown fox"  line:(mix -flour)
+ *   line:-x          a line without x (same as line:(-x)); blank lines never match
  *
  * The parser is lenient: an unclosed quote runs to the end, unbalanced parentheses, a lone "-",
  * a dangling OR and empty operators are ignored. A query with nothing left (or only operators)
@@ -34,7 +37,9 @@ import { note, tag } from "@/db/schema";
  *   tested with `to_tsvector('simple', line) @@ to_tsquery(...)`, so it follows exactly the word
  *   rules above (same parser, prefixes, phrases), needs no regex built from user text and ships
  *   no note content to the app. The words a match must contain are also checked against
- *   `note.search` first, so the GIN index narrows the candidates before lines are split.
+ *   `note.search` first, so the GIN index narrows the candidates before lines are split. A line:
+ *   term with nothing required (only exclusions, e.g. line:-draft) cannot use the index, so the
+ *   query is limited to the MAX_LINE_SCAN most recently edited notes and a statement timeout.
  */
 
 export const MAX_QUERY_LENGTH = 200;
@@ -42,6 +47,10 @@ const MAX_RESULTS = 50;
 const MAX_TERMS = 32; // words, phrases and operator values kept per query
 const MAX_WORDS = 16; // words kept per phrase
 const MAX_DEPTH = 16; // nested parentheses; a deeper "(" is ignored
+/** Notes (most recently edited first) a line: term without required words may split into lines. */
+export const MAX_LINE_SCAN = 2_000;
+/** Upper bound for such a scan; a timeout is reported as a 503 by the route. */
+const LINE_SCAN_TIMEOUT = "5s";
 
 export type QueryNode =
   | { type: "and"; children: QueryNode[] }
@@ -71,10 +80,15 @@ type Token =
   | { t: "or" }
   | { t: "not" }
   | { t: "term"; raw: string }
-  /** `group`: a "(" token follows. `raw`: the source text, read as a term where operators do not nest. */
-  | { t: "op"; name: Operator; value: string; group: boolean; raw: string };
+  /**
+   * `group`: a "(" token follows. `raw`: the source text, read as a term where operators do not nest.
+   * `negated`: dashes right after the colon (only for line:, e.g. line:-draft).
+   */
+  | { t: "op"; name: Operator; value: string; group: boolean; raw: string; negated: boolean };
 
 const OPERATOR_RE = /^(file|path|tag|line):/i;
+/** A bare "#tag" token: the shape extractTags indexes (not only digits), read as tag:tag. */
+const BARE_TAG_RE = /^#([\p{L}\p{N}_\-/]*[\p{L}_\-/][\p{L}\p{N}_\-/]*)$/u;
 const isSpace = (c: string | undefined) => c !== undefined && /\s/.test(c);
 
 function tokenize(s: string): Token[] {
@@ -113,7 +127,13 @@ function tokenize(s: string): Token[] {
       const op = OPERATOR_RE.exec(s.slice(i));
       if (op) {
         const name = op[1].toLowerCase() as Operator;
-        const at = i + op[0].length;
+        let at = i + op[0].length;
+        // line:-x excludes x per line. For file:, path: and tag: a dash is part of the value.
+        let negated = false;
+        if (name === "line" && s[at] === "-") {
+          while (s[at] === "-") at++;
+          negated = true;
+        }
         let value = "";
         let next = at;
         if (s[at] === '"') [value, next] = quoted(at);
@@ -121,14 +141,16 @@ function tokenize(s: string): Token[] {
           next = bareEnd(at);
           value = s.slice(at, next);
         }
-        out.push({ t: "op", name, value, group: s[at] === "(", raw: s.slice(i, next) });
+        out.push({ t: "op", name, value, group: s[at] === "(", raw: s.slice(i, next), negated });
         i = next;
       } else {
         const next = bareEnd(i);
         const raw = s.slice(i, next);
         // OR is an operator unless negated: "-or" excludes the word.
         const negated = out.length > 0 && out[out.length - 1].t === "not";
-        out.push(raw.toLowerCase() === "or" && !negated ? { t: "or" } : { t: "term", raw });
+        const bareTag = BARE_TAG_RE.exec(raw);
+        if (bareTag) out.push({ t: "op", name: "tag", value: bareTag[1], group: false, raw, negated: false });
+        else out.push(raw.toLowerCase() === "or" && !negated ? { t: "or" } : { t: "term", raw });
         i = next;
       }
     }
@@ -221,6 +243,7 @@ class Parser {
     } else {
       inner = this.leaf(tok.name, tok.value);
     }
+    if (inner && tok.negated) inner = notNode(inner);
     return inner && tok.name === "line" ? { type: "line", child: inner } : inner;
   }
 
@@ -352,9 +375,25 @@ function escapeLike(s: string) {
 function lineCondition(child: QueryNode): SQL {
   const perLine = lineSource(child);
   if (!perLine) return sql`true`; // not reachable: the parser only puts text terms in line:( )
-  const anyLine = sql`exists (select 1 from string_to_table(${note.content}, chr(10)) as l(line) where to_tsvector('simple', l.line) @@ ${tsquery(perLine)})`;
+  // A line without any word (blank, "---") never matches, so line:-x does not match every note with a blank line.
+  const anyLine = sql`exists (select 1 from string_to_table(${note.content}, chr(10)) as l(line), to_tsvector('simple', l.line) as v(vec) where length(v.vec) > 0 and v.vec @@ ${tsquery(perLine)})`;
   const required = requiredSource(child);
   return required ? sql`(${matches(required)} and ${anyLine})` : anyLine;
+}
+
+/** True when some line: term has no words the GIN index could narrow it by, so it splits every note. */
+export function needsLineScan(node: QueryNode): boolean {
+  switch (node.type) {
+    case "line":
+      return requiredSource(node.child) === null;
+    case "not":
+      return needsLineScan(node.child);
+    case "and":
+    case "or":
+      return node.children.some(needsLineScan);
+    default:
+      return false;
+  }
 }
 
 function toCondition(node: QueryNode): SQL {
@@ -394,12 +433,33 @@ function toCondition(node: QueryNode): SQL {
 /** Search one vault. Up to 50 hits; `snippet` marks matches with << >> and is "" without text terms. */
 export async function search(vaultId: string, q: string): Promise<SearchHit[]> {
   const ast = parseQuery(q);
-  const scope = eq(note.vaultId, vaultId);
+  if (ast && needsLineScan(ast)) {
+    // Bounded: only the most recently edited notes are split into lines, under a timeout.
+    try {
+      return await db.transaction(async (tx) => {
+        await tx.execute(sql.raw(`set local statement_timeout = '${LINE_SCAN_TIMEOUT}'`));
+        const recent = sql`${note.id} in (select r.id from ${note} as r where r.vault_id = ${vaultId} order by r.updated_at desc limit ${MAX_LINE_SCAN})`;
+        return run(tx, vaultId, ast, recent);
+      });
+    } catch (err) {
+      const e = err as { code?: unknown; cause?: { code?: unknown } };
+      if ((e.cause?.code ?? e.code) === "57014") // query_canceled: the statement timeout
+        throw new HttpError(503, "That line: search took too long. Add a word it must contain.");
+      throw err;
+    }
+  }
+  return run(db, vaultId, ast);
+}
+
+type Exec = Pick<typeof db, "select">;
+
+async function run(exec: Exec, vaultId: string, ast: QueryNode | null, extra?: SQL): Promise<SearchHit[]> {
+  const scope = and(eq(note.vaultId, vaultId), extra);
   const where = ast ? and(scope, sql`(${toCondition(ast)})`) : scope;
   const highlight = ast && highlightSource(ast);
 
   if (!highlight) {
-    const rows = await db
+    const rows = await exec
       .select({ id: note.id, path: note.path, name: note.name })
       .from(note)
       .where(where)
@@ -409,7 +469,7 @@ export async function search(vaultId: string, q: string): Promise<SearchHit[]> {
   }
 
   const query = tsquery(highlight);
-  return db
+  return exec
     .select({
       id: note.id,
       path: note.path,

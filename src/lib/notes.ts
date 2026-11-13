@@ -169,6 +169,23 @@ export async function listTree(vaultId: string) {
   return { notes, folders: folders.map((f) => f.path) };
 }
 
+/**
+ * Optimistic concurrency: locks the note row for the rest of `tx` and, when `base` is given and the
+ * stored updatedAt differs from it, throws 409 { error: "conflict", note: { id, content, updatedAt } }.
+ * Compared in milliseconds, the precision every updatedAt the API hands out has.
+ */
+async function assertUnchanged(tx: Exec, vaultId: string, id: string, base: Date | undefined) {
+  if (!base) return;
+  const [cur] = await tx
+    .select({ id: note.id, content: note.content, updatedAt: note.updatedAt })
+    .from(note)
+    .where(and(eq(note.vaultId, vaultId), eq(note.id, id)))
+    .for("update");
+  if (!cur) throw new HttpError(404, "Note not found");
+  if (cur.updatedAt.getTime() !== base.getTime())
+    throw new HttpError(409, "The note changed since it was loaded", { error: "conflict", note: cur });
+}
+
 async function getOwned(vaultId: string, id: string) {
   const [n] = await db
     .select()
@@ -438,9 +455,16 @@ export async function createNote(vaultId: string, rawPath: string, content = "")
   });
 }
 
-export async function updateContent(vaultId: string, id: string, content: string, reason: RevisionReason = "autosave") {
+export async function updateContent(
+  vaultId: string,
+  id: string,
+  content: string,
+  reason: RevisionReason = "autosave",
+  baseUpdatedAt?: Date,
+) {
   const fm = frontmatterOf(content);
   return db.transaction(async (tx) => {
+    await assertUnchanged(tx, vaultId, id, baseUpdatedAt);
     const previousBytes = await snapshotBeforeWrite(tx, vaultId, id, content, reason);
     const grew = previousBytes === null || Buffer.byteLength(content, "utf8") > previousBytes;
     const [n] = await tx
@@ -454,6 +478,9 @@ export async function updateContent(vaultId: string, id: string, content: string
     return n;
   });
 }
+
+/** For path-only updates: overrides the schema's $onUpdate so a move leaves updatedAt as it was. */
+const keepUpdatedAt = sql`${note.updatedAt}`;
 
 /** Rewrite [[old]] → [[new]] in `content`, preserving #heading, |alias and ! embeds. */
 function rewriteLinks(content: string, oldKeys: Set<string>, newTarget: string) {
@@ -471,18 +498,24 @@ function rewriteLinks(content: string, oldKeys: Set<string>, newTarget: string) 
   return changed ? out + content.slice(pos) : null;
 }
 
-export async function renameNote(vaultId: string, id: string, rawPath: string) {
+export async function renameNote(vaultId: string, id: string, rawPath: string, baseUpdatedAt?: Date) {
   const old = await getOwned(vaultId, id);
   const clean = normalizePath(rawPath);
   validatePath(clean);
-  if (clean === old.path) return { id, path: old.path, name: old.name, updatedLinks: 0 };
+  if (clean === old.path) {
+    if (baseUpdatedAt && old.updatedAt.getTime() !== baseUpdatedAt.getTime())
+      await assertUnchanged(db, vaultId, id, baseUpdatedAt);
+    return { id, path: old.path, name: old.name, updatedLinks: 0 };
+  }
 
   return db.transaction(async (tx) => {
+    await assertUnchanged(tx, vaultId, id, baseUpdatedAt);
     const path = await uniquePath(tx, vaultId, clean, id);
     validatePath(path);
     const name = basename(path);
     await ensureFolders(tx, vaultId, path);
-    await tx.update(note).set({ path, name }).where(eq(note.id, id));
+    // A move is not an edit: updatedAt (the R1 concurrency token and "recently edited") stays put.
+    await tx.update(note).set({ path, name, updatedAt: keepUpdatedAt }).where(eq(note.id, id));
 
     // Update every note that linked to the old name/path.
     const sources = await backlinksOf(vaultId, old);
@@ -539,7 +572,7 @@ export async function renameFolder(vaultId: string, from: string, to: string) {
       .where(and(eq(note.vaultId, vaultId), like(note.path, `${escapeLike(src)}/%`)));
     for (const n of notes) {
       const path = moved(n.path);
-      await tx.update(note).set({ path, name: basename(path) }).where(eq(note.id, n.id));
+      await tx.update(note).set({ path, name: basename(path), updatedAt: keepUpdatedAt }).where(eq(note.id, n.id));
     }
     const folders = await tx
       .select({ id: folder.id, path: folder.path })
@@ -613,7 +646,8 @@ export type ImportResult = { created: number; updated: number; skipped: { path: 
  * is skipped and listed in `skipped`. The write is set-based (a few queries per 500 files), runs one
  * import per vault at a time (else 429) and is rolled back when the vault would exceed its quota.
  */
-export async function importNotes(vaultId: string, files: { path: string; content: string }[]): Promise<ImportResult> {
+/** The notes an import would write, by normalised path, after the per-file checks importNotes applies. */
+function planImport(files: { path: string; content: string }[]) {
   const skipped: ImportResult["skipped"] = [];
   const byPath = new Map<string, string>();
   let repeats = 0;
@@ -637,7 +671,31 @@ export async function importNotes(vaultId: string, files: { path: string; conten
     if (byPath.has(path)) repeats++;
     byPath.set(path, content);
   }
+  return { byPath, skipped, repeats };
+}
 
+export type ImportPreview = { conflicts: string[]; total: number };
+
+/**
+ * Dry run of importNotes: the same per-file checks, then one read per 500 paths. `conflicts` are
+ * the paths (sorted) that already hold a note and would be overwritten; `total` counts the notes the
+ * import would write. Writes nothing.
+ */
+export async function previewImport(vaultId: string, files: { path: string; content: string }[]): Promise<ImportPreview> {
+  const { byPath } = planImport(files);
+  const conflicts: string[] = [];
+  for (const part of chunks([...byPath.keys()], IMPORT_CHUNK)) {
+    const rows = await db
+      .select({ path: note.path })
+      .from(note)
+      .where(and(eq(note.vaultId, vaultId), inArray(note.path, part)));
+    for (const r of rows) conflicts.push(r.path);
+  }
+  return { conflicts: conflicts.sort(), total: byPath.size };
+}
+
+export async function importNotes(vaultId: string, files: { path: string; content: string }[]): Promise<ImportResult> {
+  const { byPath, skipped, repeats } = planImport(files);
   let created = 0;
   let updated = repeats; // a path repeated within one import counts as an update, as if written twice
   await db.transaction(async (tx) => {
