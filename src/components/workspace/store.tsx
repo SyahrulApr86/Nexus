@@ -15,7 +15,13 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { api, ApiError, type ConflictNote, type FullNote, type Tree, type TreeNote } from "./api";
+import { ApiError, type ConflictNote, type FullNote, type Tree, type TreeNote } from "./api";
+/* ---- offline track: start ---- */
+// The same API, with an offline layer: reads fall back to this device, edits queue in an outbox.
+import { offlineApi as api, clearOfflineData, unsyncedBeforeSignOut } from "./offline/offline-api";
+import { remapLayout } from "./offline/outbox";
+import { useOfflineSync } from "./offline/use-offline-sync";
+/* ---- offline track: end ---- */
 import { useDialogs, type DialogApi } from "./dialogs";
 import type { Toast } from "./ui";
 import type { EditorHandle } from "./editor";
@@ -1658,8 +1664,102 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
     } catch {}
   }, []);
 
+  /* ---------------- offline track: start ---------------- */
+  // Edits made without a connection wait in an outbox on this device (./offline). Queued saves
+  // replay through `flush`, so the 409 flow above still decides when a note changed elsewhere.
+  useOfflineSync(user.email, {
+    notify,
+    flushAll,
+    save: async (op) => {
+      const id = op.id;
+      if (deleted.current.has(id)) return "done";
+      if (!notesRef.current[id]) await loadNote(id);
+      const base = op.chained ? baseAt.current.get(id) : op.base;
+      if (base) {
+        baseAt.current.set(id, base);
+        force.current.delete(id);
+      } else force.current.add(id);
+      if (!pending.current.has(id)) pending.current.set(id, { content: live.current.get(id) ?? op.content });
+      await flushRef.current(id);
+      if (conflicts.current.has(id) || gone.current.has(id)) return "conflict";
+      return pending.current.has(id) ? "retry" : "done";
+    },
+    // A note created offline got its server id: move everything this device holds for it.
+    created: (temp, ref) => {
+      const real = ref.id;
+      for (const m of [live.current, pending.current, lastFail.current] as Map<string, unknown>[]) {
+        if (m.has(temp)) m.set(real, m.get(temp));
+        m.delete(temp);
+      }
+      baseAt.current.delete(temp);
+      serverText.current.delete(temp);
+      force.current.delete(temp);
+      if (deleted.current.delete(temp)) deleted.current.add(real);
+      if (focusRequest.current?.id === temp) focusRequest.current = { ...focusRequest.current, id: real };
+      clearDraft(temp);
+      const p = pending.current.get(real);
+      if (p) {
+        if (p.timer) clearTimeout(p.timer);
+        p.timer = undefined;
+        schedule(real, SAVE_DELAY);
+      }
+      setNotes((m) => {
+        const n = m[temp];
+        if (!n) return m;
+        const { [temp]: _, ...rest } = m;
+        void _;
+        return { ...rest, [real]: { ...n, id: real, path: ref.path, name: ref.name } };
+      });
+      dispatch({ type: "replace", layout: remapLayout(layoutRef.current, temp, real) });
+      void loadNote(real);
+    },
+    dropped: (op, err) => {
+      const name = treeRef.current.notes.find((n) => n.id === op.id)?.name ?? "a note";
+      const why = err instanceof ApiError ? err.message : "The server refused it.";
+      notify(`Couldn’t sync a change to “${name}”. ${why}`, {
+        tone: "error",
+        action:
+          op.kind === "create" || op.kind === "save"
+            ? { label: "Copy text", run: () => void navigator.clipboard?.writeText(op.content).catch(() => {}) }
+            : undefined,
+      });
+    },
+    finished: (r) => {
+      if (r.synced || r.conflicts || r.failed) {
+        void refreshTree().catch(() => {});
+        revalidateCached();
+        bumpSignals(true, true);
+      }
+      if (r.synced) notify(`Synced ${r.synced} ${r.synced === 1 ? "change" : "changes"}`);
+      if (r.stopped === "signedOut")
+        notify("You’re signed out, so changes made offline aren’t synced yet. They’re kept on this device until you sign in.", {
+          tone: "error",
+          action: { label: "Sign in", run: () => window.open("/login", "_blank", "noopener") },
+        });
+    },
+  });
+  // Signing out deletes this user's offline copy, so edits that never synced are confirmed first.
+  const offlineSignOut = useRef(async () => true);
+  useLayoutEffect(() => {
+    offlineSignOut.current = async () => {
+      const n = await unsyncedBeforeSignOut();
+      if (!n) return true;
+      return dialog.confirm({
+        title: `${n} ${n === 1 ? "change hasn’t" : "changes haven’t"} synced`,
+        body:
+          n === 1
+            ? "Signing out deletes it from this device. Stay signed in and reconnect to keep it."
+            : "Signing out deletes them from this device. Stay signed in and reconnect to keep them.",
+        confirm: "Sign out anyway",
+        danger: true,
+      });
+    };
+  });
+  /* ---------------- offline track: end ---------------- */
+
   const logout = useCallback(async () => {
     await flushAll();
+    /* offline track */ if (!(await offlineSignOut.current())) return;
     let ok = false;
     try {
       ok = !(await signOut()).error;
@@ -1671,6 +1771,7 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
       notify("Couldn’t sign out. Check your connection and try again.", { tone: "error" });
       return;
     }
+    /* offline track */ await clearOfflineData();
     // A full reload clears every cached note from memory after signing out.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign("/login");

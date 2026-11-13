@@ -36,6 +36,7 @@ import {
   type LeftView,
   type WorkspaceValue,
 } from "./store";
+/* offline track */ import { OfflineLabel, OfflineMark } from "./offline/status";
 import { FileExplorer } from "./file-explorer";
 import { SearchView } from "./search-view";
 import { BacklinksView, OutgoingView, OutlineView, TagsView } from "./right-views";
@@ -401,7 +402,8 @@ function StatusBar({ inert }: { inert: boolean }) {
     >
       {/* First, so its changing width never moves the counters. Errors are announced by a toast.
           The idle "Saved" waits for the note: while it loads there is nothing to have saved. */}
-      {(hasNote || !idle) && <SaveLabel />}
+      {/* offline track */}
+      <OfflineLabel>{(hasNote || !idle) && <SaveLabel />}</OfflineLabel>
       {hasNote && <NoteCounts />}
     </footer>
   );
@@ -437,6 +439,8 @@ function PhoneTopBar({ inert }: { inert: boolean }) {
       </IconButton>
       <p className="flex min-w-0 items-center justify-center gap-1.5 font-medium">
         <span className="truncate">{v.type === "graph" ? "Graph view" : (name ?? "Nexus")}</span>
+        {/* offline track */}
+        <OfflineMark />
         {bad && (
           <span className="shrink-0" title={SAVE_TEXT[save]}>
             <span aria-hidden="true" className="block size-1.5 rounded-full bg-negative" />
