@@ -4,6 +4,9 @@ import { useRef, useSyncExternalStore } from "react";
 import { X } from "lucide-react";
 import { useWorkspace, type Theme } from "./store";
 import { IconButton, Modal, Shortcut, isMac } from "./ui";
+/* attachments-ui */
+import { AttachmentSettingsRows } from "./attachments/settings-rows";
+/* end attachments-ui */
 
 /** Label, keys, and the Mac keys when they differ by more than Mod. */
 const HOTKEYS: [string, string, string?][] = [
@@ -89,6 +92,9 @@ export function SettingsDialog({ section = "general" }: { section?: "general" | 
               </div>
             </fieldset>
           </Row>
+          {/* attachments-ui */}
+          <AttachmentSettingsRows Row={Row} />
+          {/* end attachments-ui */}
           <Row title="Import notes" description="Upload an Obsidian vault as a .zip, or one or more .md files. Notes with the same path are overwritten; attachments and .obsidian settings are skipped.">
             <button
               type="button"
