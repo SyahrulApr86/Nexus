@@ -4,7 +4,8 @@
  *   named by its own text and the text is clickable (nested lists stay outside);
  * - images load lazily, and Obsidian's `![alt|300]` / `![alt|300x200]` set the size;
  * - protocol-relative links (`//host`, `\\host`) lose their href, so a click can never
- *   navigate the app to another origin.
+ *   navigate the app to another origin;
+ * - a link with no text (`[](https://x)`) shows its URL, so it is neither invisible nor nameless.
  */
 
 type HNode = {
@@ -46,6 +47,13 @@ function sizeImage(img: HNode) {
   if (m[2]) p.height = Number(m[2]);
 }
 
+/** True when a node holds visible text or an image. */
+function hasContent(n: HNode): boolean {
+  if (n.type === "text") return !!n.value?.trim();
+  if (n.type === "element" && n.tagName === "img") return true;
+  return !!n.children?.some(hasContent);
+}
+
 export function rehypeReadingView() {
   const visit = (n: HNode) => {
     if (n.type === "element") {
@@ -54,6 +62,7 @@ export function rehypeReadingView() {
       else if (n.tagName === "a") {
         const href = String(n.properties?.href ?? "");
         if (/^\s*[/\\]{2}/.test(href)) delete n.properties!.href;
+        else if (href && !hasContent(n)) n.children = [{ type: "text", value: href }];
       }
     }
     n.children?.forEach(visit);

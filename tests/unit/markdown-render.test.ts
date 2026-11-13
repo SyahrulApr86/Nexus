@@ -233,3 +233,15 @@ describe("renderMarkdown: XSS", () => {
     ]);
   });
 });
+
+describe("renderMarkdown: links without text", () => {
+  it("shows the URL instead of an empty, nameless link", () => {
+    expect(render("Empty [](https://e.com) link.")).toContain('<a href="https://e.com">https://e.com</a>');
+  });
+
+  it("keeps link text that is there, including balanced brackets", () => {
+    expect(render("A [link [with] brackets](https://example.com/b) here.")).toContain(
+      '<a href="https://example.com/b">link [with] brackets</a>',
+    );
+  });
+});

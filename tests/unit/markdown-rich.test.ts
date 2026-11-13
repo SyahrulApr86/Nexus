@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseFrontmatter } from "@/lib/markdown/parse";
+import { renderMarkdown } from "@/lib/markdown/render";
 import { taskOffsets, toggleTaskAt } from "@/lib/markdown/tasks";
 
 describe("parseFrontmatter object shape", () => {
@@ -29,5 +30,22 @@ describe("taskOffsets with frontmatter", () => {
   it("still hides tasks inside a body comment", () => {
     const md = "---\na: 1\n---\n%%\n- [ ] hidden\n%%\n- [ ] shown\n";
     expect(taskOffsets(md)).toHaveLength(1);
+  });
+});
+
+describe("taskOffsets with private-use mark characters", () => {
+  const rendered = (md: string) =>
+    [...renderMarkdown(md, () => true).matchAll(/data-task-offset="(\d+)"/g)].map((m) => Number(m[1]));
+
+  it("gives every rendered checkbox an offset that toggles it", () => {
+    for (const md of ["- [\uE000 ] a\n- [ ] b\n", "- [ \uE001] a\n", "\uE000x\n- [x] a\n", "---\nt: 1\n---\n- [\uE000x] a\n"]) {
+      const offsets = taskOffsets(md);
+      expect(offsets).toEqual(rendered(md));
+      for (const at of offsets) {
+        expect(md[at]).toMatch(/[ xX]/);
+        expect(toggleTaskAt(md, at)).not.toBe(md);
+        expect(toggleTaskAt(toggleTaskAt(md, at), at)).toBe(md);
+      }
+    }
   });
 });
