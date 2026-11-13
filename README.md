@@ -77,27 +77,58 @@ Next.js 16 (App Router, Cache Components) · PostgreSQL 17 · Drizzle ORM · Bet
 Prasyarat: Node 24+, pnpm, Docker.
 
 ```bash
-cp .env.example .env          # isi POSTGRES_PASSWORD dan BETTER_AUTH_SECRET (openssl rand -base64 32)
+cp .env.example .env          # POSTGRES_PASSWORD: openssl rand -hex 32, BETTER_AUTH_SECRET: openssl rand -base64 32
 pnpm install
 pnpm db:up                    # Postgres di 127.0.0.1:5442
 pnpm db:migrate
 pnpm dev                      # http://localhost:3000
 ```
 
-Buka `/signup`, buat akun, lalu masuk ke `/vault`.
+Pendaftaran tertutup secara default. Untuk membuat akun pertama, set `NEXUS_ALLOW_SIGNUP=true` di `.env`, jalankan ulang `pnpm dev`, buka `/signup`, buat akun, lalu masuk ke `/vault`. Setelah itu kembalikan ke `false`.
 
 ## Deploy (VPS mana pun)
 
 ```bash
-# .env di server: POSTGRES_PASSWORD, BETTER_AUTH_SECRET, BETTER_AUTH_URL=https://domain-anda
+# .env di server (lihat .env.example):
+#   POSTGRES_PASSWORD, APP_DB_PASSWORD   openssl rand -hex 32 (harus aman untuk URL)
+#   BETTER_AUTH_SECRET                   openssl rand -base64 32
+#   BETTER_AUTH_URL=https://domain-anda  wajib https
 docker compose --profile prod up -d --build
 ```
 
-Compose menjalankan tiga service: `db` (Postgres), `migrate` (menerapkan migrasi lalu berhenti), dan `app` (server Next.js standalone, user non-root). Pasang reverse proxy (Caddy/Nginx) dengan HTTPS di depan port `APP_PORT` (default 3000).
+Compose menjalankan tiga service: `db` (Postgres), `migrate` (menerapkan migrasi lalu berhenti), dan `app` (server Next.js standalone, user non-root, healthcheck, log dirotasi 5 x 10 MB). Pasang reverse proxy (Caddy/Nginx) dengan HTTPS di depan `127.0.0.1:APP_PORT` (default 3000).
 
 Kalau pool network Docker di host penuh, atur `NEXUS_SUBNET` di `.env`.
 
 Pindah server: ekspor vault (`Ctrl+P` lalu pilih "Ekspor vault"), atau `pg_dump` database, lalu jalankan compose di server baru.
+
+### Keamanan deploy
+
+| Aturan | Alasan |
+|---|---|
+| Port app hanya di `127.0.0.1` (sudah begitu di `docker-compose.yml`). Jangan ubah ke `0.0.0.0`, dan pastikan `http://<ip-server>:3000` tidak bisa dibuka dari luar. | Kalau Next bisa dicapai langsung, klien bebas mengisi `X-Forwarded-For` sendiri dan lolos dari rate limit login, dan cookie lewat HTTP polos. |
+| Reverse proxy **menimpa** `X-Forwarded-For` dengan alamat peer, bukan menambahkannya. Nginx: `proxy_set_header X-Forwarded-For $remote_addr;` (bukan `$proxy_add_x_forwarded_for`). Caddy: biarkan default dan jangan set `trusted_proxies`. | Rate limit Better Auth (sign-in 5 per menit, sign-up 5 per jam per IP) memakai header ini. Kalau ada lebih dari satu proxy, isi `NEXUS_TRUSTED_PROXIES` dengan IP/CIDR proxy itu. |
+| Batasi ukuran body di proxy juga. Nginx: `client_max_body_size 51m;` di `location /api/vault/import`, `12m` di tempat lain. Caddy: `request_body { max_size 51MB }`. | Lapisan kedua. App sendiri menolak body di atas batas (impor 51 MiB, catatan 12 MiB, lainnya 16 KiB sampai 512 KiB) sebelum membacanya utuh. |
+| `BETTER_AUTH_URL` harus `https://`. App menolak start di production dengan URL `http://` selain localhost. | Better Auth menandai cookie `Secure` hanya kalau URL-nya https. |
+| `NEXUS_ALLOW_SIGNUP=false` (default). Nyalakan hanya untuk membuat akun pemilik, lalu matikan lagi dan restart `app`. | Tanpa itu siapa pun di internet bisa membuat akun di server Anda. Saat mati, `/signup` dialihkan ke `/login` dan API sign-up menolak dengan 400. |
+| App terhubung ke database sebagai `nexus_app` (tanpa superuser, hanya SELECT/INSERT/UPDATE/DELETE). `nexus` hanya dipakai `migrate`. | Celah di app tidak bisa membaca file server atau membuat role lewat Postgres. |
+
+Role `nexus_app` dibuat otomatis oleh skrip init saat volume `pgdata` pertama kali dibuat. Untuk volume yang sudah ada, jalankan sekali (setelah `APP_DB_PASSWORD` diisi di `.env`):
+
+```bash
+docker compose up -d db   # memasang skrip init ke container db
+docker compose exec -T db sh /docker-entrypoint-initdb.d/10-app-role.sh
+docker compose --profile prod up -d --build
+```
+
+Header keamanan diset oleh app (`next.config.ts`): `Content-Security-Policy` (tanpa nonce; `script-src 'self' 'unsafe-inline'`, `frame-ancestors 'none'`, `connect-src 'self'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security` (production, tanpa `includeSubDomains`), dan `Cache-Control: private, no-store` untuk `/api/*`. `X-Powered-By` dimatikan. Proxy tidak perlu menambah header yang sama.
+
+Batas lain di app: catatan maksimal 5 MiB, path 500 karakter dan 32 tingkat folder, vault maksimal 20.000 catatan dan 500 MiB, 1.000 link dan 200 tag terindeks per catatan. Impor `.zip` dibaca sebagai stream dengan batas byte nyata (5 MiB per catatan, 200 MiB per impor, 100.000 entri, 15 detik), satu impor per vault sekaligus, 10 impor per user per jam. Ekspor di-stream per 200 catatan, satu per vault sekaligus, 20 per user per jam. Permintaan yang mengubah data dari origin lain ditolak (cek `Sec-Fetch-Site` dan `Origin`), dan body JSON wajib `Content-Type: application/json`.
+
+### Dependensi
+
+- `pnpm-workspace.yaml` mewajibkan versi berumur minimal 24 jam (`minimumReleaseAge`) dan menolak versi dengan bukti publikasi yang lebih lemah dari versi sebelumnya (`trustPolicy: no-downgrade`). Pengecualian hanya untuk satu `paket@versi` yang sudah ditinjau, di `trustPolicyExclude`.
+- `pnpm audit` menjalankan `pnpm audit --prod --audit-level high`. Jalankan sebelum rilis dan setiap minggu; `next`, `react`, `react-dom`, dan `eslint-config-next` dipin persis, jadi patch keamanan hanya masuk lewat update manual.
 
 ## Pasang sebagai aplikasi (PWA)
 
@@ -127,7 +158,7 @@ pnpm db:migrate
 
 | Perintah | Cakupan |
 |---|---|
-| `pnpm test:unit` | `tests/unit`: parser dan renderer markdown, termasuk payload XSS. Tanpa database. |
+| `pnpm test:unit` | `tests/unit`: parser dan renderer markdown (termasuk payload XSS dan regresi ReDoS), ekstraksi zip impor (zip bomb, batas entri), pembaca body, cek origin, header keamanan. Tanpa database. |
 | `pnpm test:integration` | `tests/integration`: fungsi vault di `src/lib/notes.ts` terhadap Postgres. |
 | `pnpm test` | Keduanya. |
 
@@ -204,4 +235,4 @@ Satu daftar catatan berurutan per vault, di tabel `bookmark`. Bookmark ikut terh
 - Template, serta UI untuk bookmark dan riwayat versi catatan (API sudah ada)
 - Canvas (`.canvas`), publish halaman publik, kolaborasi real-time (Yjs)
 - Service worker dan mode offline untuk PWA
-- Siap dipasarkan: verifikasi email dan reset password (perlu provider email), rate limit, kuota per user, billing, kebijakan privasi sesuai UU PDP
+- Siap dipasarkan: verifikasi email dan reset password (perlu provider email), rate limit yang bertahan saat restart (sekarang di memori satu proses), billing, kebijakan privasi sesuai UU PDP
