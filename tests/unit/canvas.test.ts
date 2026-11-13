@@ -9,6 +9,7 @@ import {
   edgePath,
   isCanvasPath,
   nearestSide,
+  normalizeWebUrl,
   parseCanvas,
   readingOrder,
   rewriteCanvasLinks,
@@ -257,5 +258,25 @@ describe("canvas reducer", () => {
     const s = run(start(), { type: "move", ids: ["t1"], dx: 1, dy: 1 });
     const doc: CanvasDoc = { nodes: [], edges: [] };
     expect(canvasReducer(s, { type: "load", doc })).toEqual(initCanvasState(doc));
+  });
+});
+
+describe("normalizeWebUrl", () => {
+  it("drops a doubled scheme from a pasted address", () => {
+    expect(normalizeWebUrl("https://https://x.org")).toBe("https://x.org/");
+    expect(normalizeWebUrl("https://https://example.org/page")).toBe("https://example.org/page");
+    expect(normalizeWebUrl("https://http://x.org/a")).toBe("http://x.org/a");
+  });
+  it("adds https:// when no scheme is given and trims", () => {
+    expect(normalizeWebUrl("  example.org/page ")).toBe("https://example.org/page");
+    expect(normalizeWebUrl("http://x.org")).toBe("http://x.org/");
+    expect(normalizeWebUrl("https://localhost:3000/a")).toBe("https://localhost:3000/a");
+  });
+  it("rejects empty, bare-prefix and non-web addresses", () => {
+    expect(normalizeWebUrl("")).toBeNull();
+    expect(normalizeWebUrl("https://")).toBeNull();
+    expect(normalizeWebUrl("javascript:alert(1)")).toBeNull();
+    expect(normalizeWebUrl("https://javascript:alert(1)")).toBeNull();
+    expect(normalizeWebUrl("mailto:a@b.c")).toBeNull();
   });
 });

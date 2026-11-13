@@ -86,6 +86,25 @@ export type ParseResult = { ok: true; doc: CanvasDoc } | { ok: false; error: str
 export const emptyCanvas = (): CanvasDoc => ({ nodes: [], edges: [] });
 
 /**
+ * Turns what someone typed or pasted into a web link card's address, or null when it is not an
+ * http(s) address. Trims it, drops a stray leading "https://" in front of another scheme (so a
+ * pasted "https://https://x.org" or "https://http://x.org" keeps only the real one) and adds
+ * "https://" when no scheme is given.
+ */
+export function normalizeWebUrl(input: string): string | null {
+  let v = input.trim();
+  while (/^https?:\/\/(?=[a-z][a-z0-9+.-]*:\/\/)/i.test(v)) v = v.replace(/^https?:\/\//i, "");
+  if (!v) return null;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(v)) v = `https://${v}`;
+  try {
+    const u = new URL(v);
+    return (u.protocol === "http:" || u.protocol === "https:") && u.hostname ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Parse a canvas file. Empty or whitespace-only content is an empty canvas (a new file). Anything
  * that is not JSON Canvas fails with a short, human reason; ids must be unique.
  */

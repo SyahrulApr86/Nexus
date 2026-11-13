@@ -23,6 +23,7 @@ import {
   isCanvasPath,
   nearestSide,
   newCanvasId,
+  normalizeWebUrl,
   readingOrder,
   serializeCanvas,
   type CanvasDoc,
@@ -369,17 +370,15 @@ export function CanvasBoard({
       const raw = await w.dialog.prompt({
         title: "Add web link",
         label: "Web address",
-        value: "https://",
+        value: "",
         confirm: "Add link",
-        hint: "The card shows the address and opens it in a new browser tab.",
+        hint: "For example https://example.org. The card shows the address and opens it in a new browser tab.",
         submit: async (value) => {
-          const v = value.trim();
-          if (!safeUrl(/^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`)) throw new Error("Enter a web address that starts with https:// or http://");
+          if (!normalizeWebUrl(value)) throw new Error("Enter a web address that starts with https:// or http://");
         },
       });
-      const v = raw?.trim();
-      if (!v) return;
-      const url = /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`;
+      const url = raw ? normalizeWebUrl(raw) : null;
+      if (!url) return;
       addNode({ id: newCanvasId(), type: "link", url, ...placeAt(p, { width: 400, height: 120 }) });
     },
     [w.dialog, addNode, placeAt, viewCenter],
@@ -512,8 +511,17 @@ export function CanvasBoard({
         items.push({
           label: "Edit link…",
           onSelect: async () => {
-            const v = await w.dialog.prompt({ title: "Edit web link", label: "Web address", value: n.url, confirm: "Save" });
-            if (v && v.trim() !== n.url) dispatch({ type: "updateNode", id, patch: { url: v.trim() } });
+            const v = await w.dialog.prompt({
+              title: "Edit web link",
+              label: "Web address",
+              value: n.url,
+              confirm: "Save",
+              submit: async (value) => {
+                if (!normalizeWebUrl(value)) throw new Error("Enter a web address that starts with https:// or http://");
+              },
+            });
+            const url = v ? normalizeWebUrl(v) : null;
+            if (url && url !== n.url) dispatch({ type: "updateNode", id, patch: { url } });
           },
         });
       }
