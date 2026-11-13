@@ -38,13 +38,28 @@ export function splitFrontmatter(md: string): { yaml: string | null; body: strin
   return { yaml: m[1], body: md.slice(m[0].length), offset: m[0].length };
 }
 
-/** Minimal YAML subset: `key: value`, `key: [a, b]`, and `key:\n  - a`. Enough for tags/aliases. */
+/** Frontmatter beyond these sizes is treated as absent (tags/aliases never need that much). */
+export const MAX_FRONTMATTER_CHARS = 64 * 1024;
+export const MAX_FRONTMATTER_LINE = 4 * 1024;
+
+/** Cut a trailing ` # comment`: at the first whitespace that is followed by "#". Linear time. */
+function stripComment(raw: string): string {
+  const h = raw.search(/\s#/);
+  return h === -1 ? raw : raw.slice(0, h).trimEnd();
+}
+
+/**
+ * Minimal YAML subset: `key: value`, `key: [a, b]`, and `key:\n  - a`. Enough for tags/aliases.
+ * Every step is linear in the input; a block over MAX_FRONTMATTER_CHARS is ignored and lines
+ * over MAX_FRONTMATTER_LINE are skipped, so hostile frontmatter cannot stall the server.
+ */
 export function parseFrontmatter(yaml: string | null): Record<string, unknown> {
-  if (!yaml) return {};
+  if (!yaml || yaml.length > MAX_FRONTMATTER_CHARS) return {};
   const out: Record<string, unknown> = {};
   let listKey: string | null = null;
   for (const raw of yaml.split(/\r?\n/)) {
-    const line = raw.replace(/\s+#.*$/, "");
+    if (raw.length > MAX_FRONTMATTER_LINE) continue;
+    const line = stripComment(raw);
     const item = /^\s*-\s+(.*)$/.exec(line);
     if (item && listKey) {
       (out[listKey] as unknown[]).push(unquote(item[1]));
@@ -105,9 +120,10 @@ function splitOnce(s: string, sep: string): [string, string | undefined] {
 // #tag, #nested/tag — not headings ("# "), not inside words, not pure numbers.
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_\-/]*[\p{L}_\-/][\p{L}\p{N}_\-/]*)/gu;
 
-export function extractTags(md: string): string[] {
+/** `fm` lets a caller that already parsed the frontmatter skip a second parse. */
+export function extractTags(md: string, fm?: Record<string, unknown>): string[] {
   const { yaml, body } = splitFrontmatter(md);
-  const fm = parseFrontmatter(yaml);
+  fm ??= parseFrontmatter(yaml);
   const tags = new Set<string>();
   const fmTags = fm.tags ?? fm.tag;
   if (Array.isArray(fmTags)) fmTags.forEach((t) => tags.add(String(t).replace(/^#/, "").toLowerCase()));
@@ -144,13 +160,23 @@ export function dirname(path: string): string {
   return i === -1 ? "" : path.slice(0, i);
 }
 
-/** Clean a user-typed note path: trim, collapse slashes, strip .md and illegal chars. */
+/**
+ * Clean a user-typed note path: backslashes become slashes, each segment is trimmed and loses
+ * characters that are illegal in file names, one ".md" is stripped from the last segment, and only
+ * then are empty, "." and ".." segments dropped, so no input can yield a segment that climbs out
+ * of the vault (e.g. "...md" becomes nothing, not "..").
+ */
 export function normalizePath(p: string): string {
-  return p
+  const segs = p
     .replace(/\\/g, "/")
     .split("/")
-    .map((s) => s.trim().replace(/[<>:"|?*\x00-\x1f]/g, ""))
-    .filter((s) => s && s !== "." && s !== "..")
-    .join("/")
-    .replace(/\.md$/i, "");
+    .map((s) => s.trim().replace(/[<>:"|?*\x00-\x1f]/g, "").trim())
+    .filter(Boolean);
+  if (segs.length) segs[segs.length - 1] = segs[segs.length - 1].replace(/\.md$/i, "").trim();
+  return segs.filter((s) => s && s !== "." && s !== "..").join("/");
+}
+
+/** True when `p` has an empty, "." or ".." segment, a leading "/" or a backslash. */
+export function isUnsafePath(p: string): boolean {
+  return !p || p.includes("\\") || p.split("/").some((s) => !s || s === "." || s === "..");
 }
