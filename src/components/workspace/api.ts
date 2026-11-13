@@ -21,6 +21,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    /** The parsed JSON body of the failed response, if any (a 409 carries the server's note). */
+    public data?: unknown,
   ) {
     super(message);
   }
@@ -39,7 +41,7 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
   // The caller decides what a 401 means: unsaved text must never be dropped by a redirect.
   if (res.status === 401) throw new ApiError("Your session ended. Sign in again.", 401);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? fallbackMessage(res.status), res.status);
+  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? fallbackMessage(res.status), res.status, data);
   return data as T;
 }
 
@@ -51,12 +53,23 @@ function fallbackMessage(status: number) {
 
 const json = (body: unknown) => JSON.stringify(body);
 
+export type ImportPlan = { conflicts: string[]; total: number };
+/** A 409 from a save: the note as the server has it now. */
+export type ConflictNote = { id: string; content: string; updatedAt: string };
+
+function importBody(files: File[]) {
+  const fd = new FormData();
+  files.forEach((f) => fd.append("file", f));
+  return fd;
+}
+
 export const api = {
   tree: () => req<Tree>("/api/notes"),
   get: (id: string) => req<FullNote>(`/api/notes/${id}`),
   create: (path: string, content = "") => req<NoteRef>("/api/notes", { method: "POST", body: json({ path, content }) }),
-  save: (id: string, content: string) =>
-    req<{ id: string; updatedAt: string }>(`/api/notes/${id}`, { method: "PATCH", body: json({ content }) }),
+  /** `baseUpdatedAt`: the server version this text was based on. A newer one answers 409 with the server's note. */
+  save: (id: string, content: string, baseUpdatedAt?: string) =>
+    req<{ id: string; updatedAt: string }>(`/api/notes/${id}`, { method: "PATCH", body: json({ content, baseUpdatedAt }) }),
   rename: (id: string, path: string) =>
     req<NoteRef & { updatedLinks: number }>(`/api/notes/${id}`, { method: "PATCH", body: json({ path }) }),
   remove: (id: string) => req(`/api/notes/${id}`, { method: "DELETE" }),
@@ -76,9 +89,12 @@ export const api = {
   mvdir: (from: string, to: string) => req("/api/folders", { method: "PATCH", body: json({ from, to }) }),
   rmdir: (path: string) => req(`/api/folders?path=${encodeURIComponent(path)}`, { method: "DELETE" }),
   vault: () => req<{ id: string; name: string }>("/api/vault"),
-  importFiles: (files: File[]) => {
-    const fd = new FormData();
-    files.forEach((f) => fd.append("file", f));
-    return req<{ created: number; updated: number }>("/api/vault/import", { method: "POST", body: fd });
-  },
+  importFiles: (files: File[]) =>
+    req<{ created: number; updated: number }>("/api/vault/import", { method: "POST", body: importBody(files) }),
+  /** Dry run of an import: which existing note paths it would replace. Writes nothing. */
+  importPlan: (files: File[]) =>
+    req<Partial<ImportPlan> & Partial<{ created: number; updated: number }>>("/api/vault/import?dryRun=1", {
+      method: "POST",
+      body: importBody(files),
+    }),
 };
