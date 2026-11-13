@@ -101,7 +101,7 @@ export function SettingsDialog({ section = "general" }: { section?: "general" | 
           {/* attachments-ui */}
           <AttachmentSettingsRows Row={Row} />
           {/* end attachments-ui */}
-          <Row title="Import notes" description="Upload an Obsidian vault as a .zip, or one or more .md files. Notes with the same path are overwritten; attachments and .obsidian settings are skipped.">
+          <Row title="Import notes" description="Upload an Obsidian vault as a .zip, or one or more .md or .canvas files. Notes, canvases and attachments (images, PDFs, audio, video) come along; .obsidian settings are skipped. You confirm before any note with the same path is replaced.">
             <button
               type="button"
               onClick={() => file.current?.click()}
@@ -112,7 +112,7 @@ export function SettingsDialog({ section = "general" }: { section?: "general" | 
             <input
               ref={file}
               type="file"
-              accept=".zip,.md,application/zip,text/markdown"
+              accept=".zip,.md,.canvas,application/zip,text/markdown"
               multiple
               hidden
               onChange={(e) => {

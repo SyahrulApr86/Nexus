@@ -45,6 +45,7 @@ import { Palette, type Command } from "./palette";
 import { TemplatePickerHost, templateCommands } from "./templates-picker";
 /* end templates-properties */
 import { newCanvas } from "./canvas/create"; // canvas track
+import { canvasTitle, isCanvasPath } from "@/lib/canvas"; // canvas track
 import { SettingsDialog } from "./settings";
 import { IconButton, Toasts } from "./ui";
 import { splitFrontmatter } from "@/lib/markdown/parse";
@@ -344,11 +345,22 @@ function SaveLabel() {
 /** The focused note's counts. Follows the published text (at most every 300 ms), not each keystroke. */
 function NoteCounts() {
   const showRight = useWorkspaceActions().showRight;
-  const { backlinks, content } = useWorkspaceSelector(
-    (w) => ({ backlinks: w.activeNote?.backlinks.length ?? 0, content: w.activeNote?.content ?? "" }),
+  const { backlinks, content, canvas } = useWorkspaceSelector(
+    (w) => ({
+      backlinks: w.activeNote?.backlinks.length ?? 0,
+      content: w.activeNote?.content ?? "",
+      canvas: isCanvasPath(w.activeNote?.path ?? ""),
+    }),
     shallowEqual,
   );
   const words = useMemo(() => countWords(content), [content]);
+  // A canvas is JSON: word and character counts of the raw file would mean nothing.
+  if (canvas)
+    return (
+      <button type="button" onClick={() => showRight("backlinks")} className="tabular -mx-1 rounded px-1 hover:text-fg">
+        {nf.format(backlinks)} {backlinks === 1 ? "backlink" : "backlinks"}
+      </button>
+    );
   return (
     <>
       <button type="button" onClick={() => showRight("backlinks")} className="tabular -mx-1 rounded px-1 hover:text-fg">
@@ -384,13 +396,14 @@ function StatusBar({ inert }: { inert: boolean }) {
 
 function PhoneTopBar({ inert }: { inert: boolean }) {
   const actions = useWorkspaceActions();
-  const { v, drawer, save, name } = useWorkspaceSelector(
+  const { v, drawer, save, name, canvas } = useWorkspaceSelector(
     (w) => ({
       v: w.focusView,
       drawer: w.drawer,
       // Only a problem shows here, so "dirty" and "saving" while typing do not re-render the bar.
       save: w.save === "error" || w.save === "signedOut" ? w.save : null,
       name: w.activeNote?.name,
+      canvas: isCanvasPath(w.activeNote?.path ?? ""),
     }),
     shallowEqual,
   );
@@ -411,7 +424,15 @@ function PhoneTopBar({ inert }: { inert: boolean }) {
         <MenuIcon />
       </IconButton>
       <p className="flex min-w-0 items-center justify-center gap-1.5 font-medium">
-        <span className="truncate">{v.type === "graph" ? "Graph view" : (name ?? "Nexus")}</span>
+        <span className="truncate">
+          {v.type === "graph"
+            ? "Graph view"
+            : v.type === "attachment"
+              ? v.path.slice(v.path.lastIndexOf("/") + 1)
+              : canvas && name
+                ? canvasTitle(name)
+                : (name ?? "Nexus")}
+        </span>
         {/* offline track */}
         <OfflineMark />
         {bad && (
@@ -422,7 +443,7 @@ function PhoneTopBar({ inert }: { inert: boolean }) {
         )}
       </p>
       <div className="flex items-center gap-1 justify-self-end">
-        {v.type === "note" && (
+        {v.type === "note" && !canvas && (
           <IconButton
             label={v.mode === "edit" ? "Switch to reading view" : "Switch to editing view"}
             className="size-11"
