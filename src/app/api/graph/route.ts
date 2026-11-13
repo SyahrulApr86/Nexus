@@ -1,9 +1,10 @@
 import { graph } from "@/lib/notes";
-import { handle, requireVault } from "@/lib/session";
+import { handle, rateLimit, requireVault } from "@/lib/session";
 
 export async function GET() {
   return handle(async () => {
-    const { vaultId } = await requireVault();
+    const { user, vaultId } = await requireVault();
+    rateLimit(`graph:${user.id}`, 120, 60_000);
     return graph(vaultId);
   });
 }

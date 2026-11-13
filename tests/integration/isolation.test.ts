@@ -87,6 +87,7 @@ describeDb("vault isolation", () => {
     expect(await importNotes(v.b, [{ path: "Other.md", content: "imported into B" }])).toEqual({
       created: 1,
       updated: 0,
+      skipped: [],
     });
     expect(await renameFolder(v.b, "Shared", "Moved")).toEqual({ moved: 1 });
     await deleteFolder(v.b, "Moved");

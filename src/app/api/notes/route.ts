@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { createNote, listTree } from "@/lib/notes";
-import { handle, requireVault } from "@/lib/session";
+import { NoteContent, NotePath, createNote, listTree } from "@/lib/notes";
+import { MiB, handle, readJson, requireVault } from "@/lib/session";
 
 export async function GET() {
   return handle(async () => {
@@ -10,14 +10,16 @@ export async function GET() {
 }
 
 const CreateBody = z.object({
-  path: z.string().max(500),
-  content: z.string().max(5_000_000).optional(),
+  path: NotePath,
+  content: NoteContent.optional(),
 });
+/** 5 MiB of note as JSON: escapes can double it, plus room for the path. */
+const BODY_LIMIT = 12 * MiB;
 
 export async function POST(req: Request) {
   return handle(async () => {
     const { vaultId } = await requireVault();
-    const body = CreateBody.parse(await req.json());
+    const body = CreateBody.parse(await readJson(req, BODY_LIMIT));
     return createNote(vaultId, body.path, body.content ?? "");
   });
 }

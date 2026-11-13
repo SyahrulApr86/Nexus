@@ -11,7 +11,7 @@ describeDb("importNotes", () => {
         { path: "Inbox/Idea.md", content: "[[Plan]] #new" },
         { path: "Plan.md", content: "plan" },
       ]),
-    ).toEqual({ created: 2, updated: 0 });
+    ).toEqual({ created: 2, updated: 0, skipped: [] });
 
     const before = await listTree(v.a);
     expect(before.notes.map((n) => n.path)).toEqual(["Inbox/Idea", "Plan"]);
@@ -20,7 +20,7 @@ describeDb("importNotes", () => {
     expect(await linksOf(idea.id)).toEqual([{ target: "plan", embed: false }]);
 
     const content = "---\ntags: [changed]\n---\n[[Other]]";
-    expect(await importNotes(v.a, [{ path: "Inbox/Idea.md", content }])).toEqual({ created: 0, updated: 1 });
+    expect(await importNotes(v.a, [{ path: "Inbox/Idea.md", content }])).toEqual({ created: 0, updated: 1, skipped: [] });
 
     const after = await getNote(v.a, idea.id);
     expect(after.content).toBe(content);
@@ -41,7 +41,7 @@ describeDb("importNotes", () => {
       { path: "", content: "skipped" },
       { path: "<>|?*.md", content: "skipped" },
     ]);
-    expect(res).toEqual({ created: 5, updated: 0 });
+    expect(res).toEqual({ created: 5, updated: 0, skipped: [] });
 
     const exported = await exportVault(v.a);
     expect(exported.map((f) => f.path).sort()).toEqual(["C/Users/me/notes/n", "a/b", "abs", "win/evil", "x"]);
@@ -58,7 +58,7 @@ describeDb("importNotes", () => {
         { path: "Same.md", content: "first" },
         { path: "./Same", content: "second" },
       ]),
-    ).toEqual({ created: 1, updated: 1 });
+    ).toEqual({ created: 1, updated: 1, skipped: [] });
     expect(await exportVault(v.a)).toEqual([{ path: "Same", content: "second" }]);
   });
 });
