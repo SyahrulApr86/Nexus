@@ -13,7 +13,7 @@ import {
   keymap,
   placeholder,
 } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { defaultKeymap, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { HighlightStyle, syntaxHighlighting, syntaxTree, indentOnInput, bracketMatching } from "@codemirror/language";
@@ -34,6 +34,9 @@ import { attachmentUploads } from "./attachments/editor-uploads";
 import { imageEmbeds, refreshImages } from "./attachments/image-embeds";
 import { uploadFolder } from "./attachments/model";
 /* end attachments-ui */
+/* collab-editor: live collaboration binding */
+import { bindCollab, collabExtensions, collabSlots } from "./collab/binding";
+/* end collab-editor */
 
 export type EditorHandle = {
   scrollToLine: (line: number) => void;
@@ -60,6 +63,9 @@ type Props = {
   extensions?: Extension[];
   /* attachments-ui: the note's path, for "same folder as the note" uploads */
   notePath?: string;
+  /* collab-editor: the note to bind to the live session, when the collab service is reachable */
+  noteId?: string;
+  /* end collab-editor */
 };
 
 /* Note text is the document: Literata on a ~70ch measure. Chrome stays in the UI face. */
@@ -351,10 +357,13 @@ const highlightDecorations = decorator(
   }),
 );
 
-export function Editor({ initial, label, onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag, handleRef, extensions, notePath }: Props) {
+export function Editor({ initial, label, onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag, handleRef, extensions, notePath, noteId }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const labelSlot = useRef(new Compartment());
+  /* collab-editor */
+  const collab = useRef(collabSlots());
+  /* end collab-editor */
   const hintId = useId();
   // Platform is client-only; the server snapshot uses the Ctrl wording.
   const mac = useSyncExternalStore(noopSubscribe, isMac, () => false);
@@ -417,7 +426,9 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
       state: EditorState.create({
         doc: initial,
         extensions: [
-          history(),
+          /* collab-editor: CodeMirror history in REST mode, yCollab (and its undo) while live */
+          collabExtensions(collab.current),
+          /* end collab-editor */
           drawSelection(),
           indentOnInput(),
           bracketMatching(),
@@ -483,8 +494,12 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
     });
 
     viewRef.current = view;
+    /* collab-editor */
+    const releaseCollab = noteId ? bindCollab(view, noteId, collab.current) : () => {};
+    /* end collab-editor */
     return () => {
       viewRef.current = null;
+      releaseCollab(); // collab-editor: unbind before the view goes
       view.destroy();
     };
     // The editor is keyed by note id by the parent; `initial` only seeds it.

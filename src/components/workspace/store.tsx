@@ -37,6 +37,10 @@ import { exportActiveVault } from "./vaults-export";
 import type { AttachmentView } from "./attachments/model";
 import { AttachmentsProvider } from "./attachments/context";
 /* end attachments-ui */
+/* collab-editor: live notes save through the collab service, not PATCH */
+import { setCollabHost, writeLive, type LeaveReason } from "./collab/session";
+import { rejoinText } from "./collab/mode";
+/* end collab-editor */
 
 /* ------------------------------------------------------------------ */
 /* Layout model: tab groups (max two, side by side), tabs with history */
@@ -497,6 +501,10 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
   const deleted = useRef(new Set<string>()); // deleted from this device: late saves for these are moot
   const renaming = useRef(0); // a rename is rewriting links on the server: saves wait so their base stays true
   const resolveRef = useRef<(id: string, keep: "mine" | "theirs") => void>(() => {});
+  /* collab-editor */
+  const collabLive = useRef(new Set<string>()); // bound to the collab service: the server saves the text
+  const baseReady = useRef(new Map<string, Promise<unknown>>()); // just left live mode: the save base is being refreshed
+  /* end collab-editor */
   const focusRequest = useRef<FocusRequest | null>(null);
   const navSeq = useRef(0);
   const toastSeq = useRef(0);
@@ -647,7 +655,8 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
           const cur = notesRef.current[id];
           const localText = live.current.get(id) ?? cur?.content;
           const editing =
-            pending.current.has(id) || savingNow.current.has(id) || conflicts.current.has(id) || gone.current.has(id);
+            pending.current.has(id) || savingNow.current.has(id) || conflicts.current.has(id) || gone.current.has(id) ||
+            collabLive.current.has(id); // collab-editor: the live document is newer than the saved text
           const older = !!cur && Date.parse(fresh.updatedAt) < Date.parse(cur.updatedAt);
           let content = (editing || older) && localText !== undefined ? localText : fresh.content;
           // The base for the next save moves only when this device has seen the server's text:
@@ -738,6 +747,20 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
         await inFlight;
         return flushRef.current(id);
       }
+      /* collab-editor: live notes are saved by the collab service; a note that just left waits for its base */
+      if (collabLive.current.has(id)) {
+        const e = pending.current.get(id);
+        if (e?.timer) clearTimeout(e.timer);
+        pending.current.delete(id);
+        if (settled()) setSave("saved");
+        return;
+      }
+      const ready = baseReady.current.get(id);
+      if (ready) {
+        await ready.catch(() => {});
+        return flushRef.current(id);
+      }
+      /* end collab-editor */
       const p = pending.current.get(id);
       if (!p) return;
       // A rename may be rewriting this note's links: the edit stays queued and is sent once it is done.
@@ -895,6 +918,17 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
     (id: string, content: string) => {
       live.current.set(id, content);
       if (deleted.current.has(id)) return;
+      /* collab-editor: a live note's text goes into the shared document; only the views follow here */
+      if (collabLive.current.has(id)) {
+        writeLive(id, content);
+        if (!publishTimers.current.has(id)) {
+          const wait = PUBLISH_EVERY - (Date.now() - (lastPublish.current.get(id) ?? 0));
+          if (wait <= 0) publish(id);
+          else publishTimers.current.set(id, setTimeout(() => publish(id), wait));
+        }
+        return;
+      }
+      /* end collab-editor */
       const held = gone.current.has(id) || conflicts.current.has(id);
       if (held) {
         // Deleted or changed elsewhere: nothing to save to until the user decides. Keep the newest text on this device.
@@ -915,6 +949,93 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
     },
     [schedule, publish, setSave],
   );
+
+  /* collab-editor: the store is the collab sessions' host (collab/session.ts) */
+  useEffect(() => {
+    /** Back on REST: the text becomes a normal pending save. */
+    const queue = (id: string, text: string, delay: number) => {
+      const prev = pending.current.get(id);
+      pending.current.set(id, { content: text, timer: prev?.timer });
+      if (!signedOut.current) schedule(id, delay);
+      setSave("dirty");
+    };
+    setCollabHost(
+      {
+        enter: async (id) => {
+          if (deleted.current.has(id) || conflicts.current.has(id) || gone.current.has(id) || signedOut.current) return null;
+          collabLive.current.add(id);
+          // What waits to be saved goes into the shared document instead; a save in flight finishes first.
+          const p = pending.current.get(id);
+          if (p?.timer) clearTimeout(p.timer);
+          pending.current.delete(id);
+          await baseReady.current.get(id)?.catch(() => {});
+          await savingNow.current.get(id);
+          if (conflicts.current.has(id) || gone.current.has(id) || deleted.current.has(id)) {
+            collabLive.current.delete(id);
+            const text = live.current.get(id);
+            if (text !== undefined && !deleted.current.has(id)) writeDraft(id, text);
+            return null;
+          }
+          if (settled()) setSave("saved");
+          return { server: serverText.current.get(id), local: live.current.get(id) ?? notesRef.current[id]?.content };
+        },
+        leave: (id: string, docText: string, reason: LeaveReason, confirmed?: string) => {
+          if (!collabLive.current.delete(id)) return;
+          if (deleted.current.has(id)) return;
+          // The editor's text is the newest; the document's is the same unless no editor is bound.
+          const text = live.current.get(id) ?? docText;
+          live.current.set(id, text);
+          if (reason === "graceful") {
+            // The service has every change and saves it within seconds. Take its copy as the base once it has.
+            serverText.current.set(id, text);
+            const run = new Promise((r) => setTimeout(r, 2500))
+              .then(() => loadNote(id))
+              .finally(() => baseReady.current.delete(id));
+            baseReady.current.set(id, run);
+            return;
+          }
+          if (reason === "signed-out" || reason === "deleted") {
+            // The REST save answers 401 or 404 and shows the usual signed-out or deleted-note flow.
+            queue(id, text, 0);
+            return;
+          }
+          // Dropped (service down, network gone, too large). The socket may have stalled before it closed, so
+          // the server copy can hold edits this device never received: merge from the last text the service
+          // confirmed instead of overwriting them. Changes that overlap keep the old base and answer 409.
+          const run = api
+            .get(id)
+            .catch(() => null)
+            .then((fresh) => {
+              if (collabLive.current.has(id) || deleted.current.has(id)) return;
+              const now = live.current.get(id) ?? text;
+              // Not fetched (offline): save against the old base; the outbox and the 409 flow take it from there.
+              const merged = fresh ? rejoinText(confirmed, now, fresh.content) : null;
+              if (!fresh || merged === null) {
+                queue(id, now, SAVE_DELAY);
+                return;
+              }
+              baseAt.current.set(id, fresh.updatedAt);
+              serverText.current.set(id, fresh.content);
+              if (merged !== now) {
+                // Edits from others that arrived only on the server: the editor shows them too.
+                live.current.set(id, merged);
+                setNotes((m) => (m[id] ? { ...m, [id]: { ...m[id], content: merged, updatedAt: fresh.updatedAt, rev: m[id].rev + 1 } } : m));
+              }
+              if (merged !== fresh.content) {
+                writeDraft(id, merged);
+                queue(id, merged, SAVE_DELAY);
+              } else if (settled()) setSave("saved");
+            })
+            .finally(() => baseReady.current.delete(id));
+          baseReady.current.set(id, run);
+        },
+        notify: (message) => void notify(message),
+      },
+      { name: user.name },
+    );
+    return () => setCollabHost(null);
+  }, [schedule, setSave, loadNote, notify, user.name]);
+  /* end collab-editor */
 
   const flushAll = useCallback(async () => {
     await Promise.all([...pending.current.keys()].map((id) => flush(id)));

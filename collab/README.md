@@ -22,7 +22,8 @@ Versi dipin persis di `package.json`, semuanya lisensi MIT, semuanya lolos `mini
 | `ws` | 8.22.2 | MIT | WebSocket server. 8.23.0 terbit 2026-11-12, belum lolos umur minimum saat dipasang |
 | `esbuild` | 0.28.2 (dev) | MIT | Bundle `build/collab/server.mjs` tanpa dependensi runtime. Versi yang sama sudah ada di lockfile lewat drizzle-kit |
 | `@types/ws` | 8.18.2 (dev) | MIT | Tipe untuk `ws` |
-| `y-websocket` | 3.1.0 (dev) | MIT | Hanya di tes: klien `WebsocketProvider` sungguhan memastikan protokol server cocok dengan klien yang akan dipakai editor |
+| `y-websocket` | 3.1.0 | MIT | Klien `WebsocketProvider` di editor (`src/components/workspace/collab/session.ts`) dan di tes protokol server |
+| `y-codemirror.next` | 0.3.6 | MIT | `yCollab`: mengikat CodeMirror ke `Y.Text` dan menggambar kursor orang lain. Dicek di registry 2026-11-14, terbit 2026-08-18 |
 
 Alternatif yang ditimbang:
 
@@ -48,9 +49,9 @@ Hasilnya: empat dependensi runtime kecil yang sudah dipakai ekosistem Yjs, dan p
 
 - URL: `${NEXT_PUBLIC_COLLAB_URL ?? origin halaman, skema ws/wss}/collab?note=<noteId>`. Bentuk `/collab/<noteId>` juga diterima, yaitu bentuk yang dibuat `new WebsocketProvider(baseUrl + "/collab", noteId, doc)` dari `y-websocket`.
 - Auth: cookie sesi Better Auth yang sudah ada dikirim browser otomatis (same-site). Tidak ada token di URL.
-- Dokumen: `doc.getText("content")`, berisi markdown utuh termasuk frontmatter. Ikat ke CodeMirror dengan `yCollab(ytext, provider.awareness, { undoManager })` dari `y-codemirror.next` (versi terbaru di registry: 0.3.6, MIT; belum dipasang di track ini).
+- Dokumen: `doc.getText("content")`, berisi markdown utuh termasuk frontmatter. Ikat ke CodeMirror dengan `yCollab(ytext, provider.awareness, { undoManager })` dari `y-codemirror.next` (0.3.6, MIT). Dipasang di `src/components/workspace/collab/binding.ts`.
 - Awareness: `awareness.setLocalStateField("user", { name, color, colorLight })`, bentuk yang dibaca `y-codemirror.next`. Server menimpa `user.name` dengan nama akun dari sesi, jadi nama tidak bisa dipalsukan. Warna dipilih klien dari token palet.
-- Offline: simpan `Y.Doc` di klien (mis. `y-indexeddb`) dan pakai ulang saat reconnect. Server menyimpan state Yjs di `note_ydoc`, jadi sync berikutnya hanya mengirim selisih dan tidak menggandakan teks, juga setelah server restart.
+- Offline: editor tidak menyimpan `Y.Doc` di klien; ketikan offline lewat outbox REST, dan setiap koneksi mulai dari `Y.Doc` baru (lihat README utama, "Di editor"). Opsi menyimpan `Y.Doc` (mis. `y-indexeddb`) tetap didukung server: Server menyimpan state Yjs di `note_ydoc`, jadi sync berikutnya hanya mengirim selisih dan tidak menggandakan teks, juga setelah server restart.
 - Simpan: selama socket terbuka, editor tidak perlu `PATCH` konten. Server menulis `note.content` 2 detik setelah ketikan terakhir (paling lambat 10 detik saat terus mengetik). Rename tetap lewat `PATCH { path }`.
 - Kode penutupan socket:
 

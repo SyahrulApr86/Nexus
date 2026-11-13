@@ -307,11 +307,25 @@ Halaman publik `/s/<token>` tidak butuh login. Isinya dirender dengan renderer m
 
 Service `collab` (folder `collab/`, detail di [collab/README.md](collab/README.md)) menyinkronkan satu catatan antar-tab dan antar-perangkat secara live dengan Yjs lewat WebSocket di `/collab?note=<id>`. Socket diautentikasi dengan cookie sesi app yang sama, dicek Origin-nya, dan hanya membuka catatan di vault milik pengguna. Perubahan disimpan ke `note.content` 2 detik setelah ketikan terakhir lewat fungsi yang sama dengan `PATCH`, dan tulisan REST ke catatan yang sedang terbuka di-merge ke dokumen live.
 
+Menjalankan di lokal, dua terminal:
+
 ```bash
-pnpm collab:dev               # lokal, 127.0.0.1:3001 (COLLAB_PORT)
+pnpm dev                      # app di :3000
+pnpm collab:dev               # service di 127.0.0.1:3001 (COLLAB_PORT), baca .env lalu .env.local
 ```
 
-Di produksi compose menjalankan service `collab` dari image yang sama dengan `app`. Arahkan `/collab` di reverse proxy ke `127.0.0.1:COLLAB_PORT` (default 3001) dengan header `Upgrade`; contoh Caddy dan Nginx ada di collab/README.md. Editor belum tersambung ke service ini (track editor berikutnya).
+Isi `NEXT_PUBLIC_COLLAB_URL=ws://localhost:3001` di `.env.local` lalu restart `pnpm dev` (variabel `NEXT_PUBLIC_*` dibaca saat build). Pakai host yang sama dengan app (`localhost`, bukan `127.0.0.1`), karena cookie sesi terikat host. Di produksi dengan reverse proxy satu domain variabel ini dikosongkan: editor memakai `wss://<domain>/collab`.
+
+Di produksi compose menjalankan service `collab` dari image yang sama dengan `app`. Arahkan `/collab` di reverse proxy ke `127.0.0.1:COLLAB_PORT` (default 3001) dengan header `Upgrade`; contoh Caddy dan Nginx ada di collab/README.md.
+
+### Di editor
+
+- **Mode live.** Saat catatan dibuka di mode edit dan service menjawab, CodeMirror diikat ke `doc.getText("content")` dengan `yCollab` (`src/components/workspace/collab/`). Selama socket terbuka store tidak mengirim `PATCH` konten untuk catatan itu (server yang menyimpan), dan status bar menulis "Synced" (server belum mengirim tanda terima simpan, jadi tidak ada "Saved" per ketikan). Rename dan hapus tetap lewat REST. Undo memakai `Y.UndoManager`, jadi hanya membatalkan ketikan sendiri.
+- **Fallback REST.** Tanpa service (tidak dikonfigurasi, gagal, offline) editor memakai autosave REST yang sama seperti sebelumnya, termasuk alur konflik 409 dan outbox offline. Saat socket putus, editor mengambil ulang salinan server lalu me-merge tiga arah dari teks terakhir yang dikonfirmasi service (frame terakhir yang diterima), karena socket yang macet atau half-open bisa melewatkan ketikan orang lain yang sudah disimpan service. Kalau editor tidak mengetik apa-apa sejak itu, salinan server dipakai dan tidak ada `PATCH`. Kalau perubahan kedua pihak di bagian berbeda, hasil merge disimpan dengan `baseUpdatedAt` salinan itu. Kalau bertumpuk, `baseUpdatedAt` lama dipertahankan sehingga simpan menjawab 409 dan alur Keep mine / Load theirs yang ada berjalan. Saat tersambung lagi, editor mulai dari `Y.Doc` baru; ketikan lokal yang belum tersimpan diterapkan sebagai selisih ke dokumen live, jadi teks tidak hilang dan tidak tergandakan. Tanpa `NEXT_PUBLIC_COLLAB_URL`, origin yang sama dicoba sekali; kalau tidak ada yang menjawab, dicoba lagi lima menit kemudian.
+- **Kode penutupan.** 4401: berhenti reconnect sampai jendela difokuskan lagi, dan simpan REST menampilkan alur "signed out" yang ada. 4404: berhenti, simpan REST menampilkan alur catatan terhapus ("Save as new note"). 4413/1009: berhenti untuk catatan itu dengan pesan, simpan lewat REST. Kode lain: REST sementara, reconnect dengan backoff 1 sampai 30 detik.
+- **Presence.** Kursor dan seleksi orang lain diberi nama, garis kursor 1px dan label kecil dengan warna token `--collab-1..6` (biru, cyan, hijau, ungu, oranye, kuning; merah dipakai untuk error). Kepala view menampilkan inisial dan "2 people here" dengan satu nama aksesibel. Di ponsel kepala view disembunyikan, kursor tetap terlihat.
+- **Offline.** `y-indexeddb` tidak dipakai: ketikan offline masuk outbox REST yang sudah ada, dan dokumen Yjs lokal yang disimpan lalu diputar ulang saat reconnect akan menggandakan teks yang juga sudah tersimpan lewat REST. Dokumen live hanya ada di memori dan ditutup saat sign-out (`clearOfflineData`).
+- **CSP.** `connect-src 'self'` sudah mencakup `ws:`/`wss:` origin yang sama. Kalau `NEXT_PUBLIC_COLLAB_URL` menunjuk origin lain, origin itu ditambahkan (di produksi hanya `wss://`). Dev tetap mengizinkan `ws:`/`wss:` untuk HMR.
 
 ## Lampiran
 
