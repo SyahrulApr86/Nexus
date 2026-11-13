@@ -9,6 +9,9 @@ import { extractHeadings, extractWikiLinks } from "@/lib/markdown/parse";
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+/** Unlinked mentions follow saves while open; a burst of saves becomes one request. */
+const MENTIONS_DEBOUNCE = 1200;
+
 /**
  * A derivation of the focused note's text, recomputed only when the text changed.
  * Returned as a string, so a selector compares it by value and a panel re-renders
@@ -136,9 +139,9 @@ export function BacklinksView() {
   const noteId = note?.id;
   const key = note ? `${note.id}:${note.name}` : "";
   const mentions = res?.key === key ? res.items : null;
-  // Refetch when links changed, not on every autosave, and only while the panel is on screen.
-  // A plain-text mention changes no links, so while Unlinked mentions is open every save
-  // refetches too; opening it after edits refetches once.
+  // Refetch when links changed, and only while the panel is on screen. Unlinked mentions depend
+  // on other notes' text, not links: while that section is open, saves (`version`) refetch too,
+  // debounced so typing does not spam the API. The previous list stays up while it refetches.
   const [rootRef, shown] = useShown<HTMLDivElement>();
   const [unlinkedOpen, setUnlinkedOpen] = useState(false);
   const { linksVersion, contentVersion } = useWorkspaceSelector(
@@ -146,23 +149,34 @@ export function BacklinksView() {
     shallowEqual,
   );
   const done = useRef<{ key: string; links: number; content: number | null } | null>(null);
+  const wasShown = useRef(false);
 
   useEffect(() => {
+    const revealed = shown && !wasShown.current;
+    wasShown.current = shown;
     if (!noteId || !shown) return;
     const d = done.current;
     if (d && d.key === key && d.links === linksVersion && (contentVersion === null || d.content === contentVersion)) return;
     const stamp = { key, links: linksVersion, content: contentVersion };
+    // Only text saved while the section was open and on screen waits; a new note, new links,
+    // opening the section or showing the panel again fetch at once.
+    const debounce = !revealed && !!d && d.key === key && d.links === linksVersion && d.content !== null;
     let live = true;
-    api
-      .mentions(noteId)
-      .then((m) => {
-        if (!live) return;
-        done.current = stamp;
-        setRes((r) => (r?.key === key && same(r.items, m) ? r : { key, items: m }));
-      })
-      .catch(() => live && setRes((r) => (r?.key === key ? r : { key, items: [] })));
+    const t = setTimeout(
+      () =>
+        api
+          .mentions(noteId)
+          .then((m) => {
+            if (!live) return;
+            done.current = stamp;
+            setRes((r) => (r?.key === key && same(r.items, m) ? r : { key, items: m }));
+          })
+          .catch(() => live && setRes((r) => (r?.key === key ? r : { key, items: [] }))),
+      debounce ? MENTIONS_DEBOUNCE : 0,
+    );
     return () => {
       live = false;
+      clearTimeout(t);
     };
   }, [key, linksVersion, contentVersion, noteId, shown]);
 
