@@ -8,6 +8,13 @@
       "when": 1794553295450,
       "tag": "0000_late_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794557594730,
+      "tag": "0001_note_revision",
+      "breakpoints": true
     }
   ]
 }
