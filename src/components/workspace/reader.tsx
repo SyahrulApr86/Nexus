@@ -2,13 +2,13 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { renderMarkdown } from "@/lib/markdown/render";
-import { toggleTask } from "@/lib/markdown/tasks";
+import { toggleTask, toggleTaskAt } from "@/lib/markdown/tasks";
 import { hydrateEmbeds, type EmbedLoader } from "@/lib/markdown/embeds-client";
 import { renderMermaid } from "@/lib/markdown/mermaid-client";
 import { renderMath } from "@/lib/markdown/math-client";
 import { api } from "./api";
 
-export { toggleTask };
+export { toggleTask, toggleTaskAt };
 
 /** Changes whenever the theme does (system preference or the data-theme attribute). */
 function useThemeKey() {
@@ -27,9 +27,22 @@ function useThemeKey() {
   return key;
 }
 
-/** The task checkboxes that belong to this note (embedded notes are read-only). */
-const ownBoxes = (root: Element) =>
-  [...root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].filter((b) => !b.closest(".embed-body"));
+/** Elements matching `selector` that belong to this note, not to an embedded one. */
+const own = <T extends Element>(root: Element, selector: string) =>
+  [...root.querySelectorAll<T>(selector)].filter((el) => !el.closest(".embed-body"));
+
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+/** Render, or show the note as escaped plain text if the renderer throws, so one odd note cannot take down the workspace. */
+function safeRender(md: string, exists: (t: string) => boolean): string {
+  try {
+    return renderMarkdown(md, exists);
+  } catch (err) {
+    console.error("Reading view: could not render note", err);
+    return `<p class="render-error">This note couldn’t be formatted, so it is shown as plain text.</p><pre class="render-plain">${escapeHtml(md)}</pre>`;
+  }
+}
 
 /** Reading view: sanitized HTML from the note, with wikilinks, tags, clickable tasks, embeds, math and diagrams. */
 export function Reader({
@@ -49,7 +62,8 @@ export function Reader({
   onToggleTask: (content: string) => void;
 }) {
   const ref = useRef<HTMLElement>(null);
-  const refocus = useRef<number | null>(null);
+  // After a task toggle: the toggled box's offset, and which own callouts were open.
+  const restore = useRef<{ offset: number; focus: boolean; open: number[] } | null>(null);
   const existsRef = useRef(exists);
   useEffect(() => {
     existsRef.current = exists;
@@ -58,15 +72,23 @@ export function Reader({
   const html = useMemo(
     () =>
       // GFM renders disabled checkboxes; this note's tasks are interactive (embeds stay read-only).
-      renderMarkdown(content, exists).replace(/(<input type="checkbox"(?: checked)?) disabled>/g, "$1>"),
+      safeRender(content, exists).replace(/(<input type="checkbox"(?: checked)?) disabled>/g, "$1>"),
     [content, exists],
   );
 
-  // React swapped the HTML, which replaced the focused checkbox: focus its replacement.
+  // React swapped the HTML after a task toggle: reopen the folded callouts that were
+  // open (the new <details> start closed), then focus the toggled box's replacement.
   useLayoutEffect(() => {
-    const i = refocus.current;
-    refocus.current = null;
-    if (i != null && ref.current) ownBoxes(ref.current)[i]?.focus({ preventScroll: true });
+    const r = restore.current;
+    restore.current = null;
+    const root = ref.current;
+    if (!r || !root) return;
+    const details = own<HTMLDetailsElement>(root, "details");
+    for (const i of r.open) if (details[i]) details[i].open = true;
+    if (r.focus)
+      own<HTMLInputElement>(root, `li[data-task-offset="${r.offset}"] input[type="checkbox"]`)[0]?.focus({
+        preventScroll: true,
+      });
   }, [html]);
 
   // Fill note embeds, then draw formulas and diagrams (in the note and in each embed).
@@ -95,7 +117,7 @@ export function Reader({
     draw(root);
     void hydrateEmbeds(root, {
       load,
-      render: (md) => renderMarkdown(md, (t) => existsRef.current(t)),
+      render: (md) => safeRender(md, (t) => existsRef.current(t)),
       signal,
       onRendered: draw,
       chain: noteId ? [noteId] : [],
@@ -145,10 +167,13 @@ export function Reader({
         if (el instanceof HTMLInputElement && el.type === "checkbox") {
           e.preventDefault();
           if (el.closest(".embed-body")) return; // embedded notes are read-only here
-          const i = ownBoxes(e.currentTarget).indexOf(el);
-          const next = toggleTask(content, i);
+          // The <li>'s source offset, not the box's position: rendered order differs
+          // from source order (footnote definitions move to the end).
+          const at = Number(el.closest("li[data-task-offset]")?.getAttribute("data-task-offset"));
+          const next = toggleTaskAt(content, at);
           if (next === content) return;
-          if (document.activeElement === el) refocus.current = i;
+          const open = own<HTMLDetailsElement>(e.currentTarget, "details").flatMap((d, i) => (d.open ? [i] : []));
+          restore.current = { offset: at, focus: document.activeElement === el, open };
           onToggleTask(next);
           return;
         }

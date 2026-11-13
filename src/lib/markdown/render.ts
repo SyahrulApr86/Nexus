@@ -36,15 +36,51 @@ const schema: SanitizeSchema = {
       ["dataCallout", ...callouts],
     ],
     details: [["className", "callout"], ["dataCallout", ...callouts], "open"],
+    // Source offset of a task's box, so a click toggles that exact task (see tasks.ts).
+    li: [...(defaultSchema.attributes?.li ?? []), ["dataTaskOffset", /^\d+$/]],
     summary: [...(defaultSchema.attributes?.summary ?? []), ["className", "callout-title"]],
   },
 };
+
+type TaskNode = {
+  type: string;
+  checked?: boolean | null;
+  position?: { start: { offset?: number } };
+  data?: { hProperties?: Record<string, unknown> };
+  children?: TaskNode[];
+};
+
+/**
+ * Put each task item's source offset (of its `[ ]` box, in the original note) on the
+ * rendered <li>. Rendered order is not source order (footnote definitions move to the
+ * end, unused ones vanish), so a click is mapped by this offset, never by position.
+ */
+function remarkTaskOffsets() {
+  return (tree: TaskNode, file: { value: unknown; data: object }) => {
+    const text = String(file.value);
+    const toSource = (file.data as { toSource?: (pos: number) => number }).toSource;
+    if (!toSource) return;
+    const walk = (n: TaskNode) => {
+      if (n.type === "listItem" && typeof n.checked === "boolean") {
+        const start = n.position?.start.offset ?? 0;
+        const m = /\[[ xX]\]/.exec(text.slice(start, start + 64));
+        if (m) {
+          n.data ??= {};
+          n.data.hProperties = { ...n.data.hProperties, dataTaskOffset: String(toSource(start + m.index + 1)) };
+        }
+      }
+      n.children?.forEach(walk);
+    };
+    walk(tree);
+  };
+}
 
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
   .use(remarkMath)
   .use(remarkFrontmatter, ["yaml"])
+  .use(remarkTaskOffsets)
   .use(remarkCallouts)
   .use(remarkRehype)
   .use(rehypeSanitize, schema)
@@ -70,7 +106,7 @@ const MARK_CLOSE = "";
  *   stray $         -> \$ (only real formulas reach remark-math)
  * Code spans, code blocks and formulas are left untouched.
  */
-function preprocess(md: string, exists: (target: string) => boolean): string {
+function preprocess(md: string, exists: (target: string) => boolean): { text: string; toInput: (pos: number) => number } {
   const code = maskCode(md);
   const { escapes, spans } = scanMath(code);
   const blanked = blankSpans(code, spans);
@@ -112,19 +148,45 @@ function preprocess(md: string, exists: (target: string) => boolean): string {
   edits.sort((a, b) => a.from - b.from);
   let out = "";
   let pos = 0;
+  // Where each applied edit ends, in output and input coordinates (for toInput).
+  const ends: { out: number; src: number }[] = [];
   for (const e of edits) {
     if (e.from < pos) continue; // overlapping, skip
     out += md.slice(pos, e.from) + e.text;
     pos = e.to;
+    ends.push({ out: out.length, src: pos });
   }
-  return out + md.slice(pos);
+  // An output offset outside every edit, back in `md` coordinates.
+  const toInput = (p: number) => {
+    let lo = 0;
+    let hi = ends.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (ends[mid].out <= p) lo = mid + 1;
+      else hi = mid;
+    }
+    const last = lo ? ends[lo - 1] : { out: 0, src: 0 };
+    return p - last.out + last.src;
+  };
+  return { text: out + md.slice(pos), toInput };
 }
 
 export function renderMarkdown(md: string, exists: (target: string) => boolean): string {
-  const { yaml, body } = splitFrontmatter(md);
+  const { yaml, body, offset } = splitFrontmatter(md);
   // Markers typed by the user are removed first, so only our own pairs remain.
-  const clean = body.replace(/[]/g, "");
-  const html = String(processor.processSync(preprocess(stripComments(clean), exists)));
+  const removed: number[] = [];
+  const clean = body.replace(/[]/g, (_, i: number) => {
+    removed.push(i);
+    return "";
+  });
+  const { text, toInput } = preprocess(stripComments(clean), exists);
+  // Preprocessed offset -> offset in `md` (comments keep their length when blanked).
+  const toSource = (p: number) => {
+    let i = toInput(p);
+    for (const r of removed) if (r <= i) i++;
+    return i + offset;
+  };
+  const html = String(processor.processSync({ value: text, data: { toSource } }));
   const marked = html
     // Mark dangling links (title="ghost" survives sanitize) with a class.
     .replace(/<a href="wikilink:([^"]*)" title="ghost">/g, '<a href="wikilink:$1" class="ghost">')

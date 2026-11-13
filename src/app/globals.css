@@ -606,6 +606,14 @@
     overflow-x: auto;
     overflow-y: hidden;
   }
+  .reading .render-error {
+    color: var(--muted);
+    font-size: 0.9em;
+  }
+  .reading .render-plain {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
   .reading .mermaid-error {
     margin: 1em 0 0.25em;
     font-family: var(--font-ui);
