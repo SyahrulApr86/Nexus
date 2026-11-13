@@ -340,6 +340,10 @@ function useWorkspaceState(user: User) {
   const saveProblemShown = useRef(false);
   const signedOut = useRef(false); // a save got 401: stop retrying until a save succeeds again
   const saveToasts = useRef<number[]>([]); // save-problem toasts, cleared once saving works again
+  const lastFail = useRef(new Map<string, number>()); // status of each note's last failed save
+  const stuckToasts = useRef(new Map<string, number>()); // one toast per note whose save can't be retried
+  const gone = useRef(new Set<string>()); // saves got 404: the note was deleted elsewhere; text kept as a draft
+  const recoverRef = useRef<(id: string) => void>(() => {});
   const focusRequest = useRef<FocusRequest | null>(null);
   const navSeq = useRef(0);
   const toastSeq = useRef(0);
@@ -571,6 +575,12 @@ function useWorkspaceState(user: User) {
         try {
           const r = await api.save(id, p.content);
           signedOut.current = false;
+          lastFail.current.delete(id);
+          const stuck = stuckToasts.current.get(id);
+          if (stuck !== undefined) {
+            stuckToasts.current.delete(id);
+            dismissToast(stuck);
+          }
           if (!pending.current.has(id)) clearDraft(id);
           setNotes((m) => (m[id] ? { ...m, [id]: { ...m[id], updatedAt: r.updatedAt } } : m));
           if (saveProblemShown.current && !pending.current.size) {
@@ -581,6 +591,7 @@ function useWorkspaceState(user: User) {
           setVersion((v) => v + 1);
         } catch (err) {
           const status = err instanceof ApiError ? err.status : 0;
+          lastFail.current.set(id, status);
           // Re-queue only if nothing newer was typed meanwhile; the newer edit wins.
           if (!pending.current.has(id)) pending.current.set(id, { content: p.content });
           writeDraft(id, pending.current.get(id)!.content);
@@ -610,11 +621,25 @@ function useWorkspaceState(user: User) {
                 ),
               );
           } else {
-            saveToasts.current.push(
-              notify(`Couldn’t save “${notesRef.current[id]?.name ?? "this note"}”. ${(err as Error).message}`, {
-                tone: "error",
-              }),
-            );
+            const name = notesRef.current[id]?.name ?? "this note";
+            if (status === 404) {
+              // Deleted elsewhere: retrying can never work. Keep the text as a draft and offer to save it anew.
+              const e = pending.current.get(id);
+              if (e?.timer) clearTimeout(e.timer);
+              pending.current.delete(id);
+              gone.current.add(id);
+            }
+            // One toast per note, however often the save is tried again.
+            if (!stuckToasts.current.has(id))
+              stuckToasts.current.set(
+                id,
+                status === 404
+                  ? notify(`Couldn’t save “${name}”. It was deleted, maybe on another device. Your text is kept on this device.`, {
+                      tone: "error",
+                      action: { label: "Save as new note", run: () => recoverRef.current(id) },
+                    })
+                  : notify(`Couldn’t save “${name}”. ${(err as Error).message}`, { tone: "error" }),
+              );
           }
           saveProblemShown.current = true;
           setSave("error");
@@ -623,6 +648,7 @@ function useWorkspaceState(user: User) {
           savingNow.current.delete(id);
         }
         if (pending.current.size) setSave("dirty");
+        else if (gone.current.size) setSave("error");
         else if (!savingNow.current.size) setSave("saved");
         // An edit whose timer fired while this save ran is still waiting: send it now.
         if (pending.current.has(id) && !pending.current.get(id)!.timer) void flushRef.current(id);
@@ -655,9 +681,14 @@ function useWorkspaceState(user: User) {
   const onChange = useCallback(
     (id: string, content: string) => {
       live.current.set(id, content);
-      const prev = pending.current.get(id);
-      pending.current.set(id, { content, timer: prev?.timer });
-      if (!signedOut.current) {
+      if (gone.current.has(id)) {
+        // Deleted elsewhere: nothing to save to. Keep the newest text on this device.
+        writeDraft(id, content);
+      } else {
+        const prev = pending.current.get(id);
+        pending.current.set(id, { content, timer: prev?.timer });
+      }
+      if (!signedOut.current && !gone.current.has(id)) {
         schedule(id, SAVE_DELAY);
         if (saveRef.current !== "dirty") setSave("dirty");
       }
@@ -696,15 +727,19 @@ function useWorkspaceState(user: User) {
       }
     };
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (pending.current.size || savingNow.current.size || signedOut.current || saveRef.current === "error") {
+      if (pending.current.size || savingNow.current.size || signedOut.current || gone.current.size) {
         keepDrafts();
         e.preventDefault();
       }
     };
     // Back from signing in on another tab, or back online: try again at once.
+    // Only saves that failed for a passing reason are retried; a 400 or 413 would just fail again.
     const onReturn = () => {
-      if (!pending.current.size || (!signedOut.current && saveRef.current !== "error")) return;
-      void flushAll();
+      for (const id of [...pending.current.keys()]) {
+        const s = lastFail.current.get(id);
+        // Edits typed while signed out never tried to save, so they have no failure yet.
+        if (s === undefined ? signedOut.current : s === 401 || retryable(s)) void flush(id);
+      }
     };
     document.addEventListener("visibilitychange", onHide);
     window.addEventListener("pagehide", onPageHide);
@@ -718,7 +753,7 @@ function useWorkspaceState(user: User) {
       window.removeEventListener("focus", onReturn);
       window.removeEventListener("online", onReturn);
     };
-  }, [flush, flushAll, setSave]);
+  }, [flush]);
 
   /* ---------------- navigation ---------------- */
 
@@ -1019,6 +1054,11 @@ function useWorkspaceState(user: User) {
       if (p?.timer) clearTimeout(p.timer);
       pending.current.delete(id);
       live.current.delete(id);
+      gone.current.delete(id);
+      lastFail.current.delete(id);
+      const t = stuckToasts.current.get(id);
+      stuckToasts.current.delete(id);
+      if (t !== undefined) dismissToast(t);
       clearDraft(id);
     }
     setNotes((m) => {
@@ -1026,7 +1066,32 @@ function useWorkspaceState(user: User) {
       for (const id of ids) delete next[id];
       return next;
     });
-  }, []);
+  }, [dismissToast]);
+
+  /** "Save as new note" for a note deleted elsewhere while it had unsaved text. */
+  const recoverDeleted = useCallback(
+    async (id: string) => {
+      const content = live.current.get(id) ?? readDraft(id)?.content ?? notesRef.current[id]?.content ?? "";
+      const base = notesRef.current[id]?.path ?? "Recovered note";
+      const taken = new Set(treeRef.current.notes.map((n) => n.path.toLowerCase()));
+      let path = `${base} (recovered)`;
+      for (let i = 2; taken.has(path.toLowerCase()); i++) path = `${base} (recovered ${i})`;
+      const n = await createAndOpen(path, content, "current", "editor");
+      if (!n) return; // createAndOpen showed why; the draft and the warning stay
+      gone.current.delete(id);
+      lastFail.current.delete(id);
+      const t = stuckToasts.current.get(id);
+      stuckToasts.current.delete(id);
+      if (t !== undefined) dismissToast(t);
+      dispatch({ type: "drop", ids: new Set([id]) });
+      forget([id]);
+      if (!pending.current.size && !savingNow.current.size && !gone.current.size && !signedOut.current) setSave("saved");
+    },
+    [createAndOpen, dismissToast, forget, setSave],
+  );
+  useLayoutEffect(() => {
+    recoverRef.current = (id) => void recoverDeleted(id);
+  });
 
   const deleteNote = useCallback(
     async (n: { id: string; name: string }) => {
