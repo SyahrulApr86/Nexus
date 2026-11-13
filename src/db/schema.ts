@@ -4,6 +4,7 @@ import {
   check,
   customType,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -223,6 +224,26 @@ export const noteRevision = pgTable(
       "note_revision_reason_check",
       sql`${t.reason} in (${sql.raw(revisionReasons.map((r) => `'${r}'`).join(", "))})`,
     ),
+  ],
+);
+
+/** Bookmarked notes (Obsidian's Bookmarks core plugin, notes only for now), ordered by `position`. */
+export const bookmark = pgTable(
+  "bookmark",
+  {
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => vault.id, { onDelete: "cascade" }),
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => note.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.vaultId, t.noteId] }),
+    // The primary key leads with vault_id; deleting a note cascades by note_id.
+    index("bookmark_note_idx").on(t.noteId),
   ],
 );
 
