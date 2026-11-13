@@ -6,13 +6,9 @@ import { openNote, openSettings } from "./support/workspace";
 /**
  * Known violations, reported to the app owners and listed here so the suite still catches every new
  * one. Each match is noted as an annotation in the report; remove the entry once the app is fixed.
- * - target-size on .props-chip-x: the remove button on a list property chip (tags) is 20x20 px
- *   with a pointer that is not coarse and sits against the chip's own button, so it fails WCAG 2.2
- *   SC 2.5.8 (24 px). Phones (pointer: coarse) already get 32 px.
+ * Empty: the last entry (target-size on .props-chip-x) was fixed by sizing the button 24x24 px.
  */
-const KNOWN: { id: string; target: string; projects: RegExp }[] = [
-  { id: "target-size", target: ".props-chip-x", projects: /^desktop-/ },
-];
+const KNOWN: { id: string; target: string; projects: RegExp }[] = [];
 
 /**
  * Accessibility smoke test: axe-core with the WCAG 2.x A and AA rules (2.2 included) on the main
