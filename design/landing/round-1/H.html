@@ -1,0 +1,103 @@
+<!doctype html>
+<!-- Classification: INTERNAL -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus</title>
+<style>
+@font-face {
+  font-family: "Archivo";
+  src: url("fonts/archivo/Archivo%5Bwdth,wght%5D.ttf") format("truetype");
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Archivo";
+  src: url("fonts/archivo/Archivo-Italic%5Bwdth,wght%5D.ttf") format("truetype");
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-style: italic;
+  font-display: block;
+}
+
+/* Everything packed into one container: one justified, hyphenated run of text,
+   no breaks and no gaps between items. Items differ only by width, weight,
+   slope and colour inside the run. */
+:root {
+  color-scheme: light;
+  --ground: #9ED8F5;
+  --states: #02070A;
+  --kept: #014A70;
+  --marks: #6B2008;
+}
+
+html { background-color: var(--ground); }
+
+body {
+  margin: 0;
+  background-color: var(--ground);
+  color: var(--states);
+  font-family: "Archivo", "Arial Narrow", sans-serif;
+  font-kerning: normal;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.pack {
+  padding: clamp(0.75rem, 2.4vw, 2.5rem);
+  font-size: clamp(2.1rem, 1rem + 5.2vw, 6.5rem);
+  line-height: 1;
+  font-stretch: 62%;
+  font-weight: 380;
+  text-align: justify;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  hyphenate-limit-chars: 7 3 3;
+  overflow-wrap: break-word;
+}
+
+.pack > h1,
+.pack > p {
+  display: inline;
+  margin: 0;
+  font: inherit;
+  font-stretch: 62%;
+}
+
+.pack > .name {
+  font-stretch: 125%;
+  font-weight: 900;
+  color: var(--marks);
+}
+.pack > .head {
+  font-weight: 800;
+}
+.pack > .kept {
+  font-style: italic;
+  color: var(--kept);
+}
+.pack > .record {
+  font-weight: 600;
+  color: var(--marks);
+}
+.pack > .act {
+  font-stretch: 125%;
+  font-weight: 900;
+  color: var(--marks);
+}
+</style>
+</head>
+<body>
+<main class="pack">
+  <h1 class="name">Nexus</h1>
+  <p class="head">Notes that link to each other, in plain markdown.</p>
+  <p class="text">Open your vault in any browser, on any device. Type [[ to connect one note to another, and every link shows up as a backlink on the other side.</p>
+  <p class="kept">Your notes stay .md files. Export the whole vault as a .zip, open it in Obsidian, or run Nexus on your own server.</p>
+  <p class="record">Wednesday, 13&nbsp;November&nbsp;— Linked [[Project kickoff]] to [[Q4 roadmap]]. #planning</p>
+  <p class="act">Open your vault</p>
+</main>
+</body>
+</html>

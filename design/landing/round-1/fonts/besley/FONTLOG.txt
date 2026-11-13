@@ -1,0 +1,23 @@
+FONTLOG for Besley*
+===================
+
+This file includes information about the Besley* typeface by indestructible type*.
+
+Changelog
+---------
+1.0
+Original Release.<br>
+1.1
+Added the Fatface weight. Corrected kerning.
+2.0
+Redrew to make interpolatable
+2.01
+Added small caps designed by Fredrick Brennan
+3.0
+Added a Narrow and Condesed version of the font. Added Cyrillic. Added dingbats.
+4.0
+Added support for the Greek Language
+
+Contact
+-------
+If you have questions, email me at indestructibletype@gmail.com

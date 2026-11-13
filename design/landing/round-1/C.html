@@ -1,0 +1,72 @@
+<!doctype html>
+<!-- Classification: INTERNAL -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus</title>
+<style>
+@font-face {
+  font-family: "Commit Mono";
+  src: url("fonts/commit-mono/CommitMonoV143-VF.woff2") format("woff2");
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: block;
+}
+
+/* One face, one size, one weight, one colour. Structure is carried only by
+   line order, blank lines and a character-measured offset, as in a plain .md file. */
+:root {
+  color-scheme: light;
+  --ground: #0297DE;
+  --ink: #02070A;
+  --size: clamp(15px, 0.55rem + 0.75vw, 20px);
+  --line: 1.6;
+}
+
+html { background-color: var(--ground); }
+
+body {
+  margin: 0;
+  background-color: var(--ground);
+  color: var(--ink);
+  font-family: "Commit Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: var(--size);
+  font-weight: 400;
+  font-style: normal;
+  line-height: var(--line);
+  font-variant-ligatures: none;
+  overflow-wrap: break-word;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.file {
+  box-sizing: content-box;
+  max-width: 60ch;
+  padding: calc(3em * var(--line)) 2ch calc(6em * var(--line)) 2ch;
+}
+
+/* the name is not larger, bolder or differently coloured than the sentences */
+.file h1,
+.file p {
+  margin: 0 0 calc(1em * var(--line));
+  font: inherit;
+}
+
+@media (min-width: 56em) {
+  .file { padding-left: 8ch; }
+}
+</style>
+</head>
+<body>
+<main class="file">
+  <h1>Nexus</h1>
+  <p>Notes that link to each other, in plain markdown.</p>
+  <p>Open your vault in any browser, on any device. Type [[ to connect one note to another, and every link shows up as a backlink on the other side.</p>
+  <p>Your notes stay .md files. Export the whole vault as a .zip, open it in Obsidian, or run Nexus on your own server.</p>
+  <p>Open your vault</p>
+  <p>Wednesday, 13&nbsp;November&nbsp;— Linked [[Project kickoff]] to [[Q4 roadmap]]. #planning</p>
+</main>
+</body>
+</html>

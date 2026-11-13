@@ -1,0 +1,97 @@
+<!doctype html>
+<!-- Classification: INTERNAL -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus</title>
+<style>
+@font-face {
+  font-family: "Besley";
+  src: url("fonts/besley/Besley%5Bwdth,wght%5D.woff2") format("woff2");
+  font-weight: 400 900;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: block;
+}
+
+/* A full-text search for "link", set as a keyword-in-context index:
+   every occurrence of the word starts on one vertical axis, in the heaviest weight.
+   Copy that does not contain the word keeps its place around the axis in the second colour. */
+:root {
+  color-scheme: light;
+  --ground: #E9ECEE;
+  --hit: #02070A;
+  --miss: #4F5B62;
+  --axis: 54%;
+}
+
+html { background-color: var(--ground); }
+
+body {
+  margin: 0;
+  background-color: var(--ground);
+  color: var(--hit);
+  font-family: "Besley", "Rockwell", "Century Schoolbook", serif;
+  font-weight: 400;
+  font-stretch: 75%;
+  font-kerning: normal;
+  font-variant-numeric: lining-nums tabular-nums;
+  overflow-wrap: break-word;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.kwic {
+  padding: clamp(1.5rem, 6vh, 4.5rem) clamp(1rem, 6vw, 6rem) clamp(3rem, 10vh, 7rem);
+  font-size: clamp(1.0625rem, 0.84rem + 0.95vw, 1.75rem);
+  line-height: 1.32;
+}
+
+/* every item shares the same two cells: context before the axis, context after it */
+.kwic > h1,
+.kwic > p {
+  display: grid;
+  grid-template-columns: minmax(0, var(--axis)) minmax(0, 1fr);
+  align-items: start;
+  margin: 0;
+  font: inherit;
+}
+.kwic > * + * { margin-top: 1.05em; }
+
+.pre {
+  grid-column: 1;
+  text-align: right;
+  padding-right: 0.2em;   /* the word space that a right edge would otherwise swallow */
+}
+.pre.joined { padding-right: 0; }
+.post {
+  grid-column: 2;
+  text-align: left;
+}
+b { font-weight: 900; }
+
+.miss { color: var(--miss); }
+.kwic > .name {
+  font-size: 2.3em;
+  font-stretch: 100%;
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+@media (min-width: 48em) {
+  :root { --axis: 46%; }
+}
+</style>
+</head>
+<body>
+<main class="kwic">
+  <h1 class="miss name"><span class="pre">Nexus</span></h1>
+  <p><span class="pre">Notes that </span><span class="post"><b>link</b> to each other, in plain markdown.</span></p>
+  <p><span class="pre">Open your vault in any browser,</span> <span class="pre">on any device. Type [[ to connect</span> <span class="pre">one note to another, and</span> <span class="pre">every </span><span class="post"><b>link</b> shows up as a</span> <span class="pre joined">back</span><span class="post"><b>link</b> on the other side.</span></p>
+  <p class="miss"><span class="post">Your notes stay .md files. Export the whole vault as a .zip, open it in Obsidian, or run Nexus on your own server.</span></p>
+  <p><span class="pre">Wednesday,</span> <span class="pre">13&nbsp;November&nbsp;— </span><span class="post"><b>Link</b>ed [[Project kickoff]] to [[Q4 roadmap]]. #planning</span></p>
+  <p class="miss"><span class="pre">Open your vault</span></p>
+</main>
+</body>
+</html>

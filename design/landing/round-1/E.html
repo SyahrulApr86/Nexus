@@ -1,0 +1,116 @@
+<!doctype html>
+<!-- Classification: INTERNAL -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus</title>
+<style>
+@font-face {
+  font-family: "Andika";
+  src: url("fonts/andika/Andika-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Andika";
+  src: url("fonts/andika/Andika-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  color-scheme: dark;
+  --ground: #01334D;
+  --said: #E3F3FC;
+  --reach: #7FCDF3;
+  --text: 1.0625rem;
+}
+
+html { background-color: var(--ground); }
+
+body {
+  margin: 0;
+  background-color: var(--ground);
+  color: var(--said);
+  font-family: "Andika", "Verdana", sans-serif;
+  font-weight: 400;
+  font-kerning: normal;
+  overflow-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+h1, p { margin: 0; }
+
+/* everything sits at the lower edge of the first screen, where a thumb reaches;
+   the field above stays empty */
+.reach {
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding:
+    clamp(2rem, 8vh, 5rem)
+    clamp(1rem, 5.5vw, 5.5rem)
+    clamp(1.25rem, 3.2vh, 2.25rem);
+}
+
+.stack {
+  width: 100%;
+  max-width: 24rem;
+}
+
+/* one phrase per line, the length of a quick capture */
+.stack p > span { display: block; }
+
+.name {
+  font-size: 2.125rem;
+  font-weight: 700;
+  line-height: 1.05;
+  margin-bottom: 0.4rem;
+}
+.head {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-bottom: 1.05rem;
+}
+.text {
+  font-size: var(--text);
+  line-height: 1.4;
+  margin-bottom: 0.85rem;
+}
+.capture {
+  font-size: var(--text);
+  line-height: 1.4;
+  color: var(--reach);
+}
+.act {
+  margin-top: 1.25rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--reach);
+}
+</style>
+</head>
+<body>
+<main class="reach">
+  <div class="stack">
+    <h1 class="name">Nexus</h1>
+    <p class="head"><span>Notes that link to each other,</span> <span>in plain markdown.</span></p>
+    <p class="text"><span>Open your vault in any browser,</span> <span>on any device.</span> <span>Type [[ to connect one note to another,</span> <span>and every link shows up as a backlink</span> <span>on the other side.</span></p>
+    <p class="text"><span>Your notes stay .md files.</span> <span>Export the whole vault as a .zip,</span> <span>open it in Obsidian,</span> <span>or run Nexus on your own server.</span></p>
+    <p class="capture"><span>Wednesday, 13&nbsp;November&nbsp;—</span> <span>Linked [[Project&nbsp;kickoff]]</span> <span>to [[Q4&nbsp;roadmap]]. #planning</span></p>
+    <p class="act">Open your vault</p>
+  </div>
+</main>
+</body>
+</html>

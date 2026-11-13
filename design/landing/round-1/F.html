@@ -1,0 +1,86 @@
+<!doctype html>
+<!-- Classification: INTERNAL -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus</title>
+<style>
+@font-face {
+  font-family: "Commissioner";
+  src: url("fonts/commissioner/Commissioner%5BFLAR,VOLM,slnt,wght%5D.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: block;
+}
+
+/* One colour. Two speeds of the same family:
+   quick captures are heavy, slanted, plain-stroked and tight;
+   long-session text is light, upright, flared and open. */
+:root {
+  color-scheme: light;
+  --ground: #FFE6DD;
+  --ink: #02070A;
+  --axis: clamp(1.25rem, 8vw, 8.5rem);
+}
+
+html { background-color: var(--ground); }
+
+body {
+  margin: 0;
+  background-color: var(--ground);
+  color: var(--ink);
+  font-family: "Commissioner", "Avenir Next", "Segoe UI", sans-serif;
+  font-kerning: normal;
+  overflow-wrap: break-word;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+h1, p { margin: 0; }
+
+.tempo {
+  padding: clamp(1.5rem, 6vh, 4rem) clamp(1.25rem, 6vw, 6rem) clamp(4rem, 12vh, 8rem) var(--axis);
+}
+
+.fast {
+  font-weight: 860;
+  font-variation-settings: "slnt" -12, "FLAR" 0, "VOLM" 0;
+  font-size: clamp(2.25rem, 1.15rem + 3.6vw, 4.6rem);
+  line-height: 0.96;
+  letter-spacing: -0.018em;
+  margin-top: clamp(1.5rem, 4vh, 2.5rem);
+}
+.fast:first-child { margin-top: 0; }
+.fast > span { display: block; }
+
+.slow {
+  font-weight: 320;
+  font-variation-settings: "slnt" 0, "FLAR" 100, "VOLM" 40;
+  font-size: clamp(1.125rem, 1rem + 0.42vw, 1.4rem);
+  line-height: 1.75;
+  letter-spacing: 0.008em;
+  word-spacing: 0.05em;
+  max-width: 37em;
+  margin-top: clamp(2.75rem, 8vh, 5.5rem);
+}
+.slow.head {
+  font-weight: 300;
+  font-variation-settings: "slnt" 0, "FLAR" 100, "VOLM" 100;
+  font-size: clamp(1.6rem, 1.1rem + 1.7vw, 2.75rem);
+  line-height: 1.3;
+  letter-spacing: 0;
+  max-width: 20em;
+}
+</style>
+</head>
+<body>
+<main class="tempo">
+  <h1 class="fast">Nexus</h1>
+  <p class="slow head">Notes that link to each other, in plain markdown.</p>
+  <p class="slow">Open your vault in any browser, on any device. Type [[ to connect one note to another, and every link shows up as a backlink on the other side.</p>
+  <p class="fast"><span>Wednesday,</span> <span>13&nbsp;November&nbsp;—</span> <span>Linked</span> <span>[[Project&nbsp;kickoff]]</span> <span>to [[Q4&nbsp;roadmap]].</span> <span>#planning</span></p>
+  <p class="slow">Your notes stay .md files. Export the whole vault as a .zip, open it in Obsidian, or run Nexus on your own server.</p>
+  <p class="fast">Open your vault</p>
+</main>
+</body>
+</html>
