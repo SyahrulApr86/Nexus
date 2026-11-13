@@ -7,7 +7,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type KeyboardEvent,
   type RefObject,
 } from "react";
@@ -16,20 +15,8 @@ import { useWorkspace, currentView, type View, type Tab } from "./store";
 import { Editor } from "./editor";
 import { Reader } from "./reader";
 import { GraphView } from "./graph-view";
-import { Bar, IconButton, Menu, Shortcut, isMac, useMenu, type MenuItem } from "./ui";
+import { Bar, IconButton, Menu, Shortcut, useMenu, type MenuItem } from "./ui";
 import { dirname } from "@/lib/markdown/parse";
-
-const noopSubscribe = () => () => {};
-
-/** Format "Mod+O" style keys for tooltips: ⌘ on a Mac, Ctrl elsewhere. */
-export function useShortcutText() {
-  const mac = useSyncExternalStore(noopSubscribe, isMac, () => false);
-  return (keys: string) =>
-    keys
-      .split("+")
-      .map((k) => (k === "Mod" ? (mac ? "⌘" : "Ctrl") : !mac ? k : k === "Alt" ? "⌥" : k === "Ctrl" ? "⌃" : k === "Shift" ? "⇧" : k))
-      .join(mac ? "" : "+");
-}
 
 /** Focus an element once it exists (checked each frame, for up to half a second). */
 function focusWhenReady(find: () => HTMLElement | null | undefined, tries = 30) {
@@ -55,7 +42,6 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
   const g = w.layout.groups[gi];
   const title = useViewTitle();
   const menu = useMenu();
-  const keys = useShortcutText();
   const [menuTab, setMenuTab] = useState(0);
 
   // Wait until the tab is the selected one: view transitions can hold the commit for a few frames.
@@ -98,14 +84,14 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
   };
 
   const items: MenuItem[] = [
-    { label: "Close", shortcut: "Alt+W", onSelect: () => closeAndRefocus(menuTab) },
-    { label: "Close others", onSelect: () => w.actions.closeOthers(gi, menuTab), disabled: g.tabs.length < 2 },
+    { label: "Close tab", shortcut: "Alt+W", onSelect: () => closeAndRefocus(menuTab) },
+    { label: "Close other tabs", onSelect: () => w.actions.closeOthers(gi, menuTab), disabled: g.tabs.length < 2 },
     "separator",
     { label: "Open to the right", onSelect: () => w.actions.splitTab(gi, menuTab) },
   ];
 
   return (
-    <div className="hidden h-10 shrink-0 items-end gap-1 pl-4 pr-2 md:flex">
+    <div className="hidden h-10 shrink-0 items-end gap-1 pl-4 pr-2 md:flex pointer-coarse:h-12">
       {/* pb-px lets the selected tab paint over the sheet's top hairline; pl-4 clears the sheet's rounded corner. */}
       <div role="tablist" aria-label={w.layout.groups.length > 1 ? `Tabs, group ${gi + 1}` : "Tabs"} className="relative z-10 -mb-px flex min-w-0 items-end gap-0.5 overflow-x-auto overflow-y-hidden pb-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {g.tabs.map((t: Tab, i) => {
@@ -127,7 +113,7 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
                   setMenuTab(i);
                   menu.openAt(e);
                 }}
-                className={`relative flex h-9 max-w-56 items-center gap-1.5 rounded-t-lg pl-3 pr-8 text-[13px] outline-offset-[-2px] transition-colors ${
+                className={`relative flex h-9 max-w-56 items-center gap-1.5 rounded-t-lg pl-3 pr-8 text-[13px] pointer-coarse:h-11 pointer-coarse:pr-10 outline-offset-[-2px] transition-colors ${
                   selected
                     ? "z-10 -mb-px border border-b-0 border-border bg-sheet text-fg"
                     : "text-muted hover:bg-hover hover:text-fg"
@@ -137,7 +123,9 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
                   <span aria-hidden="true" className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-accent" />
                 )}
                 {v.type === "graph" && <GitFork aria-hidden="true" className="size-3.5 shrink-0 stroke-[1.5] text-faint" />}
-                <span className="truncate">{title(v)}</span>
+                <span className="truncate" translate={v.type === "note" ? "no" : undefined}>
+                  {title(v)}
+                </span>
               </button>
               <button
                 type="button"
@@ -145,7 +133,8 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
                 aria-hidden="true"
                 title="Close tab"
                 onClick={() => w.actions.closeTab(gi, i)}
-                className={`absolute right-1.5 top-1/2 z-20 grid size-6 -translate-y-1/2 place-items-center rounded text-faint transition-opacity hover:bg-hover hover:text-fg ${
+                // 24px to see, 44px to touch: the ::after pad widens the hit area on coarse pointers.
+                className={`absolute right-1.5 top-1/2 z-20 grid size-6 -translate-y-1/2 place-items-center rounded text-faint transition-opacity hover:bg-hover hover:text-fg pointer-coarse:right-2.5 pointer-coarse:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 ${
                   selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                 }`}
               >
@@ -155,7 +144,7 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
           );
         })}
       </div>
-      <IconButton label="New tab" shortcut={keys("Alt+T")} className="mb-0.5 size-7" onClick={() => w.actions.openView({ type: "empty" }, "tab")}>
+      <IconButton label="New tab" shortcut="Alt+T" className="mb-0.5 size-7 pointer-coarse:size-11" onClick={() => w.actions.openView({ type: "empty" }, "tab")}>
         <Plus />
       </IconButton>
       <div className="flex-1" />
@@ -192,12 +181,29 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
 function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
   const w = useWorkspace();
   const title = useViewTitle();
-  const keys = useShortcutText();
   const more = useMenu();
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const [moving, setMoving] = useState(false);
   const note = view.type === "note" ? w.notes[view.id] : undefined;
   const canBack = !!tab && tab.index > 0;
   const canForward = !!tab && tab.index < tab.history.length - 1;
-  const folders = note ? dirname(note.path).split("/").filter(Boolean) : [];
+  // The tree has the path and name before the note body arrives, so the breadcrumb is final from the start.
+  const known = view.type === "note" ? w.tree.notes.find((n) => n.id === view.id) : undefined;
+  const path = note?.path ?? known?.path;
+  const folders = path ? dirname(path).split("/").filter(Boolean) : [];
+  const current = view.type !== "note" || note || known ? title(view) : "";
+
+  /** Destination folders for "Move to…": the vault root, then every folder. */
+  const moveItems = (n: { id: string; path: string }): MenuItem[] => {
+    const here = dirname(n.path);
+    const all = [...w.tree.folders].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return [{ path: "", label: "Vault root" }, ...all.map((f) => ({ path: f, label: f }))].map((f) => ({
+      label: f.label,
+      checked: f.path === here,
+      disabled: f.path === here,
+      onSelect: () => w.actions.moveNote(n.id, f.path),
+    }));
+  };
 
   const go = (delta: -1 | 1) => {
     w.actions.focusGroup(gi);
@@ -211,7 +217,14 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
         { label: "Open to the right", onSelect: () => w.actions.open(note.id, "split") },
         "separator",
         { label: "Rename…", onSelect: () => w.actions.renameNote(note) },
-        { label: "Move to…", onSelect: () => w.actions.renameNote(note) },
+        {
+          label: "Move to…",
+          // A second menu at the same button: pick the destination folder.
+          onSelect: () => {
+            setMoving(true);
+            if (moreButton.current) more.openBelow(moreButton.current);
+          },
+        },
         { label: "Reveal in file explorer", onSelect: () => w.actions.reveal(note.path) },
         { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(`${note.path}.md`).then(() => w.actions.notify("Path copied")) },
         "separator",
@@ -221,10 +234,10 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
 
   return (
     <div className="hidden h-11 shrink-0 items-center gap-1 px-2 md:flex">
-      <IconButton label="Navigate back" shortcut={keys("Ctrl+Alt+←")} disabled={!canBack} onClick={() => go(-1)}>
+      <IconButton label="Navigate back" shortcut="Ctrl+Alt+←" disabled={!canBack} onClick={() => go(-1)}>
         <ArrowLeft />
       </IconButton>
-      <IconButton label="Navigate forward" shortcut={keys("Ctrl+Alt+→")} disabled={!canForward} onClick={() => go(1)}>
+      <IconButton label="Navigate forward" shortcut="Ctrl+Alt+→" disabled={!canForward} onClick={() => go(1)}>
         <ArrowRight />
       </IconButton>
       <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 justify-center px-2">
@@ -234,6 +247,7 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
               <button
                 type="button"
                 onClick={() => w.actions.reveal(`${folders.slice(0, i + 1).join("/")}/x`)}
+                translate="no"
                 className="truncate rounded px-1 text-faint hover:bg-hover hover:text-fg"
               >
                 {f}
@@ -243,15 +257,15 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
               </span>
             </li>
           ))}
-          <li className="min-w-0 truncate px-1 text-muted" aria-current="page">
-            {title(view)}
+          <li className="min-w-0 truncate px-1 text-muted" aria-current="page" translate={view.type === "note" ? "no" : undefined}>
+            {current}
           </li>
         </ol>
       </nav>
       {view.type === "note" && (
         <IconButton
           label={view.mode === "edit" ? "Switch to reading view" : "Switch to editing view"}
-          shortcut={keys("Mod+E")}
+          shortcut="Mod+E"
           onClick={() => {
             w.actions.focusGroup(gi);
             w.actions.setMode();
@@ -260,10 +274,26 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
           {view.mode === "edit" ? <BookOpen /> : <Pencil />}
         </IconButton>
       )}
-      <IconButton label="More options" aria-haspopup="menu" aria-expanded={!!more.anchor} onClick={(e) => more.openBelow(e.currentTarget)}>
+      <IconButton
+        ref={moreButton}
+        label="More options"
+        aria-haspopup="menu"
+        aria-expanded={!!more.anchor}
+        onClick={(e) => {
+          setMoving(false);
+          more.openBelow(e.currentTarget);
+        }}
+      >
         <EllipsisVertical />
       </IconButton>
-      {more.anchor && <Menu anchor={more.anchor} label="More options" items={items} onClose={more.close} />}
+      {more.anchor && (
+        <Menu
+          anchor={more.anchor}
+          label={moving && note ? `Move ${note.name} to` : "More options"}
+          items={moving && note ? moveItems(note) : items}
+          onClose={more.close}
+        />
+      )}
     </div>
   );
 }
@@ -436,13 +466,19 @@ function NoteView({ id, mode, gi, focused, onClose }: { id: string; mode: "edit"
   );
 }
 
-function NoteSkeleton() {
+/** Placeholder laid out like NoteView: same padding, a title line and 28px text lines, so nothing moves when the note arrives. */
+function NoteSkeleton({ label = "Loading note…" }: { label?: string }) {
   return (
-    <div className="mx-auto max-w-[42rem] space-y-4 px-6 pt-6 md:px-10" aria-label="Loading note">
-      <Bar w="45%" h={28} />
-      <Bar w="100%" h={14} />
-      <Bar w="92%" h={14} />
-      <Bar w="76%" h={14} />
+    <div className="mx-auto w-full max-w-[42rem] px-5 pb-8 pt-4 md:px-10 md:pt-6" role="status" aria-busy="true">
+      <span className="sr-only">{label}</span>
+      <div className="mb-4 flex h-8 items-center md:h-9">
+        <Bar w="45%" h={22} />
+      </div>
+      {["100%", "92%", "96%", "76%"].map((width, i) => (
+        <div key={i} className="flex h-7 items-center">
+          <Bar w={width} h={12} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -472,7 +508,7 @@ function EmptyView({ gi }: { gi: number }) {
           {g?.tabs.length > 0 && (
             <li>
               <button type="button" onClick={() => w.actions.closeTab(gi, g.active)} className="w-full rounded-md px-2 py-1.5 text-left text-muted hover:bg-sheet-hover">
-                Close
+                Close tab
               </button>
             </li>
           )}
@@ -534,7 +570,7 @@ export function TabGroup({ gi }: { gi: number }) {
             ) : view.type === "graph" ? (
               <GraphView />
             ) : w.restoring ? (
-              <NoteSkeleton />
+              <NoteSkeleton label="Opening your tabs…" />
             ) : (
               <EmptyView gi={gi} />
             )}
