@@ -11,7 +11,13 @@ const literata = Literata({
   style: ["normal", "italic"],
   display: "swap",
 });
-const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"], display: "swap" });
+// Italic is loaded too: code inside emphasis and comment tokens is set in the real italic, not a synthesized slant.
+const jetbrains = JetBrains_Mono({
+  variable: "--font-jetbrains",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: { default: "Nexus", template: "%s · Nexus" },

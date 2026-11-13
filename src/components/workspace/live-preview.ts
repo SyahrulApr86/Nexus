@@ -18,7 +18,7 @@
  * that from plugins), and any unexpected parser edge case falls back to no
  * decorations instead of breaking the editor.
  */
-import { Prec, type Extension, type Range, type EditorState } from "@codemirror/state";
+import { EditorSelection, Prec, type Extension, type Range, type EditorState } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -79,9 +79,11 @@ class CheckboxWidget extends WidgetType {
     box.checked = this.checked;
     box.setAttribute("aria-label", this.label ? `Task: ${this.label}` : "Task");
   }
-  ignoreEvent() {
-    // Let the checkbox own its events so clicking it neither moves the cursor nor reveals the source.
-    return true;
+  ignoreEvent(e: Event) {
+    // The checkbox owns its pointer events and Space, so clicking it neither moves the cursor nor
+    // reveals the source. Modified keys (Ctrl/Cmd+Z, Mod-L, Ctrl+F, ...) still reach the editor's
+    // keymap, so undo works right after a toggle while the checkbox keeps focus.
+    return !(e instanceof KeyboardEvent && (e.ctrlKey || e.metaKey || e.altKey));
   }
 }
 
@@ -144,7 +146,7 @@ function activeLines(view: EditorView): Set<number> {
 }
 
 /** End offset of a leading YAML frontmatter block, or 0. Frontmatter stays as source. */
-function frontmatterEnd(state: EditorState): number {
+export function frontmatterEnd(state: EditorState): number {
   const { doc } = state;
   if (doc.lines < 2 || doc.line(1).text !== "---") return 0;
   for (let n = 2; n <= Math.min(doc.lines, 200); n++) {
@@ -215,8 +217,17 @@ function toggleChecklist(view: EditorView) {
   }
   if (!changes.length) return false;
   const cs = state.changes(changes);
-  // Map with assoc 1 so a caret sitting at the insertion point ends up after the new marker.
-  view.dispatch({ changes: cs, selection: state.selection.map(cs, 1), userEvent: "input.toggle" });
+  // A caret at the insertion point ends up after the new marker (assoc 1). A selection keeps
+  // markers inserted at its edges inside it: its start maps with assoc -1, its end with assoc 1.
+  const selection = EditorSelection.create(
+    state.selection.ranges.map((r) => {
+      if (r.empty) return r.map(cs, 1);
+      const forward = r.anchor < r.head;
+      return EditorSelection.range(cs.mapPos(r.anchor, forward ? -1 : 1), cs.mapPos(r.head, forward ? 1 : -1));
+    }),
+    state.selection.mainIndex,
+  );
+  view.dispatch({ changes: cs, selection, userEvent: "input.toggle" });
   return true;
 }
 
@@ -226,6 +237,54 @@ function safeHref(href: string): string | null {
   if (/^(?:https?:|mailto:)/i.test(h)) return h;
   if (/^www\./i.test(h)) return `https://${h}`;
   if (EMAIL.test(h)) return `mailto:${h}`;
+  return null;
+}
+
+/**
+ * The `[` that opens the link text ending at the `]` at `close`, on the same line, with
+ * balanced, unescaped brackets in between; null for empty text, an image (`![`), or no match.
+ */
+function bracketLinkOpen(state: EditorState, close: number): number | null {
+  const line = state.doc.lineAt(close);
+  const text = line.text;
+  const escaped = (i: number) => {
+    let n = 0;
+    for (let j = i - 1; j >= 0 && text[j] === "\\"; j--) n++;
+    return n % 2 === 1;
+  };
+  let depth = 0;
+  for (let i = close - line.from - 1; i >= 0; i--) {
+    const c = text[i];
+    if ((c !== "[" && c !== "]") || escaped(i)) continue;
+    if (c === "]") depth++;
+    else if (depth > 0) depth--;
+    else {
+      const open = line.from + i;
+      if (text[i - 1] === "!" || close - open < 2 || inRaw(state, open)) return null;
+      return open;
+    }
+  }
+  return null;
+}
+
+/** The link under the caret: a [[wikilink]] target, or an openable URL. */
+function linkAt(state: EditorState, pos: number): { target: string } | { href: string } | null {
+  const line = state.doc.lineAt(pos);
+  const col = pos - line.from;
+  const within = (m: RegExpMatchArray) => m.index! <= col && col <= m.index! + m[0].length;
+  if (inRaw(state, pos) || pos < frontmatterEnd(state)) return null;
+  for (const m of line.text.matchAll(WIKILINK)) {
+    if (!within(m)) continue;
+    const target = m[2].split("|")[0].split("#")[0].trim();
+    return target ? { target } : null;
+  }
+  for (const m of line.text.matchAll(/\[(?:[^[\]\n]|\[[^[\]\n]*\])*\]\(\s*<?([^\s()<>]+)>?(?:\s+"[^"\n]*")?\s*\)|<([^\s<>]+)>|((?:https?:\/\/|www\.)[^\s<>()]+[^\s<>().,;:!?'"])/g)) {
+    if (!within(m)) continue;
+    // A bare URL right after `](` belongs to bracket text that is not a link; it is not styled as one either.
+    if (m[3] && line.text.slice(m.index! - 2, m.index) === "](") return null;
+    const href = safeHref(m[1] ?? m[2] ?? m[3]);
+    return href ? { href } : null;
+  }
   return null;
 }
 
@@ -386,8 +445,9 @@ function buildDecorations(view: EditorView): DecorationSet {
             const href = safeHref(doc.sliceString(url.from, url.to));
             // Links that cannot be opened here (javascript:, relative paths) and links whose syntax
             // spans lines stay as source, so nothing looks clickable that is not.
-            if (!href || !sameLine(close.from, n.to)) return;
-            if (close.from > open.to) add(linkText(href), open.to, close.from, "m");
+            // A link with empty text, `[](url)`, would render as nothing: it stays as source too.
+            if (!href || !sameLine(close.from, n.to) || close.from <= open.to) return;
+            add(linkText(href), open.to, close.from, "m");
             if (!isActiveRange(n.from, n.to)) {
               add(hide, open.from, open.to, "h");
               add(hide, close.from, n.to, "h");
@@ -409,6 +469,19 @@ function buildDecorations(view: EditorView): DecorationSet {
           case "URL": {
             const parent = node.node.parent?.name;
             if (parent === "Link" || parent === "Image" || parent === "Autolink" || insideWiki(node.from, node.to)) return;
+            // `[text [with] brackets](url)`: the parser takes `[with]` for a link and leaves the URL
+            // bare. Render the whole thing as one link, as the reading view does, or leave it as source.
+            if (doc.sliceString(node.from - 2, node.from) === "](") {
+              const open = bracketLinkOpen(state, node.from - 2);
+              const href = safeHref(doc.sliceString(node.from, node.to));
+              if (open === null || !href || doc.sliceString(node.to, node.to + 1) !== ")") return;
+              add(linkText(href), open + 1, node.from - 2, "m");
+              if (!isActiveRange(open, node.to + 1)) {
+                add(hide, open, open + 1, "h");
+                add(hide, node.from - 2, node.to + 1, "h");
+              }
+              return;
+            }
             const href = safeHref(doc.sliceString(node.from, node.to));
             if (href) add(linkText(href), node.from, node.to, "m");
             return;
@@ -530,5 +603,25 @@ export function livePreview(handlers: LivePreviewHandlers): Extension {
     },
   });
 
-  return [plugin, clicks, theme, Prec.high(keymap.of([{ key: "Mod-l", run: toggleChecklist }]))];
+  /** Alt+Enter follows the link under the caret (Shift+Alt+Enter: a wikilink in a new tab). */
+  const followLink = (newTab: boolean) => (view: EditorView) => {
+    const link = linkAt(view.state, view.state.selection.main.head);
+    if (!link) return false;
+    if ("target" in link) handlers.openLink(link.target, newTab);
+    else window.open(link.href, "_blank", "noopener,noreferrer");
+    return true;
+  };
+
+  return [
+    plugin,
+    clicks,
+    theme,
+    Prec.high(
+      keymap.of([
+        { key: "Mod-l", run: toggleChecklist },
+        { key: "Alt-Enter", run: followLink(false) },
+        { key: "Shift-Alt-Enter", run: followLink(true) },
+      ]),
+    ),
+  ];
 }

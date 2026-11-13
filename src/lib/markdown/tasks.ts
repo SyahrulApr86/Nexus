@@ -23,16 +23,29 @@ const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(rem
  */
 export function taskOffsets(md: string): number[] {
   // Comments are blanked in the body only, as the renderer does: a `%%` in frontmatter
-  // must not hide the tasks below it. Both parts keep their length, so offsets hold.
+  // must not hide the tasks below it. Comments keep their length, so offsets hold.
+  // The renderer also drops the private-use <mark> markers (U+E000, U+E001) from the body
+  // before parsing, so `- [\uE000 ] a` renders as a task; drop them the same way and map
+  // each offset back, so every rendered checkbox has a source offset that toggles it.
   const { offset } = splitFrontmatter(md);
-  const text = md.slice(0, offset) + stripComments(md.slice(offset));
+  const removed: number[] = [];
+  const body = md.slice(offset).replace(/[\uE000\uE001]/g, (_, i: number) => {
+    removed.push(i);
+    return "";
+  });
+  const text = md.slice(0, offset) + stripComments(body);
+  const toSource = (p: number) => {
+    let i = p - offset;
+    for (const r of removed) if (r <= i) i++;
+    return i + offset;
+  };
   const tree = parser.parse(text) as unknown as MdNode;
   const out: number[] = [];
   const walk = (n: MdNode) => {
     if (n.type === "listItem" && typeof n.checked === "boolean") {
       const start = n.position?.start.offset ?? 0;
       const m = /\[[ xX]\]/.exec(text.slice(start, start + 64));
-      if (m) out.push(start + m.index + 1);
+      if (m) out.push(toSource(start + m.index + 1));
     }
     n.children?.forEach(walk);
   };

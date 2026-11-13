@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useSyncExternalStore } from "react";
 import { Compartment, EditorState, RangeSetBuilder } from "@codemirror/state";
 import {
   Decoration,
@@ -26,7 +26,8 @@ import {
 } from "@codemirror/autocomplete";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { tags as t } from "@lezer/highlight";
-import { livePreview } from "./live-preview";
+import { frontmatterEnd, livePreview } from "./live-preview";
+import { isMac } from "./ui";
 
 export type EditorHandle = { scrollToLine: (line: number) => void; focus: () => void };
 
@@ -62,6 +63,24 @@ const theme = EditorView.theme({
   },
   ".cm-line.cm-codeblock.cm-codeblock-first": { paddingTop: "8px", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" },
   ".cm-line.cm-codeblock.cm-codeblock-last": { paddingBottom: "8px", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" },
+  // Frontmatter is YAML, not note text: the code face on the same band as the reading view,
+  // with markdown styling (setext headings, [links]) switched off inside it.
+  ".cm-line.cm-frontmatter": {
+    fontFamily: "var(--font-code)",
+    fontSize: "0.84em",
+    lineHeight: "1.7",
+    color: "var(--muted)",
+    backgroundColor: "var(--code-bg)",
+    padding: "0 16px",
+  },
+  ".cm-line.cm-frontmatter *": {
+    font: "inherit",
+    color: "inherit",
+    textDecoration: "none",
+    backgroundColor: "transparent",
+  },
+  ".cm-line.cm-frontmatter.cm-frontmatter-first": { paddingTop: "8px", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" },
+  ".cm-line.cm-frontmatter.cm-frontmatter-last": { paddingBottom: "8px", borderBottomLeftRadius: "8px", borderBottomRightRadius: "8px" },
   // Markup characters ([[ ]], target|, == ==) recede in source, like # and list marks.
   ".cm-formatting, .cm-formatting *": { color: "var(--faint)" },
   ".cm-wikilink-ghost, .cm-wikilink-ghost *": { color: "var(--faint)" },
@@ -167,6 +186,31 @@ const codeBlocks = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 );
 
+/** A leading YAML frontmatter block gets the code band, line by line. */
+const fmMid = Decoration.line({ class: "cm-frontmatter" });
+const fmFirst = Decoration.line({ class: "cm-frontmatter cm-frontmatter-first" });
+const fmLast = Decoration.line({ class: "cm-frontmatter cm-frontmatter-last" });
+function frontmatterLines(state: EditorState): DecorationSet {
+  const end = frontmatterEnd(state);
+  if (!end) return Decoration.none;
+  const b = new RangeSetBuilder<Decoration>();
+  const last = state.doc.lineAt(end).number;
+  for (let n = 1; n <= last; n++) b.add(state.doc.line(n).from, state.doc.line(n).from, n === 1 ? fmFirst : n === last ? fmLast : fmMid);
+  return b.finish();
+}
+const frontmatterBand = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = frontmatterLines(view.state);
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged) this.decorations = frontmatterLines(u.state);
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
 const highlight = HighlightStyle.define([
   { tag: t.heading1, fontSize: "1.6em", fontWeight: "600", lineHeight: "1.3" },
   { tag: t.heading2, fontSize: "1.35em", fontWeight: "600" },
@@ -219,8 +263,16 @@ function decorator(matcher: MatchDecorator) {
 
 const formatting = Decoration.mark({ class: "cm-formatting" });
 const highlightMark = Decoration.mark({ class: "cm-highlight" });
-const MOD_CLICK =
-  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "\u2318-click" : "Ctrl+click";
+
+/** A shortcut in the platform's words, as the app's tooltips show it: "Mod+Click" is "Ctrl+click" or "⌘-click". */
+function keyLabel(keys: string, mac = isMac()) {
+  const parts = keys
+    .split("+")
+    .map((k) => (k === "Mod" ? (mac ? "\u2318" : "Ctrl") : !mac ? k : k === "Alt" ? "\u2325" : k === "Shift" ? "\u21e7" : k === "Enter" ? "\u21a9" : k));
+  if (parts.at(-1) === "Click") return `${parts.slice(0, -1).join(mac ? "" : "+")}${mac ? "-" : "+"}click`;
+  return parts.join(mac ? "" : "+");
+}
+const noopSubscribe = () => () => {};
 
 const linkDecorations = (exists: () => (target: string) => boolean) =>
   decorator(
@@ -244,7 +296,10 @@ const linkDecorations = (exists: () => (target: string) => boolean) =>
               class: ok ? "cm-wikilink" : "cm-wikilink cm-wikilink-ghost",
               attributes: {
                 "data-target": target,
-                title: ok ? `${MOD_CLICK} to open ${target}` : `${target} (not created yet; ${MOD_CLICK} to create it)`,
+                role: "link",
+                title: ok
+                  ? `Open ${target}: ${keyLabel("Mod+Click")}, or ${keyLabel("Alt+Enter")} at the caret`
+                  : `${target} is not created yet. ${keyLabel("Mod+Click")}, or ${keyLabel("Alt+Enter")} at the caret, creates it`,
               },
             }),
           );
@@ -282,6 +337,8 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
   const viewRef = useRef<EditorView | null>(null);
   const labelSlot = useRef(new Compartment());
   const hintId = useId();
+  // Platform is client-only; the server snapshot uses the Ctrl wording.
+  const mac = useSyncExternalStore(noopSubscribe, isMac, () => false);
   const cb = useRef({ onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag });
   useEffect(() => {
     cb.current = { onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag };
@@ -337,6 +394,7 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
           tagDecorations,
           highlightDecorations,
           codeBlocks,
+          frontmatterBand,
           livePreview({ openLink: (target, newTab) => cb.current.onOpenLink(target, newTab) }),
           keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, ...completionKeymap, indentWithTab]),
           EditorView.updateListener.of((u) => {
@@ -413,8 +471,8 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
     <>
       <div ref={host} />
       <p id={hintId} className="sr-only">
-        Tab indents. To leave the editor, press Escape, then Tab. Ctrl+M (Shift+Option+M on Mac) switches Tab to moving
-        focus.
+        Tab indents. To leave the editor, press Escape, then Tab. {mac ? "Shift+Option+M" : "Ctrl+M"} switches Tab to
+        moving focus. {mac ? "Option+Return" : "Alt+Enter"} opens the link at the caret.
       </p>
     </>
   );
