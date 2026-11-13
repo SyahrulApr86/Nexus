@@ -28,6 +28,12 @@ import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { tags as t } from "@lezer/highlight";
 import { frontmatterEnd, livePreview } from "./live-preview";
 import { isMac } from "./ui";
+/* attachments-ui: paste and drop uploads, image previews, attachment links */
+import { useAttachments } from "./attachments/context";
+import { attachmentUploads } from "./attachments/editor-uploads";
+import { imageEmbeds, refreshImages } from "./attachments/image-embeds";
+import { uploadFolder } from "./attachments/model";
+/* end attachments-ui */
 
 export type EditorHandle = {
   scrollToLine: (line: number) => void;
@@ -52,6 +58,8 @@ type Props = {
   handleRef?: React.RefObject<EditorHandle | null>;
   /** templates-properties: extra extensions, read when the editor mounts (it is keyed to remount). */
   extensions?: Extension[];
+  /* attachments-ui: the note's path, for "same folder as the note" uploads */
+  notePath?: string;
 };
 
 /* Note text is the document: Literata on a ~70ch measure. Chrome stays in the UI face. */
@@ -343,7 +351,7 @@ const highlightDecorations = decorator(
   }),
 );
 
-export function Editor({ initial, label, onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag, handleRef, extensions }: Props) {
+export function Editor({ initial, label, onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag, handleRef, extensions, notePath }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const labelSlot = useRef(new Compartment());
@@ -354,6 +362,26 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
   useEffect(() => {
     cb.current = { onChange, noteNames, tagNames, exists, onOpenLink, onOpenTag };
   });
+
+  /* attachments-ui: a link or embed that names an attachment is not a missing note; following it opens the file */
+  const att = useAttachments();
+  const attRef = useRef({ att, notePath });
+  useEffect(() => {
+    attRef.current = { att, notePath };
+    const a = att;
+    if (!a) return;
+    cb.current.exists = (t) => exists(t) || !!a.lookup(t);
+    cb.current.onOpenLink = (t, newTab) => {
+      const file = exists(t) ? null : a.lookup(t);
+      if (file) a.open(file.path, newTab ? "tab" : "current");
+      else onOpenLink(t, newTab);
+    };
+  });
+  // New or deleted files change which embeds resolve: redraw the previews.
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: refreshImages.of(null) });
+  }, [att?.lookup]);
+  /* end attachments-ui */
 
   useEffect(() => {
     if (!host.current) return;
@@ -407,6 +435,17 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
           codeBlocks,
           frontmatterBand,
           livePreview({ openLink: (target, newTab) => cb.current.onOpenLink(target, newTab) }),
+          /* attachments-ui */
+          imageEmbeds(() => attRef.current.att?.lookup ?? (() => null)),
+          attachmentUploads(() => {
+            const a = attRef.current.att;
+            if (!a) return null;
+            return {
+              upload: (file) => a.upload(file, uploadFolder(a.settings, attRef.current.notePath)),
+              notify: (message, error) => a.notify(message, error),
+            };
+          }),
+          /* end attachments-ui */
           keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, ...completionKeymap, indentWithTab]),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) cb.current.onChange(u.state.doc.toString());

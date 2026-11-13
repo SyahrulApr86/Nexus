@@ -43,6 +43,9 @@ function isCanvasNote(w: WorkspaceValue, id: string) {
   return isCanvasPath(w.notes[id]?.path ?? w.tree.notes.find((n) => n.id === id)?.path ?? "");
 }
 // --- end canvas track ---
+/* attachments-ui */
+import { AttachmentView } from "./attachments/attachment-view";
+/* end attachments-ui */
 
 /** Focus an element once it exists (checked each frame, for up to half a second). */
 function focusWhenReady(find: () => HTMLElement | null | undefined, tries = 30) {
@@ -55,6 +58,7 @@ function focusWhenReady(find: () => HTMLElement | null | undefined, tries = 30) 
 
 /** A view's title. Reads names only, so selecting it does not follow note text. */
 function viewTitle(w: WorkspaceValue, v: View) {
+  /* attachments-ui */ if (v.type === "attachment") return v.path.slice(v.path.lastIndexOf("/") + 1);
   return v.type === "graph" ? "Graph view" : v.type === "empty" ? "New tab" : (w.notes[v.id]?.name ?? w.tree.notes.find((n) => n.id === v.id)?.name ?? "Loading…");
 }
 
@@ -234,7 +238,7 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
   const canForward = !!tab && tab.index < tab.history.length - 1;
   // The tree has the path and name before the note body arrives, so the breadcrumb is final from the start.
   const known = view.type === "note" ? w.tree.notes.find((n) => n.id === view.id) : undefined;
-  const path = note?.path ?? known?.path;
+  const path = note?.path ?? known?.path ?? (view.type === "attachment" ? view.path : undefined) /* attachments-ui */;
   const folders = path ? dirname(path).split("/").filter(Boolean) : [];
   const current = view.type !== "note" || note || known ? w.title : "";
   const canvas = !!path && isCanvasPath(path); // canvas track: no reading/editing toggle, path keeps its extension
@@ -525,6 +529,7 @@ function NoteView({ id, mode, gi, focused, onClose }: { id: string; mode: "edit"
           noteNames={w.noteNames}
           tagNames={w.tagNames}
           exists={w.exists}
+          notePath={note.path} /* attachments-ui */
           onOpenLink={(t, nt) => actions.openLink(t, nt)}
           onOpenTag={actions.openTag}
           handleRef={handle}
@@ -656,6 +661,9 @@ export function TabGroup({ gi }: { gi: number }) {
               />
             ) : view.type === "graph" ? (
               <GraphView />
+            ) : view.type === "attachment" ? (
+              /* attachments-ui */
+              <AttachmentView path={view.path} onClose={() => actions.closeTab(gi, g.active)} />
             ) : restoring ? (
               <NoteSkeleton label="Opening your tabs…" />
             ) : (

@@ -1420,3 +1420,145 @@
   }
 }
 /* --- end canvas track --- */
+
+/* ---- attachments-ui: lightbox, attachment tab, upload placeholder (src/components/workspace/attachments) ---- */
+@layer components {
+  /* Vault images in the reading view open full size. */
+  .reading img[role="button"] {
+    cursor: zoom-in;
+  }
+  .reading img[role="button"]:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .att-lightbox {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+  .att-lightbox-frame {
+    position: relative;
+    display: grid;
+    place-items: center;
+    height: 100%;
+  }
+  .att-lightbox-img {
+    max-width: 100%;
+    max-height: calc(100dvh - 24px);
+    object-fit: contain;
+    border-radius: 8px;
+    background: var(--sheet);
+    box-shadow: var(--shadow-float);
+  }
+  .att-lightbox-close {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: var(--sheet);
+    color: var(--fg);
+    border: 1px solid var(--control);
+    box-shadow: var(--shadow-float);
+  }
+  .att-lightbox-close:hover {
+    background: var(--sheet-hover);
+  }
+
+  .att-view {
+    margin: 0 auto;
+    width: 100%;
+    max-width: 56rem;
+    padding: 16px 20px 32px;
+  }
+  @media (min-width: 768px) {
+    .att-view {
+      padding: 24px 40px 40px;
+    }
+  }
+  .att-view-title {
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .att-view-meta {
+    margin-top: 4px;
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--muted);
+  }
+  .att-view-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .att-view-actions .att-danger {
+    color: var(--negative);
+  }
+  .att-view-body {
+    margin-top: 24px;
+  }
+  .att-view-body img,
+  .att-view-body video {
+    display: block;
+    max-width: 100%;
+    max-height: 70dvh;
+    height: auto;
+    border-radius: 8px;
+  }
+  .att-view-body video {
+    background: var(--code-bg);
+  }
+  .att-view-body audio {
+    width: min(100%, 480px);
+  }
+  .att-view-zoom {
+    display: block;
+    max-width: 100%;
+    border-radius: 8px;
+    cursor: zoom-in;
+  }
+  .att-view-card {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    line-height: 20px;
+    text-decoration: none;
+  }
+  .att-view-card:hover {
+    border-color: var(--control);
+  }
+  .att-view-card-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--accent-ink);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    overflow-wrap: anywhere;
+  }
+  .att-view-card-meta {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .att-view-hint {
+    margin-top: 24px;
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+  .att-view-hint code {
+    font-family: var(--font-code);
+    font-size: 0.92em;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: var(--code-bg);
+    color: var(--fg);
+  }
+}
+/* ---- end attachments-ui ---- */

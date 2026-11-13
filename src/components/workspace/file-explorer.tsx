@@ -10,6 +10,12 @@ import { LayoutDashboard } from "lucide-react";
 import { canvasTitle, isCanvasPath } from "@/lib/canvas";
 import { newCanvas } from "./canvas/create";
 // --- end canvas track ---
+/* attachments-ui: attachments listed with the notes */
+import type { AttachmentKind } from "@/lib/markdown/attachments";
+import { useAttachments } from "./attachments/context";
+import { AttachmentIcon, attachmentMenu } from "./attachments/explorer";
+import { ATTACHMENT_ROW, attachmentKind, attachmentRowPath, attachmentTreeRows, embedLink, filesOf, isAttachmentRow } from "./attachments/model";
+/* end attachments-ui */
 
 type Dir = { name: string; path: string; dirs: Map<string, Dir>; notes: TreeNote[] };
 type Row =
@@ -97,6 +103,7 @@ const TreeRow = memo(function TreeRow({
   tabbable,
   dropTarget,
   canvas = false,
+  icon /* attachments-ui */,
 }: {
   rowKey: string;
   kind: "dir" | "note";
@@ -108,6 +115,8 @@ const TreeRow = memo(function TreeRow({
   dropTarget: boolean;
   /** canvas track: the row is a .canvas file. */
   canvas?: boolean;
+  /* attachments-ui: set on attachment rows */
+  icon?: AttachmentKind;
 }) {
   const more = (
     <button
@@ -170,9 +179,12 @@ const TreeRow = memo(function TreeRow({
         </>
       ) : (
         /* --- end canvas track --- */
-        <span className="truncate pl-5" translate="no">
-          {name}
-        </span>
+        <>
+          {icon && <AttachmentIcon kind={icon} /> /* attachments-ui */}
+          <span className={`truncate ${icon ? "" : "pl-5"}`} translate="no">
+            {name}
+          </span>
+        </>
       )}
       {more}
     </div>
@@ -187,11 +199,19 @@ export function FileExplorer() {
     shallowEqual,
   );
   const expanded = useMemo(() => new Set(w.prefs.expanded), [w.prefs.expanded]);
-  const root = useMemo(() => buildTree(w.tree.notes, w.tree.folders), [w.tree]);
+  /* attachments-ui: attachment rows sort and nest like notes; their keys start with ATTACHMENT_ROW */
+  const att = useAttachments();
+  const showAtt = !!att?.settings.show;
+  const attItems = att?.items;
+  const attRows = useMemo(() => (showAtt && attItems ? attachmentTreeRows(attItems) : []), [showAtt, attItems]);
+  const attKinds = useMemo(() => new Map((attItems ?? []).map((a) => [a.path, attachmentKind(a.mime)])), [attItems]);
+  /* end attachments-ui */
+  const root = useMemo(() => buildTree(attRows.length ? [...w.tree.notes, ...attRows] : w.tree.notes, w.tree.folders), [w.tree, attRows]);
   const rows = useMemo(() => flatten(root, expanded, w.prefs.sort), [root, expanded, w.prefs.sort]);
   const rowIndex = useMemo(() => new Map(rows.map((r, i) => [r.key, i])), [rows]);
-  const activeId = w.focusView.type === "note" ? w.focusView.id : null;
-  const activePath = activeId ? w.tree.notes.find((n) => n.id === activeId)?.path : undefined;
+  const activeId = w.focusView.type === "note" ? w.focusView.id
+    : w.focusView.type === "attachment" ? `${ATTACHMENT_ROW}${w.focusView.path}` /* attachments-ui */ : null;
+  const activePath = activeId ? (w.tree.notes.find((n) => n.id === activeId)?.path ?? (isAttachmentRow(activeId) ? attachmentRowPath(activeId) : undefined)) : undefined;
   const [focusKey, setFocusKey] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const menu = useMenu();
@@ -279,6 +299,8 @@ export function FileExplorer() {
   };
 
   const itemsFor = (row: Row): { label: string; items: MenuItem[] } => {
+    /* attachments-ui */
+    if (row.kind === "note" && isAttachmentRow(row.note.id) && att) return attachmentMenu(att, attachmentRowPath(row.note.id));
     if (row.kind === "dir")
       return {
         label: `Folder ${row.name}`,
@@ -351,6 +373,15 @@ export function FileExplorer() {
       else if (row.parent) focusRow(row.parent);
       return;
     }
+    /* attachments-ui: open or delete an attachment; it has no rename */
+    if (row.kind === "note" && isAttachmentRow(row.note.id) && (k === "Enter" || k === " " || k === "F2" || k === "Delete")) {
+      e.preventDefault();
+      const path = attachmentRowPath(row.note.id);
+      if (k === "Delete") void att?.remove(path);
+      else if (k !== "F2") att?.open(path, e.ctrlKey || e.metaKey ? "tab" : "current");
+      return;
+    }
+    /* end attachments-ui */
     if (k === "Enter" || k === " ") {
       e.preventDefault();
       if (row.kind === "dir") toggle(row.path);
@@ -383,6 +414,7 @@ export function FileExplorer() {
     const more = (e.target as Element).closest("[data-more]");
     if (more) return openMenu(row, more);
     if (row.kind === "dir") toggle(row.path);
+    /* attachments-ui */ else if (isAttachmentRow(row.note.id)) att?.open(attachmentRowPath(row.note.id), e.ctrlKey || e.metaKey ? "tab" : "current");
     else actions.open(row.note.id, e.ctrlKey || e.metaKey ? "tab" : "current");
   };
 
@@ -393,7 +425,10 @@ export function FileExplorer() {
   };
   const dropProps = {
     onDragOver: (e: React.DragEvent) => {
-      if (!e.dataTransfer.types.includes("application/x-nexus-note")) return;
+      /* attachments-ui: files from the device upload into the folder under the pointer */
+      const fileDrop = !!att && e.dataTransfer.types.includes("Files");
+      if (fileDrop) e.dataTransfer.dropEffect = "copy";
+      if (!e.dataTransfer.types.includes("application/x-nexus-note") && !fileDrop) return;
       e.preventDefault();
       setDropTarget(folderAt(e.target));
     },
@@ -403,6 +438,15 @@ export function FileExplorer() {
     onDrop: (e: React.DragEvent) => {
       e.preventDefault();
       setDropTarget(null);
+      /* attachments-ui */
+      const files = att && e.dataTransfer.types.includes("Files") ? filesOf(e.dataTransfer) : [];
+      if (files.length) {
+        const folder = folderAt(e.target);
+        if (folder) actions.setExpanded((s) => s.add(folder));
+        void att!.uploadMany(files, folder);
+        return;
+      }
+      /* end attachments-ui */
       const id = e.dataTransfer.getData("application/x-nexus-note");
       if (id) actions.moveNote(id, folderAt(e.target));
     },
@@ -498,10 +542,17 @@ export function FileExplorer() {
             }}
             onAuxClick={(e) => {
               const hit = rowAt(e.target);
+              if (e.button === 1 && hit?.row.kind === "note" && isAttachmentRow(hit.row.note.id)) return void att?.open(attachmentRowPath(hit.row.note.id), "tab"); /* attachments-ui */
               if (e.button === 1 && hit?.row.kind === "note") actions.open(hit.row.note.id, "tab");
             }}
             onDragStart={(e) => {
               const hit = rowAt(e.target);
+              /* attachments-ui: an attachment is not moved; dragged into a note it drops its embed link */
+              if (hit?.row.kind === "note" && isAttachmentRow(hit.row.note.id)) {
+                e.dataTransfer.setData("text/plain", embedLink(attachmentRowPath(hit.row.note.id)));
+                e.dataTransfer.effectAllowed = "copy";
+                return;
+              }
               if (hit?.row.kind === "note") e.dataTransfer.setData("application/x-nexus-note", hit.row.note.id);
             }}
           >
@@ -517,6 +568,7 @@ export function FileExplorer() {
                 tabbable={row.key === tabbable}
                 dropTarget={row.kind === "dir" && dropTarget === row.path}
                 canvas={row.kind === "note" && isCanvasPath(row.note.path)} // canvas track
+                icon={row.kind === "note" && isAttachmentRow(row.key) ? (attKinds.get(attachmentRowPath(row.key)) ?? "file") : undefined} /* attachments-ui */
               />
             ))}
           </div>

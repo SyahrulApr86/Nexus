@@ -234,3 +234,36 @@ export const api = {
     req<ShareLink & { url: string }>(`/api/notes/${noteId}/share`, { method: "POST", body: json({ expiresInDays }) }),
   revokeShare: (id: string) => req(`/api/shares/${id}`, { method: "DELETE" }),
 };
+
+/* ---- attachments-ui: attachment helpers. They go through req(), so they inherit its headers and errors. ---- */
+
+export type AttachmentInfo = { id: string; path: string; mime: string; size: number; sha256?: string; createdAt?: string };
+
+export const attachmentsApi = {
+  /** One page of the vault's attachments; `next` is the `after` for the following page, or null. */
+  page: (after?: string | null) =>
+    req<{ items: AttachmentInfo[]; next: string | null }>(
+      `/api/attachments${after ? `?after=${encodeURIComponent(after)}` : ""}`,
+    ),
+  /** Every attachment, following `next` until the list ends. */
+  async all(): Promise<AttachmentInfo[]> {
+    const out: AttachmentInfo[] = [];
+    let after: string | null = null;
+    for (let i = 0; i < 1000; i++) {
+      const p: { items: AttachmentInfo[]; next: string | null } = await attachmentsApi.page(after);
+      out.push(...p.items);
+      if (!p.next || p.next === after) break;
+      after = p.next;
+    }
+    return out;
+  },
+  upload: (file: File, folder: string, name = file.name) => {
+    const fd = new FormData();
+    fd.append("file", file, name);
+    if (folder) fd.append("folder", folder);
+    return req<AttachmentInfo>("/api/attachments", { method: "POST", body: fd });
+  },
+  remove: (path: string) => req<{ ok: true }>(`/api/attachments?path=${encodeURIComponent(path)}`, { method: "DELETE" }),
+};
+
+/* ---- end attachments-ui ---- */
