@@ -64,11 +64,15 @@ services:
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set BETTER_AUTH_URL to the public https:// origin in .env}
       NEXUS_ALLOW_SIGNUP: ${NEXUS_ALLOW_SIGNUP:-false}
       NEXUS_TRUSTED_PROXIES: ${NEXUS_TRUSTED_PROXIES:-}
+      # Attachment files (src/lib/attachments/storage.ts). Back it up with the database (README).
+      NEXUS_DATA_DIR: /data
       NODE_OPTIONS: --max-old-space-size=${APP_MAX_OLD_SPACE_MB:-1024}
     # Loopback only: the app is reached through the HTTPS reverse proxy on this host. Published on
     # every interface, it would take plain HTTP and let a client pick its own X-Forwarded-For.
     ports:
       - "127.0.0.1:${APP_PORT:-3000}:3000"
+    volumes:
+      - appdata:/data
     mem_limit: ${APP_MEM_LIMIT:-1536m}
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/login || exit 1"]
@@ -104,6 +108,8 @@ configs:
 
 volumes:
   pgdata:
+  # Attachments. Created from the image's /data, so it starts owned by the non-root `nexus` user.
+  appdata:
 
 networks:
   default:
