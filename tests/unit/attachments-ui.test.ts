@@ -22,6 +22,8 @@ import {
   placeholders,
   uploadPlaceholders,
 } from "@/components/workspace/attachments/upload-field";
+import { imageAlt, wikiEmbedParts } from "@/components/workspace/attachments/image-embeds";
+import { frontmatterEnd } from "@/components/workspace/live-preview";
 
 describe("attachment settings", () => {
   it("defaults to an Attachments folder, shown in the explorer", () => {
@@ -148,8 +150,37 @@ describe("upload placeholders", () => {
     expect(s.doc.toString()).toBe("![[a.png]]\n![[b.png]]\n# Plan\nBody");
   });
 
+  it("puts the embed after the frontmatter if the placeholder ended up inside it", () => {
+    let s = start("---\ntitle: Roadmap\n---\nBody", [{ id: 1, name: "a.png", pos: 0 }]);
+    s = s.update(finishUpload(s, 1, "a.png", 0, frontmatterEnd(s))!).state;
+    expect(s.doc.toString()).toBe("---\ntitle: Roadmap\n---\n![[a.png]]\nBody");
+    expect(placeholders(s)).toEqual([]);
+  });
+
   it("returns null once the placeholder is gone", () => {
     const s = start("x", []);
     expect(finishUpload(s, 9, "a.png", 0)).toBeNull();
+  });
+});
+
+describe("live preview image alt", () => {
+  const alt = (inner: string, path = "Attachments/a.png") => {
+    const { target, alt: written } = wikiEmbedParts(inner);
+    return { target, ...imageAlt(written, path) };
+  };
+
+  it("falls back to the file name when only a size is written", () => {
+    expect(alt("a.png|300")).toEqual({ target: "a.png", alt: "a.png", width: 300, height: undefined });
+    expect(alt("a.png|300x200")).toEqual({ target: "a.png", alt: "a.png", width: 300, height: 200 });
+  });
+
+  it("uses an alias as the alt text, with or without a size", () => {
+    expect(alt("a.png|Caption")).toEqual({ target: "a.png", alt: "Caption", width: undefined, height: undefined });
+    expect(alt("a.png|Site plan|300")).toEqual({ target: "a.png", alt: "Site plan", width: 300, height: undefined });
+  });
+
+  it("uses the file name without a pipe, and markdown alt as written", () => {
+    expect(alt("a.png")).toEqual({ target: "a.png", alt: "a.png", width: undefined, height: undefined });
+    expect(imageAlt("Floor plan|640", "b.png")).toEqual({ alt: "Floor plan", width: 640, height: undefined });
   });
 });

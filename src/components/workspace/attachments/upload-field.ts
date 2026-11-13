@@ -7,7 +7,7 @@
  */
 import { StateEffect, StateField, type EditorState, type Transaction } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
-import { embedInsert, uploadingLabel } from "./model";
+import { embedInsert, embedLink, uploadingLabel } from "./model";
 
 export type Placeholder = { id: number; pos: number; name: string };
 
@@ -68,13 +68,18 @@ export function placeholders(state: EditorState): Placeholder[] {
 /**
  * The transaction spec that ends an upload: insert the embed where its placeholder stands (on
  * success) and drop the placeholder. `insertedBefore` counts embeds already placed by this batch,
- * so a batch lands one embed per line. Null when the placeholder is gone.
+ * so a batch lands one embed per line. `frontmatterEnd` is the end of the note's YAML frontmatter
+ * (0 for none): a placeholder that ended up inside it, after edits around it, puts its embed on
+ * its own line after the closing fence instead, so the frontmatter never breaks. Null when the
+ * placeholder is gone.
  */
-export function finishUpload(state: EditorState, id: number, path: string | null, insertedBefore: number) {
+export function finishUpload(state: EditorState, id: number, path: string | null, insertedBefore: number, frontmatterEnd = 0) {
   const p = placeholders(state).find((x) => x.id === id);
   if (!p) return null;
   const effects = removePlaceholder.of(id);
   if (path === null) return { effects };
+  if (frontmatterEnd > 0 && p.pos <= frontmatterEnd)
+    return { changes: { from: frontmatterEnd, insert: `\n${embedLink(path)}` }, effects, userEvent: "input.upload" };
   const line = state.doc.lineAt(p.pos);
   const insert = embedInsert(path, insertedBefore, { lineStart: p.pos === line.from, restOfLine: line.text.slice(p.pos - line.from) });
   return { changes: { from: p.pos, insert }, effects, userEvent: "input.upload" };

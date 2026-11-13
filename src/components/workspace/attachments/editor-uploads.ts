@@ -48,7 +48,7 @@ async function run(view: EditorView, picked: File[], pos: number, pasted: boolea
     const r = await h.upload(files[i]);
     // The note may have been closed meanwhile: the file is stored, it just isn't embedded.
     const alive = view.dom.isConnected;
-    const spec = alive ? finishUpload(view.state, batch[i].id, r.ok ? r.item.path : null, inserted) : null;
+    const spec = alive ? finishUpload(view.state, batch[i].id, r.ok ? r.item.path : null, inserted, frontmatterEnd(view.state)) : null;
     if (spec) view.dispatch(spec);
     if (!r.ok) h.notify(r.message, true);
     else if (spec) inserted++;
