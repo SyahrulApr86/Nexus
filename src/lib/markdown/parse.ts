@@ -55,7 +55,8 @@ function stripComment(raw: string): string {
  */
 export function parseFrontmatter(yaml: string | null): Record<string, unknown> {
   if (!yaml || yaml.length > MAX_FRONTMATTER_CHARS) return {};
-  const out: Record<string, unknown> = {};
+  // Null prototype while filling: a `__proto__:` or `constructor:` key stays an ordinary field.
+  const out: Record<string, unknown> = Object.create(null);
   let listKey: string | null = null;
   for (const raw of yaml.split(/\r?\n/)) {
     if (raw.length > MAX_FRONTMATTER_LINE) continue;
@@ -83,7 +84,9 @@ export function parseFrontmatter(yaml: string | null): Record<string, unknown> {
       listKey = null;
     }
   }
-  return out;
+  // Hand back a plain object: callers (Drizzle among them) read `.constructor`. Spread
+  // defines each key as an own property, so `__proto__` stays a field here too.
+  return { ...out };
 }
 
 function unquote(s: string): string {
@@ -134,12 +137,23 @@ export function extractTags(md: string, fm?: Record<string, unknown>): string[] 
   return [...tags];
 }
 
+/**
+ * An ATX heading line as { level, text }, or null. Linear time: the optional closing
+ * #s are trimmed with string operations instead of a backtracking pattern.
+ */
+export function matchHeading(line: string): { level: number; text: string } | null {
+  const m = /^(#{1,6})[ \t]+(.+)$/.exec(line);
+  if (!m) return null;
+  const text = m[2].trimEnd().replace(/(?<=\s)#+$/, "").trimEnd();
+  return text ? { level: m[1].length, text } : null;
+}
+
 export function extractHeadings(md: string): Heading[] {
   const masked = maskCode(md);
   const out: Heading[] = [];
   masked.split("\n").forEach((line, i) => {
-    const m = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
-    if (m) out.push({ level: m[1].length, text: m[2], line: i });
+    const h = matchHeading(line);
+    if (h) out.push({ ...h, line: i });
   });
   return out;
 }

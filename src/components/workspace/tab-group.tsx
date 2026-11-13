@@ -424,6 +424,7 @@ function NoteView({ id, mode, gi, focused, onClose }: { id: string; mode: "edit"
         />
       ) : (
         <Reader
+          noteId={note.id}
           content={note.content}
           exists={w.exists}
           onOpenLink={w.actions.openLink}

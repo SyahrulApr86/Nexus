@@ -83,8 +83,10 @@ describe("renderMarkdown: Obsidian syntax", () => {
     expect(render("[[#Local]]")).toBe('<p><a href="wikilink:#Local">Local</a></p>');
   });
 
-  it("renders an embed as a marked link", () => {
-    expect(render("![[Note]]")).toBe('<p><a href="wikilink:Note">↳ Note</a></p>');
+  it("renders an embed as a placeholder the reader fills in", () => {
+    expect(render("![[Note]]")).toBe(
+      '<div class="embed" data-embed="Note"><a href="wikilink:Note" class="embed-title">Note</a><div class="embed-body embed-note">Loading…</div></div>',
+    );
   });
 
   it("gives links to missing notes the ghost class", () => {
