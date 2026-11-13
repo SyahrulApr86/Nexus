@@ -24,6 +24,21 @@ export default defineConfig({
           include: ["tests/unit/**/*.test.ts"],
         },
       },
+      {
+        test: {
+          name: "integration",
+          include: ["tests/integration/**/*.test.ts"],
+          // Once per run: explains a skip, fails on CI without a database.
+          globalSetup: ["tests/integration/global-setup.ts"],
+          // Before every file: points src/db at TEST_DATABASE_URL.
+          setupFiles: ["tests/integration/setup.ts"],
+          // Every file creates its own user and vaults; running files one at a
+          // time keeps the load on a shared local Postgres predictable.
+          fileParallelism: false,
+          hookTimeout: 30_000,
+          testTimeout: 30_000,
+        },
+      },
     ],
   },
 });
