@@ -438,13 +438,20 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: num
   // Toasts the store has removed while paused, still shown here. Worked out during render, so a
   // held toast never unmounts for a frame (no flicker, no second entrance).
   const [held, setHeld] = useState<Toast[]>([]);
+  // Toasts the user closed. Focus often stays in the region after a close (it moves to the next
+  // toast), so without this the closed toast would be held straight back.
+  const [closed, setClosed] = useState<ReadonlySet<number>>(() => new Set());
   const [prev, setPrev] = useState(toasts);
   if (prev !== toasts) {
     setPrev(toasts);
     // Error toasts carry the store's "Dismiss" action and never time out: when one goes, the
     // store meant it (saving works again), so it is not held.
-    const gone = prev.filter((t) => t.action?.label !== "Dismiss" && !toasts.some((x) => x.id === t.id));
+    const gone = prev.filter((t) => t.action?.label !== "Dismiss" && !closed.has(t.id) && !toasts.some((x) => x.id === t.id));
     if (paused && gone.length) setHeld((h) => [...h, ...gone]);
+    // Forget closed ids once the store has dropped them.
+    if (closed.size && [...closed].some((id) => !toasts.some((x) => x.id === id))) {
+      setClosed(new Set([...closed].filter((id) => toasts.some((x) => x.id === id))));
+    }
   }
 
   useEffect(() => {
@@ -470,6 +477,8 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: num
     }
     setHover(false);
     setHeld((h) => h.filter((x) => x.id !== id));
+    // A held toast is already gone from the store, so only mark ids the store still has.
+    if (toasts.some((x) => x.id === id)) setClosed((c) => new Set(c).add(id));
     dismiss(id);
   };
 
