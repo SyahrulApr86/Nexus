@@ -58,6 +58,14 @@ const nextConfig: NextConfig = {
       { source: "/(.*)", headers: securityHeaders() },
       // Vault data must never sit in a shared or back/forward cache.
       { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "private, no-store" }] },
+      // The service worker is checked for updates on every load, never served from an HTTP cache.
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        ],
+      },
     ];
   },
 };

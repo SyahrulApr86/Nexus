@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Hanken_Grotesk, JetBrains_Mono, Literata } from "next/font/google";
 import "./globals.css";
+import { ServiceWorkerRegistrar } from "@/components/workspace/offline/sw-registrar";
 
 // Self-hosted at build time by next/font: no request reaches a font CDN at runtime.
 const hanken = Hanken_Grotesk({ variable: "--font-hanken", subsets: ["latin"], display: "swap" });
@@ -55,7 +56,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="h-full">{children}</body>
+      <body className="h-full">
+        {children}
+        {/* Offline support: caches the app shell so the installed app opens without a connection. */}
+        <ServiceWorkerRegistrar />
+      </body>
     </html>
   );
 }
