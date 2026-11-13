@@ -24,6 +24,9 @@ import {
   type WorkspaceValue,
 } from "./store";
 import { Editor } from "./editor";
+/* collab-editor: who else is on the note */
+import { Presence } from "./collab/presence";
+/* end collab-editor */
 import { Reader } from "./reader";
 import { GraphView } from "./graph-view";
 import { Bar, IconButton, Menu, Shortcut, useMenu, type MenuItem } from "./ui";
@@ -313,6 +316,9 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
           </li>
         </ol>
       </nav>
+      {/* collab-editor */}
+      {view.type === "note" && !canvas && <Presence noteId={view.id} />}
+      {/* end collab-editor */}
       {view.type === "note" && !canvas && (
         <IconButton
           label={view.mode === "edit" ? "Switch to reading view" : "Switch to editing view"}
@@ -530,6 +536,7 @@ function NoteView({ id, mode, gi, focused, onClose }: { id: string; mode: "edit"
           tagNames={w.tagNames}
           exists={w.exists}
           notePath={note.path} /* attachments-ui */
+          noteId={note.id} /* collab-editor */
           onOpenLink={(t, nt) => actions.openLink(t, nt)}
           onOpenTag={actions.openTag}
           handleRef={handle}

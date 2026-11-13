@@ -53,6 +53,9 @@ import { splitFrontmatter } from "@/lib/markdown/parse";
 import { VaultSwitcher, VaultsHost, openCreateVault, openVaults } from "./vaults";
 import { ShareHost, openShare } from "./share-dialog";
 import { exportActiveVault } from "./vaults-export";
+/* collab-editor */
+import { useCollab } from "./collab/use-collab";
+/* end collab-editor */
 /* end vaults-ui */
 
 
@@ -338,6 +341,11 @@ const SAVE_TEXT = {
 /** Text only, in the bar's own grey; colour only when something is wrong. */
 function SaveLabel() {
   const save = useWorkspaceSelector((w) => w.save);
+  /* collab-editor: a live note is saved by the collab service, which sends no save receipts: "Synced" */
+  const noteId = useWorkspaceSelector((w) => w.activeNote?.id);
+  const live = useCollab(noteId).state === "live";
+  if (live && save === "saved") return <span>Synced</span>;
+  /* end collab-editor */
   const bad = save === "error" || save === "signedOut";
   return <span className={bad ? "text-negative" : undefined}>{SAVE_TEXT[save]}</span>;
 }

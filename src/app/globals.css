@@ -1562,3 +1562,70 @@
   }
 }
 /* ---- end attachments-ui ---- */
+
+/* --- collab-editor: live collaboration (src/components/workspace/collab) --- */
+/*
+ * Presence colours, one per person (collab/mode.ts presenceSlot). Blue and orange ink, then the
+ * canvas cyan, green, purple and yellow; red is left out because it means "error". Each slot is a
+ * 1px remote caret (>= 3:1 on the sheet: light 5.2-6.4:1, dark 7.6-9.0:1) and the ground of a name
+ * label set in --sheet (same ratios, >= 4.5:1). Remote selections are the slot at 18% (dark 22%)
+ * over the sheet: --fg on it stays >= 10:1, link ink >= 4.6:1.
+ */
+:root {
+  --collab-1: var(--accent-ink);
+  --collab-2: var(--canvas-5);
+  --collab-3: var(--canvas-4);
+  --collab-4: var(--canvas-6);
+  --collab-5: var(--mark-ink);
+  --collab-6: var(--canvas-3);
+  --collab-mix: 18%;
+  --collab-1-soft: color-mix(in srgb, var(--collab-1) var(--collab-mix), transparent);
+  --collab-2-soft: color-mix(in srgb, var(--collab-2) var(--collab-mix), transparent);
+  --collab-3-soft: color-mix(in srgb, var(--collab-3) var(--collab-mix), transparent);
+  --collab-4-soft: color-mix(in srgb, var(--collab-4) var(--collab-mix), transparent);
+  --collab-5-soft: color-mix(in srgb, var(--collab-5) var(--collab-mix), transparent);
+  --collab-6-soft: color-mix(in srgb, var(--collab-6) var(--collab-mix), transparent);
+}
+:root[data-theme="dark"] {
+  --collab-mix: 22%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --collab-mix: 22%;
+  }
+}
+@layer components {
+  /* View header: "2 people here" with up to three initials. */
+  .collab-presence {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .collab-avatars {
+    display: flex;
+  }
+  .collab-avatar {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    font-size: 9.5px;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-weight: 600;
+    color: var(--sheet);
+    /* A sheet-coloured ring separates overlapping avatars; it is a gap, not a border colour. */
+    box-shadow: 0 0 0 1.5px var(--sheet);
+  }
+  .collab-avatar + .collab-avatar {
+    margin-left: -3px;
+  }
+}

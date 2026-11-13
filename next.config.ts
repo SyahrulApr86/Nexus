@@ -15,6 +15,24 @@ const dev = process.env.NODE_ENV !== "production";
  * could otherwise make every reader's browser call a third party (tracking pixels, IP leaks), so
  * the reading view renders `![](https://…)` as a link instead (src/lib/markdown/attachments.ts).
  */
+/**
+ * collab-editor: the live collaboration socket (collab/README.md). Behind the same origin (/collab
+ * through the reverse proxy) 'self' already covers it, ws: on http and wss: on https. A separate
+ * service origin in NEXT_PUBLIC_COLLAB_URL is added by origin only, and only as ws:// or wss://
+ * (wss:// required in production, where the page is https).
+ */
+export function collabConnectSource(url = process.env.NEXT_PUBLIC_COLLAB_URL, isDev = dev): string {
+  if (!url?.trim()) return "";
+  try {
+    const u = new URL(url.trim());
+    if (u.protocol !== "wss:" && !(isDev && u.protocol === "ws:")) return "";
+    return ` ${u.protocol}//${u.host}`;
+  } catch {
+    return "";
+  }
+}
+/* end collab-editor */
+
 export function contentSecurityPolicy(isDev = dev) {
   return [
     "default-src 'self'",
@@ -23,7 +41,7 @@ export function contentSecurityPolicy(isDev = dev) {
     "img-src 'self' data: blob:",
     "media-src 'self'",
     "font-src 'self'",
-    `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
+    `connect-src 'self'${isDev ? " ws: wss:" : collabConnectSource(undefined, false)}`, // collab-editor
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

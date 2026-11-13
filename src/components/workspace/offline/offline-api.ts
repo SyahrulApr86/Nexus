@@ -456,6 +456,9 @@ async function clearCaches() {
 
 /** Signing out: delete this user's offline notes, queued edits and the cached app on this device. */
 export async function clearOfflineData() {
+  /* collab-editor: close live sockets and drop the in-memory shared documents (nothing of them is stored on disk) */
+  await import("../collab/session").then((m) => m.closeAllCollab()).catch(() => {});
+  /* end collab-editor */
   const s = session;
   session = null;
   if (s) {
