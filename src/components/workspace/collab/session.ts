@@ -12,11 +12,13 @@
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import type { Awareness } from "y-protocols/awareness";
+import * as decoding from "lib0/decoding";
 import {
   backoff,
   closeAction,
   collabUrl,
   diff,
+  ownAck,
   presenceColors,
   presenceSlot,
   safeColor,
@@ -37,8 +39,8 @@ export type CollabHost = {
   enter: (noteId: string) => Promise<{ server: string | undefined; local: string | undefined } | null>;
   /**
    * The note is back on REST autosave. `text` is what the shared document last held; `confirmed` is
-   * what it held when the service last sent anything (undefined when it never went live), the base
-   * for merging with a server copy that may hold edits this device never received.
+   * the text the service is known to hold, local edits included only once it acknowledged them
+   * (undefined when it never went live), the base for merging with a server copy that may hold edits this device never received.
    */
   leave: (noteId: string, text: string, reason: LeaveReason, confirmed?: string) => void;
   notify: (message: string) => void;
@@ -56,6 +58,11 @@ const ORIGIN_SEED = "nexus:seed";
 const ORIGIN_STORE = "nexus:store";
 const SYNC_TIMEOUT = 10_000;
 const LINGER = 1500;
+/** Pause after a local edit before asking the service to acknowledge it (see `requestAck`). */
+const ACK_DELAY = 200;
+/** Unanswered acknowledgement requests kept; older ones are forgotten (a stalled socket). */
+const ACK_KEEP = 64;
+const MESSAGE_AWARENESS = 1;
 /** Without NEXT_PUBLIC_COLLAB_URL the same origin is only probed: no answer there means no service. */
 const PROBE_PAUSE = 5 * 60_000;
 
@@ -85,8 +92,19 @@ class Session {
   private provider: WebsocketProvider | null = null;
   private undo: Y.UndoManager | null = null;
   private live = false;
-  /** The shared text when the service last sent a frame (sync, update or awareness). */
+  /**
+   * Shared text the service is known to hold: advanced only when it acknowledges this device's
+   * edits (its echo of our awareness `ack`), or by its own updates while no local edit is
+   * unacknowledged. Never includes a local edit the service may not have received.
+   */
   private confirmed: string | undefined;
+  /** Local edits so far on this connection, and how many of them the service has acknowledged. */
+  private epoch = 0;
+  private ackedEpoch = 0;
+  private seq = 0;
+  /** Text and local-edit count at each acknowledgement request still waiting for its echo. */
+  private sent = new Map<number, { text: string; epoch: number }>();
+  private ackTimer: ReturnType<typeof setTimeout> | undefined;
   private failures = 0;
   private stopped = false; // 4404 or 4413: this note does not go live again on this page
   private retry: ReturnType<typeof setTimeout> | undefined;
@@ -162,12 +180,28 @@ class Session {
     this.set("connecting", []);
     provider.awareness.setLocalStateField("user", { name: user.name || "Someone", ...presenceColors(presenceSlot(user.name)) });
     provider.awareness.on("change", () => this.readPeers());
-    // Any frame from the service means this device had everything it sent up to then.
-    const confirm = (_: unknown, origin: unknown) => {
-      if (origin === provider && provider === this.provider && this.live) this.confirmed = this.text?.toString();
+    this.confirmed = undefined;
+    this.epoch = this.ackedEpoch = this.seq = 0;
+    this.sent.clear();
+    doc.on("update", (_: unknown, origin: unknown) => {
+      if (provider !== this.provider) return;
+      if (origin !== provider) {
+        // Typed here (or seeded, or written by the store): not confirmed until the service says so.
+        this.epoch++;
+        this.requestAck(provider);
+      } else if (this.epoch === this.ackedEpoch && this.confirmed !== undefined) {
+        // From the service, with nothing of ours outstanding: the service holds all of this text.
+        this.confirmed = doc.getText("content").toString();
+      }
+    });
+    // Our own awareness comes back from the service: read the acknowledgement before y-websocket applies it.
+    const applyAwareness = provider.messageHandlers[MESSAGE_AWARENESS];
+    provider.messageHandlers[MESSAGE_AWARENESS] = (encoder, decoder, p, emitSynced, type) => {
+      const peek = decoding.clone(decoder);
+      const ack = ownAck(decoding.readVarUint8Array(peek), doc.clientID);
+      applyAwareness(encoder, decoder, p, emitSynced, type);
+      if (ack !== null && provider === this.provider) this.acknowledged(ack);
     };
-    doc.on("update", confirm);
-    provider.awareness.on("update", confirm);
     provider.on("status", ({ status }: { status: string }) => {
       if (status === "connected") everOpened = true;
     });
@@ -203,7 +237,8 @@ class Session {
     }
     this.failures = 0;
     const doc = text.toString();
-    this.confirmed = doc;
+    // Just synced: the service holds exactly this text (local edits so far, if any, were all acknowledged).
+    if (this.epoch === this.ackedEpoch) this.confirmed = doc;
     const local = start.local ?? doc;
     const splices = seedSplices(start.server, doc, local);
     if (splices.length)
@@ -221,6 +256,34 @@ class Session {
     }
     this.set("live");
     this.readPeers();
+  }
+
+  /**
+   * Ask the service to acknowledge the local edits so far: put a new number in our awareness state
+   * and remember the text it stands for. y-websocket sends document updates the moment they happen,
+   * on the same socket and before this awareness frame, so its echo covers all of them.
+   */
+  private requestAck(provider: WebsocketProvider) {
+    if (this.ackTimer !== undefined) return;
+    this.ackTimer = setTimeout(() => {
+      this.ackTimer = undefined;
+      const text = this.text;
+      if (provider !== this.provider || !text) return;
+      const n = ++this.seq;
+      this.sent.set(n, { text: text.toString(), epoch: this.epoch });
+      if (this.sent.size > ACK_KEEP) this.sent.delete(this.sent.keys().next().value!);
+      provider.awareness.setLocalStateField("ack", n);
+    }, ACK_DELAY);
+  }
+
+  /** The service echoed acknowledgement `n`: it holds the text recorded for it. */
+  private acknowledged(n: number) {
+    const at = this.sent.get(n);
+    if (!at) return;
+    for (const k of this.sent.keys()) if (k <= n) this.sent.delete(k);
+    this.ackedEpoch = at.epoch;
+    // No local edit since: whatever else arrived meanwhile came from the service too.
+    this.confirmed = this.epoch === at.epoch ? (this.text?.toString() ?? at.text) : at.text;
   }
 
   private readPeers() {
@@ -279,6 +342,9 @@ class Session {
   /** Drop the socket and the document; editors fall back to plain CodeMirror. */
   private teardown() {
     clearTimeout(this.syncTimer);
+    clearTimeout(this.ackTimer);
+    this.ackTimer = undefined;
+    this.sent.clear();
     for (const b of this.bound) b.unbind();
     this.bound.clear();
     this.live = false;

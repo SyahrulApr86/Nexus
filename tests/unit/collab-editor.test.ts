@@ -5,6 +5,7 @@ import {
   closeAction,
   collabUrl,
   initials,
+  ownAck,
   presenceColors,
   presenceLabel,
   presenceSlot,
@@ -13,6 +14,8 @@ import {
   seedSplices,
 } from "../../src/components/workspace/collab/mode";
 import { collabConnectSource, contentSecurityPolicy } from "../../next.config";
+import * as Y from "yjs";
+import * as awarenessProtocol from "y-protocols/awareness";
 
 /** The shared text after seeding, as the session applies it. */
 const seeded = (server: string | undefined, doc: string, editor: string) => applySplices(doc, seedSplices(server, doc, editor));
@@ -113,17 +116,103 @@ describe("collab mode: a dropped socket never overwrites edits it missed", () =>
     expect(rejoinText(confirmed, mine, confirmed)).toBe(mine);
   });
 
-  it("recognises an edit that reached the service just before the drop", () => {
+  it("does not guess that the server copy already holds an unacknowledged local edit", () => {
+    // A's edit may or may not have reached the service; the texts alone cannot tell. Conflict, not a guess.
     const mine = confirmed.replace("intro", "intro, from A");
     const server = mine.replace("end", "end, from B");
-    expect(rejoinText(confirmed, mine, server)).toBe(server);
+    expect(rejoinText(confirmed, mine, server)).toBeNull();
     expect(rejoinText(confirmed, mine, mine)).toBe(mine);
+    // Once the service acknowledged A's edit, `confirmed` holds it and B's edit merges cleanly.
+    expect(rejoinText(mine, mine, server)).toBe(server);
+  });
+
+  it("never loses a local deletion next to a remote one", () => {
+    // A deleted the second line, B the first. The old rule took the server copy and lost A's deletion.
+    expect(rejoinText("todo: x\ntodo: y\n", "todo: x\n", "todo: y\n")).toBeNull();
+  });
+
+  it("keeps an unacknowledged local insert when the server moved on without it", () => {
+    // A typed, its frames never reached the service, while B's edits kept arriving. `confirmed` stayed at the
+    // last acknowledged text, so A's words are a local change: merged or a conflict, never dropped.
+    const mine = confirmed.replace("intro", "intro, typed by A");
+    const server = confirmed.replace("end", "end, from B");
+    expect(rejoinText(confirmed, mine, server)).toBe("# Plan\n\nintro, typed by A\n\nmiddle\n\nend, from B\n");
+    const touching = confirmed.replace("intro", "intro from B");
+    expect(rejoinText(confirmed, mine, touching)).toBeNull();
   });
 
   it("leaves overlapping edits to the conflict flow", () => {
     const mine = confirmed.replace("middle", "middle by A");
     const server = confirmed.replace("middle", "middle by B");
     expect(rejoinText(confirmed, mine, server)).toBeNull();
+  });
+
+  it("fuzz: the result is null or holds both the local and the remote change", () => {
+    let seed = 0x2f6b;
+    const rnd = () => (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 2 ** 32;
+    const pick = (n: number) => Math.floor(rnd() * n);
+    const alphabet = "ab\n";
+    const str = (n: number) => Array.from({ length: n }, () => alphabet[pick(alphabet.length)]).join("");
+    /** Every single splice that turns `from` into `to`: a text change is ambiguous, any of them is "the" change. */
+    const splices = (from: string, to: string) => {
+      const out: { index: number; remove: number; insert: string }[] = [];
+      for (let index = 0; index <= from.length; index++)
+        for (let remove = 0; index + remove <= from.length; remove++) {
+          const kept = from.length - remove;
+          if (to.length < kept || !to.startsWith(from.slice(0, index)) || !to.endsWith(from.slice(index + remove))) continue;
+          out.push({ index, remove, insert: to.slice(index, to.length - (from.length - index - remove)) });
+        }
+      return out;
+    };
+    /** Both changes applied: some reading of each, strictly apart, applied to the base gives `result`. */
+    const holdsBoth = (base: string, mine: string, server: string, result: string) => {
+      if (mine === base) return result === server;
+      if (server === base) return result === mine;
+      if (mine === server) return result === server;
+      for (const l of splices(base, mine))
+        for (const r of splices(base, server)) {
+          const [x, y] = l.index + l.remove < r.index ? [l, r] : r.index + r.remove < l.index ? [r, l] : [null, null];
+          if (!x || !y) continue;
+          const merged = base.slice(0, x.index) + x.insert + base.slice(x.index + x.remove, y.index) + y.insert + base.slice(y.index + y.remove);
+          if (merged === result) return true;
+        }
+      return false;
+    };
+    let merged = 0;
+    for (let i = 0; i < 4000; i++) {
+      const base = str(pick(10));
+      const edit = (t: string) => {
+        const index = pick(t.length + 1);
+        const remove = pick(t.length - index + 1);
+        return t.slice(0, index) + str(pick(3)) + t.slice(index + remove);
+      };
+      const mine = edit(base);
+      const server = edit(base);
+      const result = rejoinText(base, mine, server);
+      if (result === null) continue;
+      merged++;
+      if (!holdsBoth(base, mine, server, result)) throw new Error(`lost a change: ${JSON.stringify({ base, mine, server, result })}`);
+    }
+    // The property is not vacuous: plenty of cases merge.
+    expect(merged).toBeGreaterThan(1000);
+  });
+
+  it("reads this client's acknowledgement number back from an awareness update", () => {
+    const doc = new Y.Doc();
+    const other = new Y.Doc();
+    const mineAw = new awarenessProtocol.Awareness(doc);
+    const otherAw = new awarenessProtocol.Awareness(other);
+    mineAw.setLocalState({ user: { name: "A" }, ack: 7 });
+    otherAw.setLocalState({ user: { name: "B" }, ack: 99 });
+    const both = new awarenessProtocol.Awareness(new Y.Doc());
+    awarenessProtocol.applyAwarenessUpdate(both, awarenessProtocol.encodeAwarenessUpdate(mineAw, [doc.clientID]), null);
+    awarenessProtocol.applyAwarenessUpdate(both, awarenessProtocol.encodeAwarenessUpdate(otherAw, [other.clientID]), null);
+    const update = awarenessProtocol.encodeAwarenessUpdate(both, [other.clientID, doc.clientID]);
+    expect(ownAck(update, doc.clientID)).toBe(7);
+    expect(ownAck(awarenessProtocol.encodeAwarenessUpdate(otherAw, [other.clientID]), doc.clientID)).toBeNull();
+    mineAw.setLocalState({ user: { name: "A" } });
+    expect(ownAck(awarenessProtocol.encodeAwarenessUpdate(mineAw, [doc.clientID]), doc.clientID)).toBeNull();
+    expect(ownAck(new Uint8Array([5, 1]), doc.clientID)).toBeNull();
   });
 
   it("without a confirmed base only an identical copy counts as saved", () => {

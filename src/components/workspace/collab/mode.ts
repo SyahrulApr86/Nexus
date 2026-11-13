@@ -4,6 +4,7 @@
  * without a socket (tests/unit/collab-editor.test.ts).
  */
 import { simpleDiffString } from "lib0/diff";
+import * as decoding from "lib0/decoding";
 
 /** Delete `remove` characters at `index`, then insert `insert` (UTF-16 offsets, like Y.Text and CodeMirror). */
 export type Splice = { index: number; remove: number; insert: string };
@@ -100,14 +101,21 @@ export function seedSplices(server: string | undefined, doc: string, editor: str
 /**
  * Live to REST after a dropped socket: the text to keep, merged three ways.
  *
- * - `confirmed`: the shared text when the service last sent this device anything (undefined when the
- *   note never went live). Everything after it may not have reached this device, or the service.
+ * - `confirmed`: shared text the service is known to hold (undefined when the note never went live).
+ *   It includes this device's edits only once the service acknowledged them (session.ts), so
+ *   `mine === confirmed` really means nothing typed here is missing from the service.
  * - `mine`: what the editor shows now.
  * - `server`: the note text a fresh GET returned, which the service may have saved with edits from
  *   others that never arrived here (a stalled or half-open socket).
  *
  * Returns the text both sides' changes add up to, or null when they touch or overlap: then the save
- * must answer 409 and the user picks (Keep mine / Load theirs). Never overwrites someone else's edit.
+ * goes against the old base, answers 409 and the user picks (Keep mine / Load theirs). Never drops
+ * an edit: the worst case is a conflict that was not strictly needed.
+ *
+ * Touching changes are never resolved by guessing. A diff of two texts is ambiguous (deleting one
+ * of two equal lines looks like deleting either), so "the server copy already holds my change"
+ * cannot be proven from the texts alone; `confirmed` advancing on the service's acknowledgement
+ * (session.ts) is what keeps such cases rare.
  */
 export function rejoinText(confirmed: string | undefined, mine: string, server: string): string | null {
   if (mine === server) return server;
@@ -116,14 +124,36 @@ export function rejoinText(confirmed: string | undefined, mine: string, server: 
   if (server === confirmed) return mine;
   const a = simpleDiffString(confirmed, mine);
   const b = simpleDiffString(confirmed, server);
+  // Strictly apart (at least one untouched character between them): both apply to the same base.
   const [x, y] = a.index + a.remove < b.index ? [a, b] : b.index + b.remove < a.index ? [b, a] : [null, null];
-  if (x && y)
-    return confirmed.slice(0, x.index) + x.insert + confirmed.slice(x.index + x.remove, y.index) + y.insert + confirmed.slice(y.index + y.remove);
-  // The service may already hold this device's change (sent just before the drop) plus someone else's:
-  // then the server copy differs from the editor only away from that change.
-  const c = simpleDiffString(mine, server);
-  if (c.index + c.remove < a.index || c.index > a.index + a.insert.length) return server;
-  return null;
+  if (!x || !y) return null;
+  return confirmed.slice(0, x.index) + x.insert + confirmed.slice(x.index + x.remove, y.index) + y.insert + confirmed.slice(y.index + y.remove);
+}
+
+/**
+ * The acknowledgement number in this client's own awareness state, read from an awareness update
+ * the service sent (y-protocols encoding: count, then client id, clock and JSON state per entry),
+ * or null when the update carries none. The service relays every awareness update to every socket,
+ * the sender included, and handles one socket's frames in order, so seeing our own `ack: n` come
+ * back proves it applied every document update this device sent before it.
+ */
+export function ownAck(update: Uint8Array, clientId: number): number | null {
+  try {
+    const d = decoding.createDecoder(update);
+    const count = decoding.readVarUint(d);
+    let found: number | null = null;
+    for (let i = 0; i < count; i++) {
+      const id = decoding.readVarUint(d);
+      decoding.readVarUint(d); // clock
+      const json = decoding.readVarString(d);
+      if (id !== clientId) continue;
+      const state = JSON.parse(json) as { ack?: unknown } | null;
+      found = state && typeof state.ack === "number" && Number.isSafeInteger(state.ack) ? state.ack : null;
+    }
+    return found;
+  } catch {
+    return null;
+  }
 }
 
 /** The number of people on a note, said the way the view header says it. */
