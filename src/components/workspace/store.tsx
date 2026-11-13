@@ -22,13 +22,18 @@ import type { EditorHandle } from "./editor";
 import { basename, dirname, extractTags, extractWikiLinks, linkKey } from "@/lib/markdown/parse";
 import { signOut } from "@/lib/auth-client";
 import { writePrefsCookie, type LayoutPrefs, type LeftView, type RightView, type SortOrder } from "./prefs-cookie";
+/* attachments-ui: attachment tabs and the attachments provider */
+import type { AttachmentView } from "./attachments/model";
+import { AttachmentsProvider } from "./attachments/context";
+/* end attachments-ui */
 
 /* ------------------------------------------------------------------ */
 /* Layout model: tab groups (max two, side by side), tabs with history */
 /* ------------------------------------------------------------------ */
 
 export type NoteMode = "edit" | "read";
-export type View = { type: "note"; id: string; mode: NoteMode } | { type: "graph" } | { type: "empty" };
+export type View = { type: "note"; id: string; mode: NoteMode } | { type: "graph" } | { type: "empty" }
+  | AttachmentView /* attachments-ui */;
 export type Tab = { key: string; history: View[]; index: number };
 export type Group = { key: string; tabs: Tab[]; active: number };
 export type Layout = { groups: Group[]; focus: number };
@@ -37,7 +42,8 @@ export type OpenTarget = "current" | "tab" | "split";
 let seq = 0;
 const uid = () => `${Date.now().toString(36)}${(seq++).toString(36)}`;
 export const currentView = (t: Tab): View => t.history[t.index];
-const sameView = (a: View, b: View) => a.type === b.type && (a.type !== "note" || (b.type === "note" && a.id === b.id));
+const sameView = (a: View, b: View) => a.type === b.type && (a.type !== "note" || (b.type === "note" && a.id === b.id))
+  /* attachments-ui */ && (a.type !== "attachment" || (b.type === "attachment" && a.path === b.path));
 const newTab = (view: View): Tab => ({ key: uid(), history: [view], index: 0 });
 const newGroup = (tabs: Tab[] = []): Group => ({ key: uid(), tabs, active: 0 });
 const HISTORY_CAP = 60;
@@ -416,7 +422,9 @@ export function WorkspaceProvider({
     <StoreContext value={store}>
       <ActionsContext value={value.actions}>
         <WorkspaceContext value={value}>
-          {children}
+          {/* attachments-ui */}
+          <AttachmentsProvider>{children}</AttachmentsProvider>
+          {/* end attachments-ui */}
           {value.dialogNode}
         </WorkspaceContext>
       </ActionsContext>
@@ -1122,7 +1130,8 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
 
   // The browser tab names the focused note. The server title comes back when the workspace unmounts.
   const titleName =
-    focusView.type === "note" ? (notes[focusView.id]?.name ?? index.byId.get(focusView.id)?.name ?? null) : focusView.type === "graph" ? "Graph view" : null;
+    focusView.type === "note" ? (notes[focusView.id]?.name ?? index.byId.get(focusView.id)?.name ?? null) : focusView.type === "graph" ? "Graph view"
+    /* attachments-ui */ : focusView.type === "attachment" ? focusView.path.slice(focusView.path.lastIndexOf("/") + 1) : null;
   useEffect(() => {
     const before = document.title;
     return () => {
