@@ -16,6 +16,8 @@ const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["lati
 export const metadata: Metadata = {
   title: { default: "Nexus", template: "%s · Nexus" },
   description: "Linked markdown notes that open in any browser. Your vault stays plain .md files.",
+  // Home-screen name on iOS. "default" status bar: black-translucent would put white status text over the light theme.
+  appleWebApp: { title: "Nexus", capable: true, statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

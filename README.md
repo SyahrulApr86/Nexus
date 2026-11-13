@@ -76,6 +76,17 @@ Kalau pool network Docker di host penuh, atur `NEXUS_SUBNET` di `.env`.
 
 Pindah server: ekspor vault (`Ctrl+P` lalu pilih "Ekspor vault"), atau `pg_dump` database, lalu jalankan compose di server baru.
 
+## Pasang sebagai aplikasi (PWA)
+
+Nexus bisa di-install di HP dan desktop. Manifest ada di `src/app/manifest.ts` (disajikan di `/manifest.webmanifest`): jendela `standalone`, langsung membuka `/vault`, warna navy `#02070a`.
+
+- Chrome/Edge (desktop dan Android): pilih Install dari ikon di address bar atau dari menu browser.
+- Safari di iPhone/iPad: Share, lalu Add to Home Screen.
+
+Chrome/Edge hanya menawarkan Install di HTTPS (atau `localhost`). Belum ada service worker, jadi belum ada mode offline: aplikasi yang ter-install tetap butuh koneksi ke server.
+
+Ikon berupa tanda `[[ ]]` dari JetBrains Mono Bold (OFL), biru `#0297DE` di atas navy `#02070A`, dibuat dengan ImageMagick dan dipaskan ke grid piksel di tiap ukuran: `src/app/favicon.ico` (16/32/48), `src/app/icon.png` (512), `src/app/apple-icon.png` (180), `public/icons/` (192, 512, maskable 512).
+
 ## Alur kerja git
 
 - Branch integrasi: `develop`. Commit memakai format conventional commits (`feat:`, `fix:`, `docs:`, `chore:`, `design:`).
@@ -107,4 +118,5 @@ src/components/workspace/*    UI: editor, file tree, panel, palette, graph
 - Callout `> [!note]`, Mermaid, LaTeX/KaTeX
 - Template, bookmark, riwayat versi catatan
 - Canvas (`.canvas`), publish halaman publik, kolaborasi real-time (Yjs)
+- Service worker dan mode offline untuk PWA
 - Siap dipasarkan: verifikasi email dan reset password (perlu provider email), rate limit, kuota per user, billing, kebijakan privasi sesuai UU PDP
