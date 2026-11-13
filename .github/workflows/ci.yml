@@ -40,6 +40,8 @@ jobs:
         run: pnpm exec eslint .
       - name: Unit tests
         run: pnpm test:unit
+      - name: Dependency advisories (production, high and above)
+        run: pnpm audit
 
   integration:
     name: Integration tests
