@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import { signIn, signUp } from "@/lib/auth-client";
 
@@ -13,14 +13,21 @@ const EMAIL = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 
 const UNREACHABLE = "Nexus can’t be reached. Check your connection and try again.";
 /**
- * One message for every sign-up failure the server does not explain safely, including an email that
- * already has an account: naming that case would tell anyone which emails are registered.
+ * One message for every sign-up failure the server does not explain safely. An email that already
+ * has an account is not a failure: the server answers it exactly like a new one (src/lib/auth.ts).
  */
 export const SIGNUP_FAILED = "That vault can’t be created. If you already have one, sign in instead.";
 export const SIGNUP_DISABLED = "Creating vaults is turned off on this server. Sign in, or ask its owner for an account.";
 export const TOO_MANY = "Too many attempts. Wait a minute, then try again.";
 export const BAD_CREDENTIALS = "That email and password don’t match. Check them and try again.";
-/** Sign-up failures are shown no sooner than this, so a fast "already exists" looks like any other failure. */
+/**
+ * Shown on the sign-in page after any accepted sign-up. Sign-up never creates a session and answers a
+ * registered email like a new one, so this copy must hold for both cases without saying which happened.
+ */
+export const SIGNUP_DONE = "If this email is new, your vault is ready. Sign in to open it. If you already had a vault, use its password.";
+/** Where an accepted sign-up lands; the query only switches on SIGNUP_DONE and carries nothing else. */
+export const SIGNUP_DONE_URL = "/login?created=1";
+/** Sign-up failures are shown no sooner than this, so a fast failure looks like any other. */
 const SIGNUP_MIN_MS = 800;
 
 type AuthError = { code?: string; status?: number };
@@ -39,6 +46,10 @@ export function describeAuthError(err: AuthError, isSignup: boolean): Outcome {
   return { form: "Something went wrong. Try again." };
 }
 
+const noSubscribe = () => () => {};
+const readCreated = () => new URLSearchParams(window.location.search).get("created") === "1";
+const serverCreated = () => false;
+
 function validate(email: string, password: string, isSignup: boolean): FieldErrors {
   const errors: FieldErrors = {};
   if (!email) errors.email = "Enter your email.";
@@ -55,6 +66,14 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [busy, setBusy] = useState(false);
   const errorId = useId();
   const isSignup = mode === "signup";
+  const noticeId = `${errorId}-notice`;
+  const created = useSyncExternalStore(noSubscribe, readCreated, serverCreated) && !isSignup;
+  const emailRef = useRef<HTMLInputElement>(null);
+
+  // Arriving from sign-up: start on the email field, which also reads the notice (aria-describedby).
+  useEffect(() => {
+    if (created) emailRef.current?.focus();
+  }, [created]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -111,12 +130,20 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       focusField(next.password && !next.email ? "password" : "email");
       return;
     }
-    // Stay busy until the vault replaces this page.
+    // Stay busy until the next page replaces this one. Sign-up returns no session (token null), and the
+    // same answer for a new and a registered email, so it always continues on the sign-in page.
+    if (isSignup && !res.data?.token) {
+      router.push(SIGNUP_DONE_URL);
+      return;
+    }
     router.push("/vault");
     router.refresh();
   }
 
-  const describe = (field: keyof FieldErrors) => [fieldErrors[field] ? `${errorId}-${field}` : null, error ? errorId : null].filter(Boolean).join(" ") || undefined;
+  const describe = (field: keyof FieldErrors) =>
+    [fieldErrors[field] ? `${errorId}-${field}` : null, error ? errorId : null, field === "email" && created ? noticeId : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-frame px-4 py-12">
@@ -135,9 +162,15 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           <p className="mt-1 text-muted">
             {isSignup ? "Your notes stay plain markdown you can export any time." : "Open your notes on this device."}
           </p>
+          {created && (
+            <p id={noticeId} role="status" className="mt-4 rounded-lg border border-border bg-frame px-3 py-2.5 text-[14px] leading-5">
+              {SIGNUP_DONE}
+            </p>
+          )}
           <div className="mt-6 space-y-4">
             {isSignup && <Field name="name" label="Name" autoComplete="name" />}
             <Field
+              ref={emailRef}
               name="email"
               label="Email"
               type="email"
@@ -204,7 +237,7 @@ function Field({
   error?: string;
   errorId?: string;
   invalid?: boolean;
-} & React.InputHTMLAttributes<HTMLInputElement>) {
+} & React.ComponentProps<"input">) {
   const id = useId();
   const hintId = `${id}-hint`;
   // The error replaces the hint it restates, and is read first.
