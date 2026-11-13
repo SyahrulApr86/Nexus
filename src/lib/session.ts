@@ -1,6 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { getAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { vault } from "@/db/schema";
@@ -86,13 +86,53 @@ export function assertSameOrigin(h: Headers) {
   if (host !== h.get("host")) throw new HttpError(403, "Cross-site request refused");
 }
 
-/** For API routes: same-origin check, then the authenticated user + vault, or throws 403/401. */
+/* ------------------------------------------------------------------ */
+/* Active vault                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Request header naming the vault an API call acts on. The client sends it on every request
+ * (src/lib/api.ts); without it the call acts on the user's default vault (the oldest one).
+ */
+export const VAULT_HEADER = "x-nexus-vault";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The vault named by the X-Nexus-Vault header when it is one of the user's own vaults; the
+ * default vault when the header is absent or empty. The same 404 for a malformed id, someone
+ * else's vault and a deleted one, so the answer never tells whether a vault id exists.
+ */
+export async function resolveVaultId(userId: string, requested: string | null): Promise<string> {
+  const id = requested?.trim();
+  // Absent or empty (a client that has not picked a vault yet): the default vault.
+  if (!id) return getDefaultVaultId(userId);
+  if (!UUID.test(id)) throw new HttpError(404, "Vault not found");
+  const [v] = await db
+    .select({ id: vault.id })
+    .from(vault)
+    .where(and(eq(vault.id, id), eq(vault.ownerId, userId)))
+    .limit(1);
+  if (!v) throw new HttpError(404, "Vault not found");
+  return v.id;
+}
+
+/** For API routes: same-origin check, the authenticated user, then the active vault, or throws 403/401/404. */
 export async function requireVault() {
+  const h = await headers();
+  assertSameOrigin(h);
+  const user = await getSessionUser();
+  if (!user) throw new HttpError(401, "Unauthorized");
+  const vaultId = await resolveVaultId(user.id, h.get(VAULT_HEADER));
+  return { user, vaultId };
+}
+
+/** For API routes that act on the user rather than one vault (/api/vaults): same-origin check and the user. */
+export async function requireUser() {
   assertSameOrigin(await headers());
   const user = await getSessionUser();
   if (!user) throw new HttpError(401, "Unauthorized");
-  const vaultId = await getDefaultVaultId(user.id);
-  return { user, vaultId };
+  return user;
 }
 
 /* ------------------------------------------------------------------ */
