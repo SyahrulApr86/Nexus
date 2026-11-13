@@ -92,7 +92,7 @@ pnpm db:migrate
 pnpm dev                      # http://localhost:3000
 ```
 
-Pendaftaran tertutup secara default. Untuk membuat akun pertama, set `NEXUS_ALLOW_SIGNUP=true` di `.env`, jalankan ulang `pnpm dev`, buka `/signup`, buat akun, lalu masuk ke `/vault`. Setelah itu kembalikan ke `false`.
+Pendaftaran tertutup secara default. Untuk membuat akun pertama, set `NEXUS_ALLOW_SIGNUP=true` di `.env`, jalankan ulang `pnpm dev`, buka `/signup`, buat akun, lalu masuk lewat `/login` (pendaftaran tidak langsung membuat sesi). Setelah itu kembalikan ke `false`.
 
 ## Deploy (VPS mana pun)
 
@@ -118,7 +118,7 @@ Pindah server: ekspor vault (`Ctrl+P` lalu pilih "Ekspor vault"), atau `pg_dump`
 | Reverse proxy **menimpa** `X-Forwarded-For` dengan alamat peer, bukan menambahkannya. Nginx: `proxy_set_header X-Forwarded-For $remote_addr;` (bukan `$proxy_add_x_forwarded_for`). Caddy: biarkan default dan jangan set `trusted_proxies`. | Rate limit Better Auth (sign-in 5 per menit, sign-up 5 per jam per IP) memakai header ini. Kalau ada lebih dari satu proxy, isi `NEXUS_TRUSTED_PROXIES` dengan IP/CIDR proxy itu. |
 | Batasi ukuran body di proxy juga. Nginx: `client_max_body_size 51m;` di `location /api/vault/import`, `12m` di tempat lain. Caddy: `request_body { max_size 51MB }`. | Lapisan kedua. App sendiri menolak body di atas batas (impor 51 MiB, catatan 12 MiB, lainnya 16 KiB sampai 512 KiB) sebelum membacanya utuh. |
 | `BETTER_AUTH_URL` harus `https://`. App menolak start di production dengan URL `http://` selain localhost. | Better Auth menandai cookie `Secure` hanya kalau URL-nya https. |
-| `NEXUS_ALLOW_SIGNUP=false` (default). Nyalakan hanya untuk membuat akun pemilik, lalu matikan lagi dan restart `app`. | Tanpa itu siapa pun di internet bisa membuat akun di server Anda. Saat mati, `/signup` dialihkan ke `/login` dan API sign-up menolak dengan 400. |
+| `NEXUS_ALLOW_SIGNUP=false` (default). Nyalakan hanya untuk membuat akun pemilik, lalu matikan lagi dan restart `app`. | Tanpa itu siapa pun di internet bisa membuat akun di server Anda. Saat mati, `/signup` dialihkan ke `/login` dan API sign-up menolak dengan 400. Saat hidup, API sign-up menjawab email yang sudah terdaftar sama persis dengan email baru (200, bentuk body sama, tanpa cookie sesi, password tetap di-hash), jadi tidak bisa dipakai untuk mengecek email mana yang punya akun. |
 | App terhubung ke database sebagai `nexus_app` (tanpa superuser, hanya SELECT/INSERT/UPDATE/DELETE). `nexus` hanya dipakai `migrate`. | Celah di app tidak bisa membaca file server atau membuat role lewat Postgres. |
 
 Role `nexus_app` dibuat otomatis oleh skrip init saat volume `pgdata` pertama kali dibuat. Untuk volume yang sudah ada, jalankan sekali (setelah `APP_DB_PASSWORD` diisi di `.env`):

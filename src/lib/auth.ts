@@ -48,6 +48,10 @@ export function authOptions() {
       enabled: true,
       minPasswordLength: 8,
       disableSignUp: !signupAllowed(),
+      // No session from sign-up: Better Auth then answers a registered email with the same 200 and
+      // body shape as a new one (a synthetic user, token null) and still hashes the password, so the
+      // endpoint cannot be used to check which emails have accounts. The new owner signs in next.
+      autoSignIn: false,
     },
     advanced: {
       ipAddress: {
