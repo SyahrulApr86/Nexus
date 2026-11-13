@@ -9,9 +9,14 @@
  * Rendered: ATX heading marks, emphasis/strong/strikethrough/inline-code marks,
  * ==highlight== marks, [text](url) links, <autolinks>, bare URLs, [[wikilinks]]
  * (brackets, alias targets, heading separators), task checkboxes, bullet
- * markers, blockquote marks, horizontal rules and code fences.
+ * markers, blockquote marks, horizontal rules and code fence markers.
  * Left as source on purpose: tables, HTML, frontmatter, images, embeds
- * (![[note]]), ordered list numbers, setext headings.
+ * (![[note]]), ordered list numbers, setext headings, links whose syntax spans
+ * lines, and everything inside those regions.
+ *
+ * Safety: a replace decoration never crosses a line break (CodeMirror forbids
+ * that from plugins), and any unexpected parser edge case falls back to no
+ * decorations instead of breaking the editor.
  */
 import { Prec, type Extension, type Range, type EditorState } from "@codemirror/state";
 import {
@@ -32,30 +37,47 @@ export type LivePreviewHandlers = {
 
 const WIKILINK = /(!?)\[\[([^\[\]\n]+?)\]\]/g;
 const HIGHLIGHT = /==([^=\n]+)==/g;
-const TASK_LINE = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\])/;
-const LIST_LINE = /^(\s*(?:[-*+]|\d+[.)])\s+)/;
-const SAFE_URL = /^(?:https?:|mailto:)/i;
+// Quote prefixes and stacked list markers are allowed ("> - [ ] x", "- - [ ] x").
+const TASK_LINE = /^(\s*(?:>\s?)*\s*(?:(?:[-*+]|\d+[.)])\s+)+\[)([ xX])(\])/;
+const LIST_LINE = /^(\s*(?:>\s?)*\s*(?:(?:[-*+]|\d+[.)])\s+)+)/;
+const QUOTE_PREFIX = /^(\s*(?:>\s?)*\s*)/;
+const RAW_REGIONS = /^(?:InlineCode|FencedCode|CodeBlock|CodeText|Table|HTMLBlock|HTMLTag|CommentBlock|Comment|Image|ProcessingInstructionBlock)$/;
+const EMAIL = /^[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>()]+$/;
 
 /* ------------------------------------------------------------------ */
 /* Widgets                                                             */
 /* ------------------------------------------------------------------ */
 
 class CheckboxWidget extends WidgetType {
-  constructor(readonly checked: boolean) {
+  constructor(
+    readonly checked: boolean,
+    readonly label: string,
+  ) {
     super();
   }
   eq(other: CheckboxWidget) {
-    return other.checked === this.checked;
+    return other.checked === this.checked && other.label === this.label;
   }
   toDOM(view: EditorView) {
     const box = document.createElement("input");
     box.type = "checkbox";
-    box.checked = this.checked;
     box.className = "cm-lp-checkbox";
-    box.setAttribute("aria-label", "Task");
-    // The native control handles mouse and Space; we mirror its state into the source.
-    box.addEventListener("change", () => toggleTaskAt(view, view.posAtDOM(box)));
+    // One Tab stop for the editor, not one per task: Mod-L and the source cover keyboard use.
+    box.tabIndex = -1;
+    this.sync(box);
+    box.addEventListener("change", () => {
+      if (!toggleTaskAt(view, view.posAtDOM(box))) box.checked = !box.checked; // keep UI and source in step
+    });
     return box;
+  }
+  /** Reuse the same element after a toggle so focus and undo history are not lost. */
+  updateDOM(dom: HTMLElement) {
+    this.sync(dom as HTMLInputElement);
+    return true;
+  }
+  private sync(box: HTMLInputElement) {
+    box.checked = this.checked;
+    box.setAttribute("aria-label", this.label ? `Task: ${this.label}` : "Task");
   }
   ignoreEvent() {
     // Let the checkbox own its events so clicking it neither moves the cursor nor reveals the source.
@@ -101,7 +123,8 @@ const rule = Decoration.replace({ widget: new RuleWidget() });
 const doneText = Decoration.mark({ class: "cm-lp-done" });
 const quoteLine = Decoration.line({ class: "cm-lp-quote" });
 const fenceLine = Decoration.line({ class: "cm-lp-fence" });
-const linkText = (href: string) => Decoration.mark({ class: "cm-lp-link", attributes: { "data-href": href } });
+const linkText = (href: string) =>
+  Decoration.mark({ class: "cm-lp-link", attributes: { "data-href": href, role: "link", title: href } });
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -131,23 +154,49 @@ function frontmatterEnd(state: EditorState): number {
   return 0;
 }
 
-function inCode(state: EditorState, pos: number) {
+/** True inside code, tables, HTML, comments or images: regions that stay as source. */
+function inRaw(state: EditorState, pos: number) {
   let n: ReturnType<typeof syntaxTree>["topNode"] | null = syntaxTree(state).resolveInner(pos, 1);
-  for (; n; n = n.parent) if (/Code/.test(n.name)) return true;
+  for (; n; n = n.parent) if (RAW_REGIONS.test(n.name)) return true;
   return false;
 }
 
-/** Flip `[ ]` ↔ `[x]` on the task line that starts at or contains `pos`. */
-function toggleTaskAt(view: EditorView, pos: number) {
-  const line = view.state.doc.lineAt(pos);
+/** The `[ ]` / `[x]` marker on the line containing `pos`, found in the syntax tree, falling back to text. */
+function taskMarkerOn(state: EditorState, pos: number): { at: number; checked: boolean } | null {
+  const line = state.doc.lineAt(pos);
+  let found: { at: number; checked: boolean } | null = null;
+  syntaxTree(state).iterate({
+    from: line.from,
+    to: line.to,
+    enter: (n) => {
+      if (found) return false;
+      if (n.name === "TaskMarker" && n.from >= line.from && n.to <= line.to) {
+        found = { at: n.from + 1, checked: /x/i.test(state.doc.sliceString(n.from, n.to)) };
+        return false;
+      }
+    },
+  });
+  if (found) return found;
   const m = TASK_LINE.exec(line.text);
-  if (!m) return false;
-  const at = line.from + m[1].length;
-  view.dispatch({ changes: { from: at, to: at + 1, insert: m[2] === " " ? "x" : " " }, userEvent: "input.toggle" });
+  return m ? { at: line.from + m[1].length, checked: m[2] !== " " } : null;
+}
+
+/** Flip `[ ]` ↔ `[x]` on the task line that contains `pos`. */
+function toggleTaskAt(view: EditorView, pos: number) {
+  const marker = taskMarkerOn(view.state, pos);
+  if (!marker) return false;
+  view.dispatch({
+    changes: { from: marker.at, to: marker.at + 1, insert: marker.checked ? " " : "x" },
+    userEvent: "input.toggle",
+  });
   return true;
 }
 
-/** Mod-l: plain line → task, list item → task, task → toggled (Obsidian's "Toggle checkbox status"). */
+/**
+ * Mod-L: plain line → task, list item → task, task → toggled. This mirrors
+ * Obsidian's "Toggle checkbox status" hotkey and deliberately replaces
+ * CodeMirror's default Mod-L (select line) inside notes.
+ */
 function toggleChecklist(view: EditorView) {
   const { state } = view;
   const changes: { from: number; to?: number; insert: string }[] = [];
@@ -157,28 +206,27 @@ function toggleChecklist(view: EditorView) {
       if (seen.has(n)) continue;
       seen.add(n);
       const line = state.doc.line(n);
-      const task = TASK_LINE.exec(line.text);
+      const marker = taskMarkerOn(state, line.from);
       const list = LIST_LINE.exec(line.text);
-      if (task) {
-        const at = line.from + task[1].length;
-        changes.push({ from: at, to: at + 1, insert: task[2] === " " ? "x" : " " });
-      } else if (list) {
-        changes.push({ from: line.from + list[1].length, insert: "[ ] " });
-      } else {
-        const indent = /^\s*/.exec(line.text)![0].length;
-        changes.push({ from: line.from + indent, insert: "- [ ] " });
-      }
+      if (marker) changes.push({ from: marker.at, to: marker.at + 1, insert: marker.checked ? " " : "x" });
+      else if (list) changes.push({ from: line.from + list[1].length, insert: "[ ] " });
+      else changes.push({ from: line.from + QUOTE_PREFIX.exec(line.text)![1].length, insert: "- [ ] " });
     }
   }
   if (!changes.length) return false;
-  view.dispatch({ changes, userEvent: "input.toggle" });
+  const cs = state.changes(changes);
+  // Map with assoc 1 so a caret sitting at the insertion point ends up after the new marker.
+  view.dispatch({ changes: cs, selection: state.selection.map(cs, 1), userEvent: "input.toggle" });
   return true;
 }
 
-function openExternal(href: string) {
-  const url = /^www\./i.test(href) ? `https://${href}` : href;
-  if (!SAFE_URL.test(url)) return;
-  window.open(url, "_blank", "noopener,noreferrer");
+/** A URL this preview may open, or null (relative paths, javascript: and the like are refused). */
+function safeHref(href: string): string | null {
+  const h = href.trim();
+  if (/^(?:https?:|mailto:)/i.test(h)) return h;
+  if (/^www\./i.test(h)) return `https://${h}`;
+  if (EMAIL.test(h)) return `mailto:${h}`;
+  return null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -190,12 +238,23 @@ function buildDecorations(view: EditorView): DecorationSet {
   const { doc } = state;
   const active = activeLines(view);
   const isActive = (pos: number) => active.has(doc.lineAt(pos).number);
+  const isActiveRange = (from: number, to: number) => {
+    for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) if (active.has(n)) return true;
+    return false;
+  };
+  const sameLine = (from: number, to: number) => doc.lineAt(from).number === doc.lineAt(to).number;
   const fmEnd = frontmatterEnd(state);
   const tree = syntaxTree(state);
   const out: Range<Decoration>[] = [];
   const keys = new Set<string>();
-  const add = (deco: Decoration, from: number, to = from, kind = "") => {
-    if (to < from || (to === from && !kind)) return;
+  /** kind "h" = replace (must stay on one line), "m" = mark, anything else = a line decoration of that kind. */
+  const add = (deco: Decoration, from: number, to: number, kind: string) => {
+    if (to < from) return;
+    if (kind === "h") {
+      if (to === from || !sameLine(from, to)) return; // never replace a line break from a plugin
+    } else if (kind === "m") {
+      if (to === from) return;
+    }
     const key = `${kind}:${from}:${to}`;
     if (keys.has(key)) return;
     keys.add(key);
@@ -211,15 +270,18 @@ function buildDecorations(view: EditorView): DecorationSet {
     for (const m of text.matchAll(WIKILINK)) {
       const start = from + m.index!;
       const end = start + m[0].length;
-      if (start < fmEnd || inCode(state, start)) continue;
+      if (start < fmEnd || inRaw(state, start)) continue;
       wikiRanges.push([start, end]);
       if (m[1] === "!" || isActive(start)) continue; // embeds stay as source
       const inner = m[2];
       const innerFrom = start + 2;
       const pipe = inner.indexOf("|");
+      const alias = pipe === -1 ? "" : inner.slice(pipe + 1).trim();
       add(hide, start, start + 2, "h");
-      if (pipe !== -1) {
+      if (pipe !== -1 && alias) {
         add(hide, innerFrom, innerFrom + pipe + 1, "h");
+      } else if (pipe !== -1) {
+        add(hide, innerFrom + pipe, innerFrom + inner.length, "h"); // empty alias: show the target
       } else {
         const hash = inner.indexOf("#");
         if (hash > 0) add(headingSep, innerFrom + hash, innerFrom + hash + 1, "h");
@@ -229,7 +291,7 @@ function buildDecorations(view: EditorView): DecorationSet {
     for (const m of text.matchAll(HIGHLIGHT)) {
       const start = from + m.index!;
       const end = start + m[0].length;
-      if (start < fmEnd || inCode(state, start) || isActive(start)) continue;
+      if (start < fmEnd || inRaw(state, start) || isActive(start)) continue;
       add(hide, start, start + 2, "h");
       add(hide, end - 2, end, "h");
     }
@@ -241,19 +303,16 @@ function buildDecorations(view: EditorView): DecorationSet {
         if (node.to <= fmEnd) return false;
         switch (node.name) {
           case "FencedCode": {
-            const first = doc.lineAt(node.from);
-            const last = doc.lineAt(node.to);
-            let touched = false;
-            for (let n = first.number; n <= last.number && !touched; n++) touched = active.has(n);
-            if (!touched) {
-              add(fenceLine, first.from, first.from, "line");
-              add(hide, first.from, first.to, "h");
-              if (last.number !== first.number && /^\s*(```|~~~)/.test(last.text)) {
-                add(fenceLine, last.from, last.from, "line");
-                add(hide, last.from, last.to, "h");
-              }
+            if (isActiveRange(node.from, node.to)) return false;
+            // Hide only the fence markers and the info string, never quote/list prefixes or code.
+            for (const child of [...node.node.getChildren("CodeMark"), ...node.node.getChildren("CodeInfo")]) {
+              add(fenceLine, doc.lineAt(child.from).from, doc.lineAt(child.from).from, "fence");
+              add(hide, child.from, child.to, "h");
             }
-            return false; // never touch code content
+            // A fence inside a blockquote keeps the quote rendering on its lines.
+            for (const qm of node.node.getChildren("QuoteMark"))
+              add(hide, qm.from, qm.to + (doc.sliceString(qm.to, qm.to + 1) === " " ? 1 : 0), "h");
+            return false;
           }
           case "CodeBlock":
           case "HTMLBlock":
@@ -266,7 +325,7 @@ function buildDecorations(view: EditorView): DecorationSet {
             const parent = node.node.parent;
             if (!parent || !parent.name.startsWith("ATXHeading") || isActive(node.from)) return;
             const line = doc.lineAt(node.from);
-            const leading = doc.sliceString(line.from, node.from).trim() === "";
+            const leading = doc.sliceString(line.from, node.from).replace(/>/g, "").trim() === "";
             if (leading) {
               add(hide, node.from, node.to + (doc.sliceString(node.to, node.to + 1) === " " ? 1 : 0), "h");
             } else {
@@ -279,12 +338,13 @@ function buildDecorations(view: EditorView): DecorationSet {
             if (!isActive(node.from)) add(hide, node.from, node.to, "h");
             return;
           case "CodeMark":
-            if (node.node.parent?.name === "InlineCode" && !isActive(node.from)) add(hide, node.from, node.to, "h");
+            if (node.node.parent?.name === "InlineCode" && !isActiveRange(node.node.parent.from, node.node.parent.to))
+              add(hide, node.from, node.to, "h");
             return;
           case "Blockquote": {
             const first = doc.lineAt(Math.max(node.from, from)).number;
             const last = doc.lineAt(Math.min(node.to, to)).number;
-            for (let n = first; n <= last; n++) add(quoteLine, doc.line(n).from, doc.line(n).from, "line");
+            for (let n = first; n <= last; n++) add(quoteLine, doc.line(n).from, doc.line(n).from, "quote");
             return;
           }
           case "QuoteMark": {
@@ -300,12 +360,15 @@ function buildDecorations(view: EditorView): DecorationSet {
             if (!listMark || isActive(listMark.from)) return;
             const task = node.node.getChild("Task");
             const marker = task?.getChild("TaskMarker");
-            if (task && marker) {
+            const ordered = node.node.parent?.name === "OrderedList";
+            if (task && marker && sameLine(listMark.from, marker.to)) {
               const checked = /x/i.test(doc.sliceString(marker.from, marker.to));
               let end = marker.to;
               if (doc.sliceString(end, end + 1) === " ") end += 1;
-              add(Decoration.replace({ widget: new CheckboxWidget(checked) }), listMark.from, end, "h");
               const lineEnd = Math.min(doc.lineAt(listMark.from).to, task.to);
+              const label = doc.sliceString(end, lineEnd).replace(/\[\[([^\]|]*\|)?([^\]]*)\]\]/g, "$2").trim();
+              // Ordered tasks keep their number: replace only the [ ] marker.
+              add(Decoration.replace({ widget: new CheckboxWidget(checked, label) }), ordered ? marker.from : listMark.from, end, "h");
               if (checked && lineEnd > end) add(doneText, end, lineEnd, "m");
             } else if (node.node.parent?.name === "BulletList") {
               add(bullet, listMark.from, listMark.to, "h");
@@ -320,9 +383,12 @@ function buildDecorations(view: EditorView): DecorationSet {
             const open = marks[0];
             const close = marks.find((m) => doc.sliceString(m.from, m.to) === "]");
             if (!open || !close) return;
-            const href = doc.sliceString(url.from, url.to);
+            const href = safeHref(doc.sliceString(url.from, url.to));
+            // Links that cannot be opened here (javascript:, relative paths) and links whose syntax
+            // spans lines stay as source, so nothing looks clickable that is not.
+            if (!href || !sameLine(close.from, n.to)) return;
             if (close.from > open.to) add(linkText(href), open.to, close.from, "m");
-            if (!isActive(n.from)) {
+            if (!isActiveRange(n.from, n.to)) {
               add(hide, open.from, open.to, "h");
               add(hide, close.from, n.to, "h");
             }
@@ -332,7 +398,8 @@ function buildDecorations(view: EditorView): DecorationSet {
             const n = node.node;
             const url = n.getChild("URL");
             if (!url) return false;
-            add(linkText(doc.sliceString(url.from, url.to)), url.from, url.to, "m");
+            const href = safeHref(doc.sliceString(url.from, url.to));
+            if (href) add(linkText(href), url.from, url.to, "m");
             if (!isActive(n.from)) {
               add(hide, n.from, url.from, "h");
               add(hide, url.to, n.to, "h");
@@ -342,7 +409,8 @@ function buildDecorations(view: EditorView): DecorationSet {
           case "URL": {
             const parent = node.node.parent?.name;
             if (parent === "Link" || parent === "Image" || parent === "Autolink" || insideWiki(node.from, node.to)) return;
-            add(linkText(doc.sliceString(node.from, node.to)), node.from, node.to, "m");
+            const href = safeHref(doc.sliceString(node.from, node.to));
+            if (href) add(linkText(href), node.from, node.to, "m");
             return;
           }
         }
@@ -350,6 +418,16 @@ function buildDecorations(view: EditorView): DecorationSet {
     });
   }
   return Decoration.set(out, true);
+}
+
+/** Never let a parser edge case take the editor down: fall back to plain source. */
+function safeBuild(view: EditorView): DecorationSet {
+  try {
+    return buildDecorations(view);
+  } catch (err) {
+    console.error("Live preview disabled for this update:", err);
+    return Decoration.none;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -408,7 +486,7 @@ export function livePreview(handlers: LivePreviewHandlers): Extension {
     class {
       decorations: DecorationSet;
       constructor(view: EditorView) {
-        this.decorations = buildDecorations(view);
+        this.decorations = safeBuild(view);
       }
       update(u: ViewUpdate) {
         if (
@@ -418,7 +496,7 @@ export function livePreview(handlers: LivePreviewHandlers): Extension {
           u.focusChanged ||
           syntaxTree(u.startState) !== syntaxTree(u.state)
         ) {
-          this.decorations = buildDecorations(u.view);
+          this.decorations = safeBuild(u.view);
         }
       }
     },
@@ -436,18 +514,19 @@ export function livePreview(handlers: LivePreviewHandlers): Extension {
       const pos = view.posAtDOM((wiki ?? ext)!);
       const rendered = !activeLines(view).has(view.state.doc.lineAt(pos).number);
       if (wiki) {
-        // Ctrl/Cmd+click is the editor's own handler; a plain click opens only a rendered link.
-        if (modifier || !rendered || !wiki.dataset.target) return false;
+        // Ctrl/Cmd+click is the editor's own handler. A plain click opens a rendered link to an
+        // existing note; a link to a note not created yet needs Ctrl/Cmd+click, so a stray tap
+        // never creates a note.
+        if (modifier || !rendered || !wiki.dataset.target || wiki.classList.contains("cm-wikilink-ghost")) return false;
         e.preventDefault();
         handlers.openLink(wiki.dataset.target, false);
         return true;
       }
-      if (rendered || modifier) {
-        e.preventDefault();
-        openExternal(ext!.dataset.href ?? "");
-        return true;
-      }
-      return false;
+      const href = safeHref(ext!.dataset.href ?? "");
+      if (!href || !(rendered || modifier)) return false; // let the click place the caret
+      e.preventDefault();
+      window.open(href, "_blank", "noopener,noreferrer");
+      return true;
     },
   });
 
