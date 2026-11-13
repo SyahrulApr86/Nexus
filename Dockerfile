@@ -14,6 +14,8 @@ FROM deps AS build
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
+# Real-time collaboration service: one self-contained bundle, run by compose service "collab".
+RUN node collab/build.mjs
 
 # --- One-shot migration runner (docker compose service "migrate") ---
 FROM deps AS migrate
@@ -32,6 +34,7 @@ RUN addgroup -S nexus && adduser -S nexus -G nexus
 COPY --from=build --chown=nexus:nexus /app/.next/standalone ./
 COPY --from=build --chown=nexus:nexus /app/.next/static ./.next/static
 COPY --from=build --chown=nexus:nexus /app/public ./public
+COPY --from=build --chown=nexus:nexus /app/build/collab/server.mjs ./collab/server.mjs
 USER nexus
 EXPOSE 3000
 CMD ["node", "server.js"]

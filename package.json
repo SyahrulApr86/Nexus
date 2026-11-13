@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "collab:build": "node collab/build.mjs",
+    "collab:dev": "node collab/build.mjs && node --env-file-if-exists=.env --env-file-if-exists=.env.local build/collab/server.mjs",
     "lint": "eslint",
     "db:up": "docker compose up -d db",
     "db:generate": "drizzle-kit generate",
@@ -32,6 +34,7 @@
     "drizzle-orm": "^0.45.4",
     "fflate": "0.8.3",
     "katex": "0.16.47",
+    "lib0": "0.2.120",
     "lucide-react": "^1.72.0",
     "mermaid": "12.3.0",
     "next": "16.4.6",
@@ -47,6 +50,9 @@
     "remark-rehype": "^11.1.2",
     "server-only": "^0.0.1",
     "unified": "^11.0.5",
+    "ws": "8.22.2",
+    "y-protocols": "1.0.7",
+    "yjs": "13.6.33",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -55,12 +61,15 @@
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "8.18.2",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
     "typescript": "^5",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.0",
+    "y-websocket": "3.1.0"
   },
   "packageManager": "pnpm@11.17.0"
 }

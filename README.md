@@ -268,6 +268,16 @@ Tabel `share`. Token 32 byte acak (base64url) hanya ditampilkan sekali saat dibu
 
 Halaman publik `/s/<token>` tidak butuh login. Isinya dirender dengan renderer markdown yang sama (sudah disanitasi), lalu `[[wikilink]]` dan embed catatan jadi teks biasa (catatan lain tidak bisa dibuka dan tidak terlihat ada atau tidaknya), `#tag` jadi label tanpa tautan, dan gambar dari situs lain jadi tautan. Halaman ini memakai `noindex`, `Referrer-Policy: no-referrer`, CSP tambahan yang lebih ketat (gambar hanya dari origin ini), dan rate limit 60 tampilan per menit per IP. Token tak dikenal, dicabut, atau kedaluwarsa mendapat halaman "This link is not available" yang sama. Karena Cache Components mengirim shell lebih dulu, status HTTP-nya tetap `200` dengan `noindex`.
 
+## Kolaborasi real-time
+
+Service `collab` (folder `collab/`, detail di [collab/README.md](collab/README.md)) menyinkronkan satu catatan antar-tab dan antar-perangkat secara live dengan Yjs lewat WebSocket di `/collab?note=<id>`. Socket diautentikasi dengan cookie sesi app yang sama, dicek Origin-nya, dan hanya membuka catatan di vault milik pengguna. Perubahan disimpan ke `note.content` 2 detik setelah ketikan terakhir lewat fungsi yang sama dengan `PATCH`, dan tulisan REST ke catatan yang sedang terbuka di-merge ke dokumen live.
+
+```bash
+pnpm collab:dev               # lokal, 127.0.0.1:3001 (COLLAB_PORT)
+```
+
+Di produksi compose menjalankan service `collab` dari image yang sama dengan `app`. Arahkan `/collab` di reverse proxy ke `127.0.0.1:COLLAB_PORT` (default 3001) dengan header `Upgrade`; contoh Caddy dan Nginx ada di collab/README.md. Editor belum tersambung ke service ini (track editor berikutnya).
+
 ## Belum ada (roadmap)
 
 - Live preview ala Obsidian (sembunyikan sintaks markdown di baris yang tidak aktif)
