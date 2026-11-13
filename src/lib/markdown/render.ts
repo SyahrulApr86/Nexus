@@ -11,6 +11,7 @@ import { stripComments } from "./comments";
 import { blankSpans, scanMath } from "./math";
 import { CALLOUT_TYPES, remarkCallouts } from "./callouts";
 import { embedLinkMarkdown, isBlockEmbed, rehypeEmbeds } from "./embeds";
+import { ATTACHMENT_NAME, attachmentMarkdown, rehypeAttachments, type AttachmentLookup } from "./attachments";
 import { rehypeReadingView } from "./reading-view";
 
 const callouts = [...CALLOUT_TYPES];
@@ -23,7 +24,9 @@ const schema: SanitizeSchema = {
   clobberPrefix: "",
   protocols: {
     ...defaultSchema.protocols,
-    href: [...(defaultSchema.protocols?.href ?? []), "wikilink", "tag", "embed"],
+    href: [...(defaultSchema.protocols?.href ?? []), "wikilink", "tag", "embed", "attachment"],
+    // `attachment:` sources are resolved by rehypeAttachments; nothing else but http(s) and relative.
+    src: [...(defaultSchema.protocols?.src ?? []), "attachment"],
   },
   attributes: {
     ...defaultSchema.attributes,
@@ -84,9 +87,11 @@ const processor = unified()
   .use(remarkCallouts)
   .use(remarkRehype)
   .use(rehypeSanitize, schema)
-  // Trusted transforms on the sanitised tree: embed blocks, task labels, image
-  // loading and sizes, and dropping protocol-relative links.
+  // Trusted transforms on the sanitised tree: embed blocks, attachments (images,
+  // audio, video, PDF cards), task labels, image loading and sizes, and dropping
+  // protocol-relative links.
   .use(rehypeEmbeds)
+  .use(rehypeAttachments)
   .use(rehypeReadingView)
   .use(rehypeStringify);
 
@@ -101,12 +106,18 @@ const MARK_CLOSE = "";
  * Turn Obsidian syntax into plain markdown before parsing:
  *   [[Note|Alias]]  -> [Alias](wikilink:Note)
  *   ![[Note]]       -> an embed block when it stands on its own line, otherwise [↳ Note](wikilink:Note)
+ *   ![[photo.png]]  -> ![photo](attachment:photo.png), resolved by rehypeAttachments (also [[doc.pdf]]
+ *                      when the lookup knows the file)
  *   #tag            -> [#tag](tag:tag)
  *   ==text==        -> <mark>text</mark> (via private-use markers, since raw HTML is stripped)
  *   stray $         -> \$ (only real formulas reach remark-math)
  * Code spans, code blocks and formulas are left untouched.
  */
-function preprocess(md: string, exists: (target: string) => boolean): { text: string; toInput: (pos: number) => number } {
+function preprocess(
+  md: string,
+  exists: (target: string) => boolean,
+  attachments?: AttachmentLookup,
+): { text: string; toInput: (pos: number) => number } {
   const code = maskCode(md);
   const { escapes, spans } = scanMath(code);
   const blanked = blankSpans(code, spans);
@@ -126,6 +137,16 @@ function preprocess(md: string, exists: (target: string) => boolean): { text: st
     const [targetPart, alias] = inner.split("|");
     const [target, heading] = targetPart.split("#");
     const label = alias ?? (heading ? `${target}${target ? " › " : ""}${heading}` : target);
+    const file = target.trim();
+    const known = file ? (attachments?.(file) ?? null) : null;
+    if (file && (known || (m[1] && ATTACHMENT_NAME.test(file)))) {
+      // Obsidian: the part after "|" is a size ("300", "300x200") or, for links, the text.
+      const stem = file.slice(file.lastIndexOf("/") + 1).replace(/\.[^.]+$/, "");
+      const isSize = !!alias && /^\s*\d{1,5}(?:x\d{1,5})?\s*$/.test(alias);
+      const text = m[1] ? (isSize ? `${stem}|${alias!.trim()}` : (alias ?? stem)) : (alias ?? file);
+      edits.push({ from, to, text: attachmentMarkdown(esc(text.trim()), file, !!m[1], heading ?? "") });
+      continue;
+    }
     const ghost = !!target.trim() && !exists(target.trim());
     if (m[1] && target.trim() && isBlockEmbed(md, from, to, target)) {
       edits.push({ from, to, text: embedLinkMarkdown(`↳ ${esc(label.trim())}`, targetPart.trim(), ghost) });
@@ -171,7 +192,11 @@ function preprocess(md: string, exists: (target: string) => boolean): { text: st
   return { text: out + md.slice(pos), toInput };
 }
 
-export function renderMarkdown(md: string, exists: (target: string) => boolean): string {
+/**
+ * `attachments` resolves attachment targets (see createAttachmentLookup in ./attachments); without
+ * it every attachment renders as missing.
+ */
+export function renderMarkdown(md: string, exists: (target: string) => boolean, attachments?: AttachmentLookup): string {
   const { yaml, body, offset } = splitFrontmatter(md);
   // Markers typed by the user are removed first, so only our own pairs remain.
   const removed: number[] = [];
@@ -179,14 +204,14 @@ export function renderMarkdown(md: string, exists: (target: string) => boolean):
     removed.push(i);
     return "";
   });
-  const { text, toInput } = preprocess(stripComments(clean), exists);
+  const { text, toInput } = preprocess(stripComments(clean), exists, attachments);
   // Preprocessed offset -> offset in `md` (comments keep their length when blanked).
   const toSource = (p: number) => {
     let i = toInput(p);
     for (const r of removed) if (r <= i) i++;
     return i + offset;
   };
-  const html = String(processor.processSync({ value: text, data: { toSource } }));
+  const html = String(processor.processSync({ value: text, data: { toSource, attachments } }));
   const marked = html
     // Mark dangling links (title="ghost" survives sanitize) with a class.
     .replace(/<a href="wikilink:([^"]*)" title="ghost">/g, '<a href="wikilink:$1" class="ghost">')

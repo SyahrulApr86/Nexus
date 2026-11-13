@@ -43,6 +43,13 @@
       "when": 1794591512575,
       "tag": "0005_note_ydoc",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794592354135,
+      "tag": "0006_attachment",
+      "breakpoints": true
     }
   ]
 }

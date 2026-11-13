@@ -409,9 +409,61 @@
     border-bottom-color: var(--border);
   }
   .reading img {
+    /* Inline, like Obsidian: ![[icon.png|24]] in a sentence stays in the sentence (preflight makes it a block). */
+    display: inline-block;
+    vertical-align: middle;
     max-width: 100%;
     height: auto;
     border-radius: 8px;
+  }
+  /* Attachments (src/lib/markdown/attachments.ts): audio, video, PDF cards and missing files. */
+  .reading video {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0.75em 0;
+    border-radius: 8px;
+    background: var(--code-bg);
+  }
+  .reading audio {
+    display: block;
+    width: min(100%, 480px);
+    margin: 0.75em 0;
+  }
+  .reading a.attachment-card {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 100%;
+    margin: 0.25em 0;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: var(--font-ui);
+    line-height: 20px;
+    text-decoration: none;
+  }
+  .reading a.attachment-card:hover {
+    border-color: var(--control);
+  }
+  .reading .attachment-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--accent-ink);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    overflow-wrap: anywhere;
+  }
+  .reading .attachment-meta {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  /* A file the vault does not have: styled like a link to a missing note, but inert. */
+  .reading .ghost-attachment {
+    color: var(--faint);
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
   }
   .reading mark {
     background: var(--hl);

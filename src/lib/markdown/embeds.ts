@@ -7,12 +7,11 @@
  *     <div class="embed-body">Loading…</div>
  *   </div>
  * which the reading view fills on the client (see embeds-client.ts). Embeds inside
- * running text, and embeds of attachments (images, PDFs…), stay links for now.
+ * running text stay links; embeds of attachments (images, PDFs…) are handled by ./attachments.ts.
  */
 
 import { matchHeading } from "./parse";
-
-const ATTACHMENT = /\.(png|jpe?g|gif|webp|avif|bmp|svg|pdf|mp3|wav|ogg|m4a|flac|mp4|webm|mov|canvas)$/i;
+import { ATTACHMENT_NAME as ATTACHMENT } from "./attachments";
 
 /** True when the embed should render as a block: it is the only thing on its line and not an attachment. */
 export function isBlockEmbed(md: string, from: number, to: number, target: string): boolean {

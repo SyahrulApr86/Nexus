@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { zipSync, strToU8, type Zippable } from "fflate";
-import { extractMarkdown, type ExtractLimits } from "@/app/api/vault/import/extract";
+import { extractMarkdown, extractVault, type ExtractLimits } from "@/app/api/vault/import/extract";
 import { HttpError } from "@/lib/session";
 
 const MiB = 1024 * 1024;
@@ -108,5 +108,42 @@ describe("extractMarkdown", () => {
     await extractMarkdown(zip, { ...limits, maxTotalBytes: 100 * MiB });
     clearInterval(timer);
     expect(ticks).toBeGreaterThan(0);
+  });
+});
+
+describe("extractVault", () => {
+  const withFiles: ExtractLimits = { ...limits, maxAttachmentBytes: 2 * MiB };
+
+  it("keeps notes and allowlisted attachments, raw, and skips other files", async () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+    const zip = zipSync({
+      "Vault/a.md": strToU8("![[img.png]]"),
+      "Vault/Assets/img.png": png,
+      "Vault/doc.PDF": strToU8("%PDF-1.7"),
+      "Vault/page.html": strToU8("<script>"),
+      "Vault/.obsidian/icon.png": png,
+    });
+    const out = await extractVault(zip, withFiles);
+    expect(out.notes.map((n) => n.name)).toEqual(["Vault/a.md"]);
+    expect(out.files.map((f) => f.name).sort()).toEqual(["Vault/Assets/img.png", "Vault/doc.PDF"]);
+    expect(out.files.find((f) => f.name.endsWith("img.png"))?.data).toEqual(png);
+    expect(out.skipped).toEqual([]);
+  });
+
+  it("skips (and reports) an attachment over its cap, stored or deflated, and keeps the rest", async () => {
+    const big = new Uint8Array(3 * MiB).fill(7);
+    for (const level of [0, 6] as const) {
+      const zip = zipSync({ "big.png": [big, { level }], "small.png": strToU8("x"), "n.md": strToU8("n") } as Zippable);
+      const out = await extractVault(zip, withFiles);
+      expect(out.skipped).toEqual([{ name: "big.png", reason: "An attachment is larger than 2 MiB" }]);
+      expect(out.files.map((f) => f.name)).toEqual(["small.png"]);
+      expect(out.notes.map((n) => n.name)).toEqual(["n.md"]);
+    }
+  });
+
+  it("counts attachment bytes against the per-request total", async () => {
+    const files: Zippable = {};
+    for (let i = 0; i < 12; i++) files[`f${i}.png`] = new Uint8Array(2 * MiB - 1).fill(i);
+    expect(await status(extractVault(zipSync(files, { level: 0 }), withFiles))).toBe(413);
   });
 });

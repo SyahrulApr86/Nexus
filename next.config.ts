@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { ATTACHMENT_CSP } from "./src/lib/attachments/headers";
 
 const dev = process.env.NODE_ENV !== "production";
 
@@ -8,13 +9,19 @@ const dev = process.env.NODE_ENV !== "production";
  * the theme script in layout.tsx; dev adds 'unsafe-eval' and the HMR websocket. Everything else is
  * same-origin only: fonts are self-hosted by next/font, the API is same-origin, and no page may
  * frame this app.
+ *
+ * Images and media are same-origin too (attachments come from /api/attachments/file); `data:` and
+ * `blob:` cover the app's own generated images. Remote images are deliberately not allowed: a note
+ * could otherwise make every reader's browser call a third party (tracking pixels, IP leaks), so
+ * the reading view renders `![](https://…)` as a link instead (src/lib/markdown/attachments.ts).
  */
 export function contentSecurityPolicy(isDev = dev) {
   return [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
+    "img-src 'self' data: blob:",
+    "media-src 'self'",
     "font-src 'self'",
     `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
     "object-src 'none'",
@@ -56,8 +63,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders() },
-      // Vault data must never sit in a shared or back/forward cache.
-      { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "private, no-store" }] },
+      // Vault data must never sit in a shared or back/forward cache. Attachment files set their own
+      // private Cache-Control (immutable per content version), so they are left out here.
+      {
+        source: "/api/:path((?!attachments/file$).*)",
+        headers: [{ key: "Cache-Control", value: "private, no-store" }],
+      },
+      // Last match wins: attachment files get the sandbox policy instead of the page policy.
+      { source: "/api/attachments/file", headers: [{ key: "Content-Security-Policy", value: ATTACHMENT_CSP }] },
     ];
   },
 };

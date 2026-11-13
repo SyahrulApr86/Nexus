@@ -182,10 +182,17 @@ export function renderSharedNote(content: string): string {
     /<div class="embed" data-embed="[^"]*"(?: data-embed-missing="")?><a [^>]*>([\s\S]*?)<\/a><div class="embed-body embed-note">[^<]*<\/div><\/div>/g,
     (_m, label: string) => `<p class="share-embed">↳ ${label}</p>`,
   );
+  // Attachment embeds: no token-scoped attachment URL yet, so show the file name only.
+  html = html.replace(/<span class="ghost-attachment"[^>]*>([\s\S]*?)<\/span>/g, '<span class="share-link">↳ $1</span>');
   // Anchors never nest, so the first </a> after an opening tag closes it.
   html = html.replace(/<a href="wikilink:[^"]*"[^>]*>([\s\S]*?)<\/a>/g, '<span class="share-link">$1</span>');
   html = html.replace(/<a href="tag:[^"]*"[^>]*>([\s\S]*?)<\/a>/g, '<span class="share-tag">$1</span>');
   html = html.replace(/<a href="(https?:\/\/[^"]*)"/g, '<a rel="nofollow noopener noreferrer" href="$1"');
+  // Remote images: the renderer already made them links; mark them and keep them out of the referrer.
+  html = html.replace(
+    /<a (?:rel="nofollow noopener noreferrer" )?href="([^"]*)" class="external-image">([\s\S]*?)<\/a>/g,
+    (_m, src: string, label: string) => `<a href="${src}" rel="nofollow noopener noreferrer">${label || "Image"} (external image)</a>`,
+  );
   html = html.replace(
     /<img ([^>]*?)src="(https?:\/\/[^"]*)"([^>]*)>/g,
     (_m, before: string, src: string, after: string) => {

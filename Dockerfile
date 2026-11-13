@@ -31,6 +31,9 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 RUN addgroup -S nexus && adduser -S nexus -G nexus
+# Attachment storage (NEXUS_DATA_DIR). A new named volume mounted here copies this owner and mode.
+RUN mkdir -p /data && chown nexus:nexus /data && chmod 750 /data
+ENV NEXUS_DATA_DIR=/data
 COPY --from=build --chown=nexus:nexus /app/.next/standalone ./
 COPY --from=build --chown=nexus:nexus /app/.next/static ./.next/static
 COPY --from=build --chown=nexus:nexus /app/public ./public

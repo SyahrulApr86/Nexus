@@ -45,7 +45,8 @@ describe("renderSharedNote", () => {
     expect(html).toContain(
       '<a href="https://tracker.example/p.png" rel="nofollow noopener noreferrer">chart (external image)</a>',
     );
-    expect(html).toContain('src="/icon.png"');
+    // A vault path ("/icon.png") is an attachment; the share page shows its name until token-scoped URLs exist.
+    expect(html).toContain('<span class="share-link">↳ local</span>');
   });
 
   it("keeps task boxes read-only", () => {
