@@ -309,7 +309,9 @@
   .reading ol { list-style: decimal; padding-left: 1.4em; margin: 0.6em 0; }
   .reading li { margin: 0.2em 0; }
   .reading li::marker { color: var(--faint); }
-  .reading li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.3em; }
+  .reading li.task-list-item { list-style: none; margin-left: -1.3em; }
+  .reading li.task-list-item > label,
+  .reading li.task-list-item > p > label { cursor: pointer; }
   .reading input[type="checkbox"] {
     width: 15px;
     height: 15px;
@@ -323,13 +325,12 @@
     text-decoration: underline;
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
-    text-decoration-color: color-mix(in srgb, var(--accent-ink) 40%, transparent);
+    /* 70% keeps the underline itself at >= 3:1, so links never rely on colour alone (1.4.1). */
+    text-decoration-color: color-mix(in srgb, var(--accent-ink) 70%, transparent);
   }
-  .reading a[href^="wikilink:"] {
-    text-decoration: none;
-  }
-  .reading a[href^="wikilink:"]:hover {
-    text-decoration: underline;
+  .reading a:hover,
+  .reading a:focus-visible {
+    text-decoration-color: currentColor;
   }
   .reading a.ghost {
     color: var(--faint);
@@ -389,6 +390,13 @@
     border-bottom: 1px solid var(--rule);
     text-align: left;
   }
+  /* Column alignment written in the markdown wins over the default. */
+  .reading :is(th, td)[align="center"] {
+    text-align: center;
+  }
+  .reading :is(th, td)[align="right"] {
+    text-align: right;
+  }
   .reading th {
     color: var(--muted);
     font-weight: 500;
@@ -396,6 +404,7 @@
   }
   .reading img {
     max-width: 100%;
+    height: auto;
     border-radius: 8px;
   }
   .reading mark {
@@ -464,12 +473,16 @@
     --callout-green-ink: #1f6e47;
     --callout-red-bg: #faebec;
     --callout-red-ink: #b3202a;
+    --callout-amber-bg: #f6f0dc;
+    --callout-amber-ink: #7a5a00;
   }
   :root[data-theme="dark"] {
     --callout-green-bg: #102725;
     --callout-green-ink: #3fc07a;
     --callout-red-bg: #251d24;
     --callout-red-ink: #f07a82;
+    --callout-amber-bg: #241f10;
+    --callout-amber-ink: #e0b84a;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -477,6 +490,8 @@
       --callout-green-ink: #3fc07a;
       --callout-red-bg: #251d24;
       --callout-red-ink: #f07a82;
+      --callout-amber-bg: #241f10;
+      --callout-amber-ink: #e0b84a;
     }
   }
 
@@ -491,7 +506,7 @@
   .reading .callout[data-callout="question"],
   .reading .callout[data-callout="example"],
   .reading .callout[data-callout="quote"] {
-    --callout-bg: var(--code-bg);
+    --callout-bg: var(--sheet-hover);
     --callout-ink: var(--muted);
   }
   .reading .callout[data-callout="tip"],
@@ -499,9 +514,14 @@
     --callout-bg: var(--callout-green-bg);
     --callout-ink: var(--callout-green-ink);
   }
+  /* Amber, not the brand orange: orange is reserved for tags, highlights and search hits. */
   .reading .callout[data-callout="warning"] {
-    --callout-bg: var(--mark-soft);
-    --callout-ink: var(--mark-ink);
+    --callout-bg: var(--callout-amber-bg);
+    --callout-ink: var(--callout-amber-ink);
+  }
+  /* Inline code keeps its edge on any callout tint. */
+  .reading .callout code {
+    box-shadow: inset 0 0 0 1px var(--border);
   }
   .reading .callout[data-callout="failure"],
   .reading .callout[data-callout="danger"],
@@ -569,6 +589,22 @@
   .reading .mermaid-diagram svg {
     max-width: 100%;
     height: auto;
+  }
+  /* The global reduced-motion rule sets transition-duration 0.01ms on everything, which
+     skews Mermaid's measurements and shrinks diagrams; diagrams have no motion anyway. */
+  @media (prefers-reduced-motion: reduce) {
+    [id^="nexus-mermaid-"],
+    [id^="nexus-mermaid-"] *,
+    [id^="dnexus-mermaid-"],
+    [id^="dnexus-mermaid-"] *,
+    .reading .mermaid-diagram * {
+      transition-duration: 0s !important;
+    }
+  }
+  .reading .math-block {
+    margin: 1em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
   .reading .mermaid-error {
     margin: 1em 0 0.25em;
