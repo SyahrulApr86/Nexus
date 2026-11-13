@@ -181,11 +181,17 @@ export function FileExplorer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, activePath]);
 
+  // Scroll the active row into view once per activation. `rows` stays in the deps so this runs again
+  // after auto-expanded ancestors render, but expanding, collapsing or sorting later must not scroll.
+  const revealed = useRef<string | null>(null);
   useEffect(() => {
-    if (!activeId) return;
+    if (!activeId || revealed.current === activeId) return;
     const el = listRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(activeId)}"]`);
-    el?.scrollIntoView({ block: "nearest" });
+    if (!el) return;
+    el.scrollIntoView({ block: "nearest" });
+    revealed.current = activeId;
   }, [activeId, rows]);
+
 
   const toggle = (path: string, open?: boolean) =>
     actions.setExpanded((s) => {
@@ -201,6 +207,22 @@ export function FileExplorer() {
     requestAnimationFrame(() => rowEl(key)?.focus());
   };
 
+  // After a keyboard move, return focus to the moved note once it renders in its new folder.
+  const pendingFocus = useRef<{ id: string; folder: string; until: number } | null>(null);
+  useEffect(() => {
+    const p = pendingFocus.current;
+    if (!p) return;
+    if (Date.now() > p.until) return void (pendingFocus.current = null);
+    const note = w.tree.notes.find((n) => n.id === p.id);
+    if (!note || dirOf(note.path) !== p.folder) return;
+    pendingFocus.current = null;
+    const a = document.activeElement;
+    if (a && a !== document.body && !listRef.current?.contains(a)) return;
+    focusRow(p.id);
+    // focusRow is a plain helper recreated each render; only tree changes matter here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, w.tree.notes]);
+
   const moveItems = (n: TreeNote): MenuItem[] => {
     const here = dirOf(n.path);
     const folders = [...w.tree.folders].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
@@ -208,7 +230,17 @@ export function FileExplorer() {
       label: f.label,
       checked: f.path === here,
       disabled: f.path === here,
-      onSelect: () => actions.moveNote(n.id, f.path),
+      onSelect: () => {
+        // Open the destination first so the moved row stays mounted and can take focus back.
+        const parts = f.path ? f.path.split("/") : [];
+        if (parts.length)
+          actions.setExpanded((s) => {
+            parts.forEach((_, i) => s.add(parts.slice(0, i + 1).join("/")));
+            return s;
+          });
+        pendingFocus.current = { id: n.id, folder: f.path, until: Date.now() + 10000 };
+        actions.moveNote(n.id, f.path);
+      },
     }));
   };
 
