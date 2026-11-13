@@ -1,13 +1,12 @@
 "use client";
 
-import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { api, type Mention, type TagCount, type NoteRef } from "./api";
 import { useWorkspace } from "./store";
-import { Bar } from "./ui";
+import { Bar, nf, useShown } from "./ui";
 import { extractHeadings, extractWikiLinks } from "@/lib/markdown/parse";
 
-const nf = new Intl.NumberFormat("en");
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 function Section({
@@ -103,20 +102,36 @@ export function BacklinksView() {
   const noteId = note?.id;
   const key = note ? `${note.id}:${note.name}` : "";
   const mentions = res?.key === key ? res.items : null;
+  // Refetch when links changed (not on every autosave), and only while the panel is on screen.
+  const [rootRef, shown] = useShown<HTMLDivElement>();
+  const linksVersion = (w as { linksVersion?: number }).linksVersion ?? w.version;
+  const want = `${key}:${linksVersion}`;
+  const done = useRef("");
 
   useEffect(() => {
-    if (!noteId) return;
+    if (!noteId || !shown || done.current === want) return;
     let live = true;
     api
       .mentions(noteId)
-      .then((m) => live && setRes((r) => (r?.key === key && same(r.items, m) ? r : { key, items: m })))
+      .then((m) => {
+        if (!live) return;
+        done.current = want;
+        setRes((r) => (r?.key === key && same(r.items, m) ? r : { key, items: m }));
+      })
       .catch(() => live && setRes((r) => (r?.key === key ? r : { key, items: [] })));
     return () => {
       live = false;
     };
-  }, [key, noteId, w.version]);
+    // `want` covers key and the links version.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [want, noteId, shown]);
 
-  if (!note) return <NoteMissing />;
+  if (!note)
+    return (
+      <div ref={rootRef}>
+        <NoteMissing />
+      </div>
+    );
 
   const link = async (m: Mention) => {
     setLinking(m.id);
@@ -134,7 +149,7 @@ export function BacklinksView() {
   };
 
   return (
-    <div>
+    <div ref={rootRef}>
       <Section title="Linked mentions" count={note.backlinks.length}>
         {note.backlinks.length === 0 ? (
           <Empty>
@@ -272,33 +287,48 @@ export function TagsView() {
   const [byTag, setByTag] = useState<{ tag: string; items: NoteRef[] } | null>(null);
   const selected = w.selectedTag;
   const notes = selected && byTag?.tag === selected ? byTag.items : null;
+  // Refetch when tags changed (not on every autosave), and only while the panel is on screen.
+  const [rootRef, shown] = useShown<HTMLElement>();
+  const tagsVersion = (w as { tagsVersion?: number }).tagsVersion ?? w.version;
+  const doneTags = useRef(-1);
+  const doneByTag = useRef("");
 
   useEffect(() => {
+    if (!shown || doneTags.current === tagsVersion) return;
     let live = true;
     api
       .tags()
-      .then((t) => live && setTags((prev) => (same(prev, t) ? prev : t)))
+      .then((t) => {
+        if (!live) return;
+        doneTags.current = tagsVersion;
+        setTags((prev) => (same(prev, t) ? prev : t));
+      })
       .catch(() => live && setTags((prev) => prev ?? []));
     return () => {
       live = false;
     };
-  }, [w.version]);
+  }, [tagsVersion, shown]);
 
   useEffect(() => {
-    if (!selected) return;
+    const want = `${selected}:${tagsVersion}`;
+    if (!selected || !shown || doneByTag.current === want) return;
     let live = true;
     api
       .byTag(selected)
-      .then((n) => live && setByTag((r) => (r?.tag === selected && same(r.items, n) ? r : { tag: selected, items: n })))
+      .then((n) => {
+        if (!live) return;
+        doneByTag.current = want;
+        setByTag((r) => (r?.tag === selected && same(r.items, n) ? r : { tag: selected, items: n }));
+      })
       .catch(() => live && setByTag((r) => (r?.tag === selected ? r : { tag: selected, items: [] })));
     return () => {
       live = false;
     };
-  }, [selected, w.version]);
+  }, [selected, tagsVersion, shown]);
 
   if (selected)
     return (
-      <div>
+      <div ref={rootRef}>
         <button type="button" onClick={() => w.actions.setSelectedTag(null)} className="mb-2 rounded-md px-2 py-3 text-[13px] text-accent-ink hover:underline lg:py-1">
           All tags
         </button>
@@ -335,15 +365,20 @@ export function TagsView() {
 
   if (tags === null)
     return (
-      <div className="space-y-3 px-2 py-1">
+      <div ref={rootRef} className="space-y-3 px-2 py-1">
         {[50, 70, 40].map((x, i) => (
           <Bar key={i} w={`${x}%`} h={10} />
         ))}
       </div>
     );
-  if (!tags.length) return <Empty>No tags yet. Write #tag in a note to add one.</Empty>;
+  if (!tags.length)
+    return (
+      <div ref={rootRef}>
+        <Empty>No tags yet. Write #tag in a note to add one.</Empty>
+      </div>
+    );
   return (
-    <ul className="space-y-0.5">
+    <ul ref={rootRef} className="space-y-0.5">
       {tags.map((t) => (
         <li key={t.tag}>
           <button

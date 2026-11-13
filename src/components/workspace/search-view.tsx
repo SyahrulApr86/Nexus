@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
-import { api, type NoteRef, type SearchHit } from "./api";
+import { api, type SearchHit } from "./api";
 import { useWorkspace } from "./store";
-import { Bar } from "./ui";
+import { Bar, CLEAR_BUTTON, nf, useShown } from "./ui";
 
-type Result = { query: string } & ({ kind: "text"; hits: SearchHit[] } | { kind: "tag"; tag: string; hits: NoteRef[] });
+/** `tag` is set when the whole query is one #tag, for the empty-result copy. */
+type Result = { query: string; tag: string | null; hits: SearchHit[] };
 
-const nf = new Intl.NumberFormat("en");
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-/** Full-text search across the vault. A query starting with # lists the notes with that tag. */
+/**
+ * Search across the vault. Every query goes to /api/search, which reads a bare #tag as tag:tag, so
+ * a tag combines with words and operators (`#work line:todo`).
+ */
 export function SearchView() {
   const w = useWorkspace();
   const q = w.searchQuery;
@@ -19,22 +22,30 @@ export function SearchView() {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [attempt, setAttempt] = useState(0);
   const inputId = useId();
+  const hintId = useId();
+  const [rootRef, shown] = useShown<HTMLDivElement>();
+  // The request last answered, so showing the view again does not search again for nothing.
+  const done = useRef("");
+  const want = `${q.trim()}\u0000${w.version}\u0000${attempt}`;
 
   useEffect(() => {
     const query = q.trim();
     if (!query) {
       setResult(null); // eslint-disable-line react-hooks/set-state-in-effect -- clear when the query empties
       setStatus("idle");
+      done.current = "";
       return;
     }
+    // Hidden (collapsed sidebar, closed drawer): search once the view is on screen again.
+    if (!shown || done.current === want) return;
     let live = true;
     const t = setTimeout(async () => {
       setStatus("loading");
       try {
-        const r: Result = /^#\S+$/.test(query)
-          ? { query, kind: "tag", tag: query.slice(1), hits: await api.byTag(query.slice(1)) }
-          : { query, kind: "text", hits: await api.search(query) };
+        const tag = /^#[^\s#]+$/.test(query) ? query.slice(1) : null;
+        const r: Result = { query, tag, hits: await api.search(query) };
         if (live) {
+          done.current = want;
           // A background refresh after an autosave usually returns the same hits: keep the old object.
           setResult((prev) => (same(prev, r) ? prev : r));
           setStatus("idle");
@@ -50,12 +61,14 @@ export function SearchView() {
       live = false;
       clearTimeout(t);
     };
-  }, [q, w.version, attempt]);
+    // `want` covers q, the version and the retry count.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [want, shown]);
 
   const count = result?.hits.length ?? 0;
   const summary = result
     ? count === 0
-      ? result.kind === "tag"
+      ? result.tag !== null
         ? `No notes tagged #${result.tag}`
         : "No matches"
       : `${nf.format(count)} ${count === 1 ? "note" : "notes"}`
@@ -65,12 +78,12 @@ export function SearchView() {
     status === "error" ? "Search failed." : result ? (count === 0 ? summary : `${summary} for “${result.query}”`) : "";
 
   return (
-    <div className="flex h-full flex-col">
+    <div ref={rootRef} className="flex h-full flex-col">
       <div className="px-3 pb-2 pt-1">
         <label htmlFor={inputId} className="sr-only">
           Search notes
         </label>
-        <div className="flex h-9 items-center gap-2 rounded-lg border border-control bg-sheet px-2.5 focus-within:outline focus-within:outline-2 focus-within:outline-[var(--focus)]">
+        <div className="flex h-9 items-center gap-2 rounded-lg border border-control bg-sheet pl-2.5 pr-1 pointer-coarse:h-11 focus-within:outline focus-within:outline-2 focus-within:outline-[var(--focus)]">
           <Search aria-hidden="true" className="size-4 shrink-0 stroke-[1.5] text-faint" />
           <input
             id={inputId}
@@ -79,22 +92,27 @@ export function SearchView() {
             autoFocus
             onChange={(e) => w.actions.setSearchQuery(e.target.value)}
             placeholder="Search…"
+            aria-describedby={hintId}
             autoComplete="off"
             spellCheck={false}
             className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-faint md:text-[14px] [&::-webkit-search-cancel-button]:hidden"
           />
           {q && (
-            <button type="button" aria-label="Clear search" onClick={() => w.actions.setSearchQuery("")} className="rounded p-0.5 text-faint hover:text-fg">
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => {
+                w.actions.setSearchQuery("");
+                document.getElementById(inputId)?.focus();
+              }}
+              className={CLEAR_BUTTON}
+            >
               <X aria-hidden="true" className="size-4 stroke-[1.5]" />
             </button>
           )}
         </div>
-        <p className="mt-2 text-[12px] leading-4 text-faint">
-          Type{" "}
-          <kbd className="kbd" translate="no">
-            #tag
-          </kbd>{" "}
-          to list notes with a tag.
+        <p id={hintId} className="mt-2 text-[12px] leading-5 text-faint">
+          Narrow results with <Code>#tag</Code>, <Code>path:folder</Code> or <Code>line:word</Code>.
         </p>
       </div>
 
@@ -129,42 +147,37 @@ export function SearchView() {
         )}
         {result && <p className="px-2 pb-2 text-[12px] text-faint tabular">{summary}</p>}
         <ul className="space-y-0.5">
-          {result?.kind === "text" &&
-            result.hits.map((h) => (
-              <li key={h.id}>
-                <button
-                  type="button"
-                  onClick={(e) => w.actions.open(h.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
-                  className="block w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-hover"
-                >
-                  <span className="block truncate font-medium" translate="no">
-                    {h.name}
-                  </span>
-                  {h.path.includes("/") && (
-                    <span className="block truncate text-[12px] text-faint" translate="no">
-                      {h.path.slice(0, h.path.lastIndexOf("/"))}
-                    </span>
-                  )}
-                  <Snippet text={h.snippet} />
-                </button>
-              </li>
-            ))}
-          {result?.kind === "tag" &&
-            result.hits.map((h) => (
-              <li key={h.id}>
-                <button
-                  type="button"
-                  onClick={(e) => w.actions.open(h.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
-                  className="block w-full truncate rounded-md px-2 py-3 text-left transition-colors hover:bg-hover md:py-1.5"
-                  translate="no"
-                >
+          {result?.hits.map((h) => (
+            <li key={h.id}>
+              <button
+                type="button"
+                onClick={(e) => w.actions.open(h.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
+                className="block w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-hover"
+              >
+                <span className="block truncate font-medium" translate="no">
                   {h.name}
-                </button>
-              </li>
-            ))}
+                </span>
+                {h.path.includes("/") && (
+                  <span className="block truncate text-[12px] text-faint" translate="no">
+                    {h.path.slice(0, h.path.lastIndexOf("/"))}
+                  </span>
+                )}
+                {/* Tag and other operator-only queries come back without a snippet. */}
+                {h.snippet && <Snippet text={h.snippet} />}
+              </button>
+            </li>
+          ))}
         </ul>
       </div>
     </div>
+  );
+}
+
+function Code({ children }: { children: string }) {
+  return (
+    <kbd className="kbd" translate="no">
+      {children}
+    </kbd>
   );
 }
 
