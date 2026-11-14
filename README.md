@@ -355,6 +355,72 @@ Impor `.zip` ikut membawa lampiran dengan aturan yang sama (lampiran di atas 25 
 
 Renderer tidak pernah mengakses database: pemanggil memberikan lookup (`createAttachmentLookup` dari `src/lib/markdown/attachments.ts`, diisi dari `GET /api/attachments`) sebagai argumen ketiga `renderMarkdown`.
 
+## Connect an AI assistant (MCP)
+
+Nexus adalah server [Model Context Protocol](https://modelcontextprotocol.io) di `POST /api/mcp` (Streamable HTTP, stateless, jadi jalan di banyak instance app). Claude Code, Claude Desktop, dan klien MCP lain bisa mencari, membaca, dan menulis catatan di satu vault. Dibangun dengan SDK resmi `@modelcontextprotocol/server` 2.4.0 (Apache-2.0, provenance npm), versi dipin persis.
+
+### Membuat token
+
+Token pribadi dibuat lewat `<McpTokensSection />` (`src/components/mcp/`) di Settings, atau lewat API (cookie sesi, guard yang sama dengan route lain: Origin sama, body JSON, batas ukuran):
+
+| Method | Endpoint | Hasil |
+|---|---|---|
+| GET | `/api/tokens` | Token aktif milik user, terbaru dulu: `[{ id, name, prefix, scope, vaultId, vaultName, createdAt, lastUsedAt, expiresAt }]`, tanpa token |
+| POST | `/api/tokens`, body `{ name, scope: "read" \| "write", vaultId?, expiresInDays?: 1..365 \| null }` | `201` dengan `token` (`nxs_` + 43 karakter). Hanya muncul di sini. Tanpa `vaultId` dipakai vault aktif (`X-Nexus-Vault`). `404` untuk vault user lain, `409` kalau sudah 20 token aktif, `429` setelah 10 token per jam. |
+| DELETE | `/api/tokens/[id]` | Mencabut token seketika. Idempoten. `404` untuk token user lain. |
+
+Satu token terikat ke **satu vault**. Yang disimpan hanya `sha256(token)` (tabel `api_token`) dan 12 karakter awal untuk dikenali di daftar. `lastUsedAt` diperbarui paling sering sekali per menit.
+
+### Menyambungkan klien
+
+Claude Code (sintaks dicek dengan `claude mcp add --help`):
+
+```bash
+claude mcp add --transport http nexus https://domain-anda/api/mcp --header "Authorization: Bearer nxs_..."
+```
+
+Claude Desktop: file `claude_desktop_config.json` menjalankan server lokal (stdio), jadi server remote dengan header bearer lewat jembatan pihak ketiga `mcp-remote` (MIT, versi 0.16.6 dicek di npm 2026-11-14; tinjau dulu sebelum dipakai). Bentuk header tanpa spasi di `args` dan nilainya di `env` mengikuti README `mcp-remote` (menghindari bug escape spasi di Windows). Belum diuji di aplikasi Claude Desktop sendiri.
+
+```json
+{
+  "mcpServers": {
+    "nexus": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote@0.16.6", "https://domain-anda/api/mcp", "--header", "Authorization:${NEXUS_AUTH}"],
+      "env": { "NEXUS_AUTH": "Bearer nxs_..." }
+    }
+  }
+}
+```
+
+### Tools
+
+| Tool | Scope | Isi |
+|---|---|---|
+| `search_notes` | read | Sintaks pencarian app (`tag:`, `path:`, `file:`, `line:`, frasa, `-`, `OR`), maksimal 50 hasil dengan snippet |
+| `read_note` | read | Per `path` (atau nama catatan) atau `id`: markdown, properti frontmatter, tag, `updatedAt`. Catatan panjang dipotong per 50.000 karakter dengan penanda dan `offset`/`limit` |
+| `list_notes` | read | Per folder, urut path, halaman sampai 500 dengan `cursor` |
+| `list_folders` | read | Semua folder, termasuk yang kosong |
+| `get_backlinks` | read | Backlink (dengan baris yang menautkan) dan tautan keluar yang di-resolve seperti di app |
+| `list_tags` | read | Tag dengan jumlah, atau catatan untuk satu tag (termasuk tag bertingkat) |
+| `get_recent_notes` | read | Catatan yang terakhir diubah |
+| `create_note` | write | Catatan baru, opsional dari template (`{{title}}`, `{{date}}`, `{{time}}`). Gagal kalau path sudah dipakai |
+| `update_note` | write | Ganti isi penuh dengan `baseUpdatedAt` wajib. Versi beda dijawab error `conflict` dengan `currentUpdatedAt` (isi catatan tidak ikut). Teks lama masuk riwayat |
+| `append_to_note` | write | Tambah di akhir, di baris baru |
+| `move_note` | write | Pindah atau ganti nama; `[[link]]` di catatan lain ikut diperbarui seperti di app |
+
+Juga resource `nexus://note/{path}` (daftar 500 catatan terbaru). Semua tulisan lewat fungsi domain yang sama dengan app (`src/lib/notes.ts`), jadi indeks link dan tag dan riwayat tetap benar, dan tulisan MCP memicu `NOTIFY nexus_note_content` (dicek) yang dipakai service collab untuk me-merge tulisan REST ke dokumen live. File `.canvas` hanya bisa dibaca.
+
+**Tidak ada tool hapus.** Menghapus catatan hanya bisa di app.
+
+### Keamanan
+
+- **Token = kata sandi** untuk vault itu. Simpan rahasia, pilih `read` kalau cukup, beri tanggal kedaluwarsa, cabut kalau tidak dipakai.
+- `/api/mcp` hanya menerima `Authorization: Bearer`. Cookie sesi tidak pernah mengautentikasi MCP, dan token tidak pernah membuka route cookie (`/api/tokens` pun tidak). Tanpa token, token salah, dicabut, atau kedaluwarsa dijawab `401` dengan `WWW-Authenticate: Bearer` yang sama.
+- Request dari halaman browser situs lain (`Origin` asing) ditolak `403`; tidak ada header CORS. Body hanya `application/json`, maksimal 12 MiB (`413`).
+- Rate limit: 120 panggilan per menit per token, dan 20 token yang ditolak per menit per alamat klien (setelah itu `429` tanpa lookup database). Penghitungnya di memori satu proses, sama seperti rate limit lain. Di belakang reverse proxy, alamat klien dibaca dari `X-Forwarded-For` (lihat `NEXUS_TRUSTED_PROXIES`).
+- Token, isi catatan, dan argumen tool tidak pernah dicatat di log (hanya kelas dan kode error, `logError`). Isi catatan dikirim ke model sebagai data dengan pengingat agar tidak diikuti sebagai instruksi.
+
 ## Belum ada (roadmap)
 
 - Live preview ala Obsidian (sembunyikan sintaks markdown di baris yang tidak aktif)
