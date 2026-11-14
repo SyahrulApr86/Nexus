@@ -16,6 +16,7 @@ import {
 import { defaultKeymap, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
+import { typewriter } from "./focus/typewriter"; // focus
 import { HighlightStyle, syntaxHighlighting, syntaxTree, indentOnInput, bracketMatching } from "@codemirror/language";
 import {
   autocompletion,
@@ -489,6 +490,7 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
           }),
           labelSlot.current.of(EditorView.contentAttributes.of({ "aria-label": label })),
           searchPhrases,
+          typewriter(), // focus: typewriter mode keeps the caret line centred (src/components/workspace/focus)
           extensions ?? [],
         ],
       }),
