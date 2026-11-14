@@ -1374,14 +1374,20 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
         if (!res.id) return;
         if (res.created) await refreshTree();
         /* templates-properties: a new daily note starts from the daily note template */
-        if (res.created && (await applyDailyTemplate(res.id, name, treeRef.current.notes, d))) bumpSignals(true, true);
+        // The note opens even when the template could not be applied (offline and not cached here).
+        if (res.created) {
+          const cached = (id: string) => live.current.get(id) ?? notesRef.current[id]?.content;
+          const t = await applyDailyTemplate(res.id, name, treeRef.current.notes, d, cached);
+          if (t.applied) bumpSignals(true, true);
+          else if (t.problem) notify(t.problem);
+        }
         /* end templates-properties */
         if (seq === navSeq.current) await open(res.id, "current", "edit", { focus: "editor" });
       } catch (e) {
         fail(e);
       }
     },
-    [open, refreshTree, fail, bumpSignals],
+    [open, refreshTree, fail, bumpSignals, notify],
   );
   /* end daily */
 
