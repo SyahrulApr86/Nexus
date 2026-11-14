@@ -38,3 +38,40 @@ test("[[link]] autocomplete links notes, backlinks show it, rename rewrites the 
   await openNote(page, "Alpha plan");
   await expect(editor(page, "Alpha plan")).toContainText("Gamma notes");
 });
+
+// A phone has no right click, Menu key or Shift+F10: the command palette (the bottom bar's
+// Commands button) reaches the editor menu's "Copy block link" too.
+test("copy block link and link to heading from the command palette @smoke", async ({ page, api, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const n = await api.createNote("Runbook", "# Rollback\n\nVerify the deploy");
+  await openVault(page);
+  await openNote(page, "Runbook");
+  const ed = await focusEditorEnd(page, "Runbook");
+
+  const commands = page.getByRole("button", { name: "Commands" });
+  const run = async (label: string) => {
+    const box = page.getByRole("combobox", { name: "Search commands" });
+    if (await commands.isVisible()) await commands.click();
+    else await page.keyboard.press("ControlOrMeta+P");
+    await expect(box).toBeVisible();
+    await box.fill(label);
+    const option = page.getByRole("option", { name: label, exact: true });
+    await expect(option).toBeVisible();
+    await option.click();
+    await expect(box).toBeHidden();
+  };
+
+  // The caret is on the paragraph: it gets a block id, and the link to it is copied.
+  await run("Copy block link");
+  await expect(page.getByText("Block link copied")).toBeVisible();
+  await expect.poll(async () => (await api.getNote(n.id)).content).toMatch(/^Verify the deploy \^[a-z0-9]{6}$/m);
+  const id = (await api.getNote(n.id)).content.match(/\^([a-z0-9]{6})$/m)![1];
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`[[Runbook#^${id}]]`);
+
+  // On a heading line the command names the heading.
+  await ed.click();
+  await page.keyboard.press("ControlOrMeta+Home");
+  await run("Copy link to heading");
+  await expect(page.getByText("Heading link copied")).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("[[Runbook#Rollback]]");
+});

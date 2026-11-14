@@ -640,6 +640,7 @@ function Shell() {
       settingsOpen: s.settingsOpen,
       toasts: s.toasts,
       treeNotes: s.tree.notes,
+      editor: s.editor, // render
     }),
     shallowEqual,
   );
@@ -665,6 +666,13 @@ function Shell() {
     [a, note],
   );
   /* end daily */
+  /* render: "Copy block link" from the palette too, so a phone with no right click or Menu key
+     reaches it. Read as the palette opens: the caret's line decides heading or block. */
+  const blockLink = useMemo(
+    () => (w.palette === "commands" ? (w.editor.current?.blockLinkKind() ?? "none") : "none"),
+    [w.palette, w.editor],
+  );
+  /* end render */
 
   const commands: Command[] = useMemo(
     () => [
@@ -698,6 +706,17 @@ function Shell() {
             ...(isCanvasPath(note.path) ? [] : [{ id: "history", label: "Show version history", run: () => openHistory(note) }]), // graph-history
           ]
         : []),
+      /* render */
+      ...(note && blockLink !== "none"
+        ? [
+            {
+              id: "copy-block-link",
+              label: blockLink === "heading" ? "Copy link to heading" : "Copy block link",
+              run: () => w.editor.current?.copyBlockLink(),
+            },
+          ]
+        : []),
+      /* end render */
       /* templates-properties: palette entries */
       ...(note ? templateCommands(note.id) : []),
       /* end templates-properties */
@@ -720,7 +739,7 @@ function Shell() {
       { id: "mcp-tokens", label: "Connect an AI assistant (MCP)", run: () => a.setSettingsOpen("integrations") },
       { id: "logout", label: "Sign out", run: a.logout },
     ],
-    [a, note, phone, w.layout.focus, w.focusGroup, focusOn, typewriterOn, stepDaily],
+    [a, note, phone, w.layout.focus, w.focusGroup, w.editor, focusOn, typewriterOn, stepDaily, blockLink],
   );
 
   // The hotkey handler reads the latest view through a ref, so it is registered once.

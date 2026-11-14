@@ -59,6 +59,8 @@ export type EditorHandle = {
   /* end templates-properties */
   /* render: "Copy block link" (or "Copy link to heading") for the caret's line, for a palette command */
   copyBlockLink: () => void;
+  /** What the caret's line links as: its heading, its block, or nothing (a blank line, frontmatter). */
+  blockLinkKind: () => "heading" | "block" | "none";
   /* end render */
 };
 
@@ -777,6 +779,11 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
       copyBlockLink: () => {
         const view = viewRef.current;
         if (view) copyBlockLinkRef.current(view, view.state.selection.main.head);
+      },
+      blockLinkKind: () => {
+        const view = viewRef.current;
+        if (!view) return "none";
+        return blockTargetAt(view.state.doc.toString(), view.state.doc.lineAt(view.state.selection.main.head).number - 1).kind;
       },
       /* end render */
     };
