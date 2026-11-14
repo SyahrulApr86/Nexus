@@ -63,6 +63,15 @@ html[data-theme="light"]:has(.sh) body {
   color: var(--lp-blue);
   font-weight: 400;
 }
+/* Light theme: blue on white is 3.3:1, so the brackets take the accent ink (>= 4.5:1). */
+@media (prefers-color-scheme: light) {
+  html:not([data-theme="dark"]) .sh-wordmark span {
+    color: var(--lp-blue-ink);
+  }
+}
+html[data-theme="light"] .sh-wordmark span {
+  color: var(--lp-blue-ink);
+}
 .sh-kind {
   padding: 2px 8px;
   border: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
