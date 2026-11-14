@@ -1,4 +1,135 @@
-/* Public share page (src/app/s/[token]). Tokens come from globals.css. */
+/*
+ * Public share page (src/app/s/[token]): one note as a reading page, in the landing's blueprint atlas
+ * (docs/design/landing-direction.md). Page tokens (--lp-*) come from src/components/landing/tokens.css;
+ * the note body keeps the app's .reading styles from globals.css.
+ */
+
+body:has(.sh) {
+  background: var(--lp-canvas);
+}
+.sh {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding: 0 max(16px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px, env(safe-area-inset-left));
+  background: var(--lp-canvas);
+  color: var(--lp-ink);
+  font-family: var(--lp-sans);
+}
+@media (min-width: 768px) {
+  .sh {
+    padding-inline: 32px;
+  }
+}
+.sh-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  border-bottom: 1px solid var(--lp-hairline);
+  font-size: 14px;
+}
+.sh-home {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--lp-ink);
+  text-decoration: none;
+}
+.sh-wordmark {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.sh-home .sh-wordmark {
+  font-size: 20px;
+}
+.sh-wordmark span {
+  color: var(--lp-blue-ink);
+  font-weight: 400;
+}
+.sh-kind {
+  color: var(--lp-slate);
+}
+
+.sh-main {
+  flex: 1;
+  width: 100%;
+  max-width: 68ch;
+  margin: 0 auto;
+  padding: clamp(40px, 8vw, 96px) 0 64px;
+  font-family: var(--lp-serif);
+}
+.sh-note {
+  width: 100%;
+}
+.sh-title {
+  margin: 0;
+  font-family: var(--lp-serif);
+  font-size: clamp(32px, 4.4vw, 48px);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.sh-meta {
+  margin: 16px 0 40px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--lp-hairline);
+  color: var(--lp-slate);
+  font-family: var(--lp-sans);
+  font-size: 14px;
+}
+.sh-lead {
+  margin: 16px 0 0;
+  color: var(--lp-slate);
+  font-family: var(--lp-sans);
+  font-size: 18px;
+  line-height: 1.5;
+}
+.sh-body {
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+.sh-skel {
+  display: grid;
+  gap: 16px;
+}
+.sh-skel span {
+  display: block;
+  height: 14px;
+  border-radius: var(--lp-r-tag);
+  background: var(--lp-panel);
+}
+
+.sh-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding: 16px 0 24px;
+  border-top: 1px solid var(--lp-hairline);
+  color: var(--lp-slate);
+  font-size: 14px;
+}
+.sh-foot p {
+  margin: 0;
+}
+.sh-made {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  color: var(--lp-ink);
+  text-decoration: none;
+}
+.sh-made:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
 
 /* [[Links]] to other notes: plain text, since nothing else in the vault is reachable from here. */
 .reading .share-link {
@@ -6,9 +137,9 @@
 }
 /* #tags: the app's orange tag chip, without a link. */
 .reading .share-tag {
-  color: var(--mark-ink);
-  background: var(--mark-soft);
-  border-radius: 4px;
+  color: var(--lp-orange-ink);
+  background: var(--lp-orange-soft);
+  border-radius: var(--lp-r-tag);
   padding: 0 4px;
   font-family: var(--font-ui);
   font-size: 0.82em;
@@ -17,11 +148,12 @@
 .reading .share-embed {
   margin: 1.25em 0;
   padding: 10px 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  font-family: var(--font-ui);
+  border-left: 1px solid var(--lp-edge);
+  background: var(--lp-panel);
+  border-radius: 0 var(--lp-r) var(--lp-r) 0;
+  font-family: var(--lp-sans);
   font-size: 14px;
-  color: var(--muted);
+  color: var(--lp-slate);
 }
 /* Task boxes are read-only here. The browser's disabled box is too faint to read its state, so
    draw it: a --control edge (>= 3:1) when open, a blue fill with a white tick when done. */
@@ -34,14 +166,14 @@
   display: inline-block;
   width: 15px;
   height: 15px;
-  border: 1px solid var(--control);
+  border: 1px solid var(--lp-edge);
   border-radius: 3px;
-  background: var(--sheet) no-repeat center / 11px 11px;
+  background: var(--lp-canvas) no-repeat center / 11px 11px;
   opacity: 1;
   cursor: default;
 }
 .reading input[type="checkbox"]:disabled:checked {
-  border-color: var(--accent);
-  background-color: var(--accent);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  border-color: var(--lp-blue);
+  background-color: var(--lp-blue);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='%2302070a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }

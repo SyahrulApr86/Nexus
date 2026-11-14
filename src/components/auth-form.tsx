@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import { signIn, signUp } from "@/lib/auth-client";
+import { VaultAtlas } from "@/components/landing/atlas";
+import "@/components/landing/tokens.css";
+import "@/components/landing/auth.css";
 
 type FieldErrors = { email?: string; password?: string };
 
@@ -146,28 +149,27 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       .join(" ") || undefined;
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-frame px-4 py-12">
-      <div className="w-full max-w-sm">
-        <Link href="/" className="group inline-block rounded text-[17px] font-semibold tracking-[-0.01em]" translate="no">
-          <span aria-hidden="true" className="text-accent-ink">
-            [[
-          </span>
-          <span className="decoration-1 underline-offset-4 group-hover:underline">Nexus</span>
-          <span aria-hidden="true" className="text-accent-ink">
-            ]]
-          </span>
+    <main className="lp-scope au">
+      <div className="au-intro">
+        <Link href="/" className="au-wordmark" translate="no" aria-label="Nexus home">
+          <span aria-hidden="true">[[</span>
+          Nexus
+          <span aria-hidden="true">]]</span>
         </Link>
-        <form onSubmit={onSubmit} noValidate className="mt-6 rounded-xl border border-border bg-sheet p-6">
-          <h1 className="text-[22px] font-semibold leading-7">{isSignup ? "Create your vault" : "Sign in to your vault"}</h1>
-          <p className="mt-1 text-muted">
-            {isSignup ? "Your notes stay plain markdown you can export any time." : "Open your notes on this device."}
-          </p>
+        <div className="au-copy">
+          <h1 id={`${errorId}-title`}>{isSignup ? "Create your vault" : "Sign in to your vault"}</h1>
+          <p>{isSignup ? "Your notes stay plain markdown you can export any time." : "Open your notes on this device."}</p>
+        </div>
+        <VaultAtlas width={560} height={260} count={30} seed={4} labels={false} decorative className="au-atlas" />
+      </div>
+      <div className="au-panel">
+        <form onSubmit={onSubmit} noValidate className="au-form" aria-labelledby={`${errorId}-title`}>
           {created && (
-            <p id={noticeId} role="status" className="mt-4 rounded-lg border border-border bg-frame px-3 py-2.5 text-[14px] leading-5">
+            <p id={noticeId} role="status" className="au-notice">
               {SIGNUP_DONE}
             </p>
           )}
-          <div className="mt-6 space-y-4">
+          <div className="au-fields">
             {isSignup && <Field name="name" label="Name" autoComplete="name" />}
             <Field
               ref={emailRef}
@@ -198,23 +200,17 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             />
           </div>
           {error && (
-            <p id={errorId} role="alert" className="mt-4 text-[14px] text-negative">
+            <p id={errorId} role="alert" className="au-error">
               {error}
             </p>
           )}
-          <button
-            aria-disabled={busy || undefined}
-            className="mt-6 h-11 w-full rounded-lg bg-accent font-medium text-navy transition-[filter] hover:brightness-95 aria-disabled:opacity-60"
-          >
+          <button aria-disabled={busy || undefined} className="lp-btn lp-btn-primary au-submit">
             {busy ? (isSignup ? "Creating…" : "Signing in…") : isSignup ? "Create vault" : "Sign in"}
           </button>
         </form>
-        <p className="mt-4 text-center text-muted">
+        <p className="au-switch">
           {isSignup ? "Already have a vault? " : "New to Nexus? "}
-          <Link
-            href={isSignup ? "/login" : "/signup"}
-            className="font-medium text-accent-ink underline decoration-1 underline-offset-2 hover:decoration-2"
-          >
+          <Link href={isSignup ? "/login" : "/signup"} className="au-link">
             {isSignup ? "Sign in" : "Create one"}
           </Link>
         </p>
@@ -244,24 +240,22 @@ function Field({
   const showHint = hint && !error;
   const desc = [describedBy, showHint ? hintId : null].filter(Boolean).join(" ") || undefined;
   return (
-    <div>
-      <label htmlFor={id} className="mb-2 block text-[14px] font-medium">
-        {label}
-      </label>
+    <div className="au-field">
+      <label htmlFor={id}>{label}</label>
       <input
         id={id}
         {...props}
         aria-invalid={invalid || undefined}
         aria-describedby={desc}
-        className="h-11 w-full rounded-lg border border-control bg-sheet px-3 text-[16px] aria-invalid:border-negative"
+        className="au-input"
       />
       {error && (
-        <p id={errorId} className="mt-1.5 text-[13px] text-negative">
+        <p id={errorId} className="au-field-error">
           {error}
         </p>
       )}
       {showHint && (
-        <p id={hintId} className="mt-1.5 text-[13px] text-faint">
+        <p id={hintId} className="au-hint">
           {hint}
         </p>
       )}

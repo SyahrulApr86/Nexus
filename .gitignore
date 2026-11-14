@@ -58,3 +58,6 @@ next-env.d.ts
 .taste-skill/inspect/
 .taste-skill/before/
 .taste-skill/after/
+
+# design-taste-frontend working files
+/.taste-skill/

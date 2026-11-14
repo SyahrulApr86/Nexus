@@ -1,45 +1,62 @@
-import { Suspense, type CSSProperties, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
+import "./tokens.css";
 import "./landing.css";
+import { VaultAtlas, VaultBars } from "./atlas";
 import { CopyButton } from "./copy-button";
+import { BacklinksFragment, CanvasFragment, FilesFragment, GraphFragment, PhoneFragment, SearchFragment } from "./fragments";
+import { LiveNote } from "./live-note";
+import { Reveal } from "./reveal";
 import { VaultLink, VaultLinkFallback } from "./vault-link";
 
-/* A typed markdown token. `hang` pulls a line-start token into the gutter by its own width (n cells). */
-function Tok({ children, hang, i }: { children: string; hang?: boolean; i?: number }) {
-  const style = {
-    ...(hang ? { "--n": children.length } : null),
-    ...(i !== undefined ? { "--i": i } : null),
-  } as CSSProperties;
+function OpenVault({ className, children = "Open your vault" }: { className: string; children?: ReactNode }) {
   return (
-    <span className={hang ? "lp-tok lp-hang" : "lp-tok"} style={style}>
-      {children}
-    </span>
-  );
-}
-
-function OpenVault({ className }: { className: string }) {
-  return (
-    <Suspense fallback={<VaultLinkFallback className={className}>Open your vault</VaultLinkFallback>}>
-      <VaultLink className={className}>Open your vault</VaultLink>
+    <Suspense fallback={<VaultLinkFallback className={className}>{children}</VaultLinkFallback>}>
+      <VaultLink className={className}>{children}</VaultLink>
     </Suspense>
   );
 }
 
-function Wordmark() {
+export function Wordmark({ className = "lp-wordmark" }: { className?: string }) {
   return (
-    <Link href="/" className="lp-wordmark" translate="no">
-      <span aria-hidden="true" className="lp-tok" style={{ "--tok": "0.94em" } as CSSProperties}>
+    <Link href="/" className={className} translate="no" aria-label="Nexus home">
+      <span aria-hidden="true" className="lp-wordmark-b">
         [[
       </span>
       Nexus
-      <span aria-hidden="true" className="lp-tok" style={{ "--tok": "0.94em" } as CSSProperties}>
+      <span aria-hidden="true" className="lp-wordmark-b">
         ]]
       </span>
     </Link>
   );
 }
 
-// From README "Deploy": the commands a self-hoster runs, with the comments in English.
+function Arrow() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function Chevron() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="lp-chev">
+      <path d="m6 4 4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+const NAV = [
+  ["#write", "Write"],
+  ["#links", "Links and graph"],
+  ["#search", "Search"],
+  ["#more", "Canvas and more"],
+  ["#devices", "Every device"],
+  ["#self-host", "Self-host"],
+] as const;
+
+// From README "Deploy": the commands a self-hoster runs.
 const COMPOSE = `# On the server, in a checkout of Nexus:
 cp .env.example .env
 # Fill in .env:
@@ -57,282 +74,313 @@ function Compose() {
   ));
 }
 
-function Row({ example, title, children }: { example: ReactNode; title: string; children: ReactNode }) {
+function Code({ children }: { children: string }) {
+  return <code className="lp-code-inline">{children}</code>;
+}
+
+/** The reference's two-column section header: title and subhead left, description right. */
+function SectionHead({ id, title, sub, children }: { id: string; title: string; sub: string; children: ReactNode }) {
   return (
-    <li className="lp-row">
-      {example}
-      <div className="lp-row-text">
-        <h3>{title}</h3>
-        <p>{children}</p>
+    <div className="lp-head">
+      <div>
+        <h2 id={id} data-reveal>
+          {title}
+        </h2>
+        <p className="lp-sub" data-reveal style={{ ["--d" as string]: 1 }}>
+          {sub}
+        </p>
       </div>
-    </li>
+      <div className="lp-head-body" data-reveal style={{ ["--d" as string]: 2 }}>
+        {children}
+      </div>
+    </div>
   );
 }
 
-function Code({ children }: { children: string }) {
-  return <code className="lp-inline-code">{children}</code>;
+function Fact({ term, children }: { term: string; children: ReactNode }) {
+  return (
+    <div className="lp-fact" data-reveal>
+      <dt>{term}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
 }
 
 export function Landing() {
   return (
-    <div className="lp-page">
-      <header className="lp-wrap">
-        <div className="lp-bar">
-          <Wordmark />
-          <nav aria-label="Main" className="lp-bar-nav">
-            <a href="#self-host" className="lp-link">
-              Self-host
+    <div className="lp-scope lp-page">
+      <a href="#main" className="lp-skip">
+        Skip to content
+      </a>
+      <Reveal />
+
+      <aside className="lp-rail" aria-label="Site">
+        <Wordmark />
+        <nav aria-label="Sections" className="lp-rail-nav">
+          {NAV.map(([href, label]) => (
+            <a key={href} href={href} className="lp-rail-link">
+              {label}
+              <Chevron />
             </a>
-            <OpenVault className="lp-link" />
-          </nav>
+          ))}
+        </nav>
+        <div className="lp-start">
+          <p className="lp-start-label">
+            <span className="lp-dot" aria-hidden="true" />
+            Start here
+          </p>
+          <OpenVault className="lp-btn lp-btn-primary lp-btn-block" />
+          <a href="#self-host" className="lp-btn lp-btn-ghost lp-btn-block">
+            Run it yourself
+          </a>
         </div>
+      </aside>
+
+      <header className="lp-top">
+        <Wordmark />
+        <nav aria-label="Main" className="lp-top-nav">
+          <a href="#self-host" className="lp-text-link">
+            Self-host
+          </a>
+          <OpenVault className="lp-btn lp-btn-primary lp-btn-sm" />
+        </nav>
       </header>
 
-      <main>
-        <section className="lp-wrap lp-hero" aria-labelledby="landing-title">
-          <div className="lp-sheet">
-            <figure style={{ margin: 0 }}>
-              <figcaption className="lp-path">
-                <span className="sr-only">An example daily note, as typed: </span>
-                Daily notes/2026-11-13.md
-              </figcaption>
-              {/* 13 November 2026 is a Friday. */}
-              <p className="lp-note">
-                <span className="lp-line">Friday, 13&nbsp;November&nbsp;—</span>
-                <span className="lp-line">
-                  <Tok hang i={0}>
-                    [[
-                  </Tok>
-                  <span className="lp-target">Project kickoff</span>
-                  <Tok i={1}>]]</Tok> moved
-                </span>
-                <span className="lp-line">
-                  <Tok hang i={2}>
-                    [[
-                  </Tok>
-                  <span className="lp-target">Q4 roadmap</span>
-                  <Tok i={3}>]]</Tok> up a week.
-                </span>
-                <span className="lp-line">
-                  <Tok hang i={4}>
-                    #
-                  </Tok>
-                  <span className="lp-tag">planning</span>
-                </span>
-              </p>
-            </figure>
-
-            <div className="lp-promise">
-              <h1 id="landing-title">Notes that link to each other, in plain markdown.</h1>
-              <p>
-                Open your vault in any browser, on any device. Type <Code>[[</Code> to link one note to another, and
-                every link shows up as a backlink on the other side.
-              </p>
-              <div className="lp-actions">
-                <OpenVault className="lp-primary" />
-                <a href="#self-host" className="lp-link">
-                  Self-host
-                </a>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="lp-wrap lp-section" aria-labelledby="what">
-          <div className="lp-section-head">
-            <h2 id="what">What it does</h2>
-            <p>The parts of Obsidian you reach for every day, in a browser tab, backed by your own database.</p>
-          </div>
-          <ul className="lp-rows">
-            <Row
-              title="Links and backlinks"
-              example={
-                <p className="lp-example">
-                  <span className="lp-line">
-                    <Tok hang>[[</Tok>
-                    <span className="lp-target">Q4&nbsp;roadmap</span>
-                    <Tok>]]</Tok>
-                  </span>
-                </p>
-              }
-            >
-              Type <Code>[[</Code> and pick a note. The note you linked to lists the mention, with the line it came
-              from. Rename a note and every link to it is rewritten.
-            </Row>
-            <Row
-              title="Graph"
-              example={
-                <p className="lp-example">
-                  <span className="lp-line">
-                    <Tok hang>#</Tok>
-                    <span className="lp-tag">planning</span>
-                  </span>
-                </p>
-              }
-            >
-              Every note and link as a graph you can zoom, pan and filter by name or tag, with a list mode for the
-              keyboard and screen readers.
-            </Row>
-            <Row
-              title="Search with operators"
-              example={
-                <p className="lp-query">
-                  <span className="lp-op">tag:</span>planning &quot;launch date&quot; <span className="lp-op">-</span>draft
-                </p>
-              }
-            >
-              Words, &quot;phrases&quot;, <Code>OR</Code>, exclusions and filters: <Code>file:</Code>,{" "}
-              <Code>path:</Code>, <Code>tag:</Code>, and <Code>line:</Code> for words on the same line.
-            </Row>
-            <Row
-              title="Live preview"
-              example={
-                <p className="lp-example">
-                  <span className="lp-line">
-                    <Tok hang>##</Tok>
-                    Agenda
-                  </span>
-                </p>
-              }
-            >
-              Markdown hides its syntax on every line except the one you are editing, which shows the source.
-            </Row>
-            <Row
-              title="Callouts, embeds, math, diagrams"
-              example={
-                <p className="lp-example">
-                  <span className="lp-line">
-                    <Tok hang>&gt;</Tok>
-                    <Tok>[!warning]</Tok> Launch moved
-                  </span>
-                  <span className="lp-line">
-                    <Tok hang>![[</Tok>
-                    <span className="lp-target">Meeting&nbsp;notes</span>
-                    <Tok>#</Tok>
-                    <span className="lp-target">Decisions</span>
-                    <Tok>]]</Tok>
-                  </span>
-                </p>
-              }
-            >
-              In reading view: Obsidian callouts that fold, embedded notes and headings, KaTeX math and Mermaid
-              diagrams.
-            </Row>
-          </ul>
-          <div className="lp-also">
-            <div className="lp-row-text">
-              <h3>Works on your phone</h3>
-              <p>
-                The workspace fits a phone screen, and installs from the browser on iPhone, Android or desktop. It
-                still needs your server: there is no offline mode yet.
-              </p>
-            </div>
-            <div className="lp-row-text">
-              <h3>History</h3>
-              <p>
-                Before a note is overwritten, Nexus keeps the earlier text: up to 50 versions per note, for 30 days. A
-                panel to browse and restore them is planned; today they are reachable through the API.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="lp-wrap lp-section" aria-labelledby="files">
-          <div className="lp-section-head">
-            <h2 id="files">Your files stay yours</h2>
-            <p>A note is a markdown file, not a row you can’t get back out.</p>
-          </div>
-          <div className="lp-files">
-            <ul className="lp-file-list" aria-label="An exported vault">
-              <li>my-vault.zip</li>
-              <li>
-                <span className="lp-dir">Daily notes/</span>2026-11-13.md
-              </li>
-              <li>
-                <span className="lp-dir">Projects/</span>Project kickoff.md
-              </li>
-              <li>
-                <span className="lp-dir">Projects/</span>Q4 roadmap.md
-              </li>
-            </ul>
-            <div className="lp-points">
-              <div>
-                <h3>Plain .md</h3>
-                <p>
-                  What you type is what is stored: <Code>[[links]]</Code>, <Code>#tags</Code> and frontmatter stay
-                  text in the file.
-                </p>
-              </div>
-              <div>
-                <h3>Export that opens in Obsidian</h3>
-                <p>Export vault, in Settings, downloads every note as a .zip of .md files.</p>
-              </div>
-              <div>
-                <h3>Import from Obsidian</h3>
-                <p>Bring a vault in as a .zip, or a few .md files. Attachments and .obsidian settings are skipped.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="self-host" className="lp-wrap lp-section" aria-labelledby="self-host-title">
-          <div className="lp-section-head">
-            <h2 id="self-host-title">Run it on your own server</h2>
-            <p>
-              Docker Compose starts three services: Postgres, a migration step that exits when it is done, and the
-              app.
+      <main id="main" className="lp-main">
+        <section className="lp-hero" aria-labelledby="landing-title">
+          <h1 id="landing-title" className="lp-display">
+            <span className="lp-display-line">Plain notes,</span>{" "}
+            <span className="lp-display-line">
+              <span className="lp-slot" aria-hidden="true">
+                <VaultAtlas width={240} height={96} count={14} seed={5} labels={false} decorative className="lp-slot-svg" />
+              </span>{" "}
+              linked.
+            </span>
+          </h1>
+          <div className="lp-hero-foot">
+            <p className="lp-lead">
+              Nexus is a markdown notebook for the browser, in the spirit of Obsidian. Type <Code>[[</Code> to link
+              two notes, read the backlinks and the graph, and keep every note a plain .md file on your own server.
             </p>
-          </div>
-          <div className="lp-code">
-            <div className="lp-code-bar">
-              <span>Terminal</span>
-              <CopyButton text={COMPOSE} label="Copy the commands" className="lp-copy" />
+            <div className="lp-actions">
+              <OpenVault className="lp-btn lp-btn-primary">
+                Open your vault
+                <Arrow />
+              </OpenVault>
+              <a href="#self-host" className="lp-btn lp-btn-ghost">
+                Run it yourself
+              </a>
             </div>
-            <pre tabIndex={0} aria-label="Commands to start Nexus with Docker Compose">
-              <code>
-                <Compose />
-              </code>
-            </pre>
           </div>
-          <div className="lp-notes">
-            <div className="lp-row-text">
-              <h3>Sign-up is closed by default</h3>
-              <p>
-                To create the owner account, set <Code>NEXUS_ALLOW_SIGNUP=true</Code> in .env, restart the app and sign
-                up. Then set it back to <Code>false</Code> and restart again.
-              </p>
+          <figure className="lp-atlas" data-reveal style={{ ["--d" as string]: 2 }}>
+            <VaultAtlas className="lp-atlas-svg lp-atlas-wide" />
+            <VaultAtlas width={560} height={480} count={44} seed={7} className="lp-atlas-svg lp-atlas-narrow" />
+            <VaultBars className="lp-bars" />
+            <figcaption>A sample vault as its graph: each dot a note, each line a [[link]]. Blue is the open note and what it links to.</figcaption>
+          </figure>
+        </section>
+
+        <section id="write" className="lp-section" aria-labelledby="write-title">
+          <SectionHead
+            id="write-title"
+            title="Type markdown, read a note"
+            sub="Live preview hides the syntax everywhere except the line you are on."
+          >
+            <p>
+              Try it below. Links, tags, tasks, highlights and headings turn into the note as you type; the line with
+              your cursor keeps its markdown so you can still edit it. What is saved is exactly what you typed.
+            </p>
+          </SectionHead>
+          <div data-reveal style={{ ["--d" as string]: 3 }}>
+            <LiveNote />
+          </div>
+        </section>
+
+        <section id="links" className="lp-section" aria-labelledby="links-title">
+          <SectionHead
+            id="links-title"
+            title="Every link works both ways"
+            sub="Link once, and the other note knows about it."
+          >
+            <p>
+              A <Code>[[link]]</Code> shows up on the other note as a linked mention, with the line it came from.
+              Mentions you have not linked yet are found too, one click from a link. Rename a note and every link to it
+              is rewritten.
+            </p>
+          </SectionHead>
+          <div className="lp-split">
+            <div data-reveal>
+              <BacklinksFragment />
             </div>
-            <div className="lp-row-text">
-              <h3>HTTPS in front</h3>
-              <p>
-                The app listens on <Code>127.0.0.1:3000</Code> only. Put Caddy or Nginx with HTTPS in front of it;
-                session cookies are only secure on https.
-              </p>
+            <div data-reveal style={{ ["--d" as string]: 1 }}>
+              <GraphFragment />
             </div>
           </div>
         </section>
 
-        <section className="lp-wrap lp-section" aria-labelledby="together">
-          <div className="lp-section-head">
-            <h2 id="together">
-              Working together <span className="lp-planned">Planned</span>
-            </h2>
-            <p>Today a vault belongs to one account. Shared vaults and real-time editing are planned, not built.</p>
+        <section id="search" className="lp-section" aria-labelledby="search-title">
+          <SectionHead id="search-title" title="Find it with operators" sub="The search syntax Obsidian users already know.">
+            <p>Words match as prefixes; quotes keep a phrase together. Combine them with the operators below.</p>
+          </SectionHead>
+          <div className="lp-split lp-split-wide">
+            <div data-reveal>
+              <SearchFragment />
+            </div>
+            <dl className="lp-ops" data-reveal style={{ ["--d" as string]: 1 }}>
+              <div>
+                <dt>
+                  <Code>tag:planning</Code>
+                </dt>
+                <dd>Notes with the tag, nested tags included</dd>
+              </div>
+              <div>
+                <dt>
+                  <Code>path:Projects</Code>
+                </dt>
+                <dd>Notes in a folder</dd>
+              </div>
+              <div>
+                <dt>
+                  <Code>file:roadmap</Code>
+                </dt>
+                <dd>Notes by name</dd>
+              </div>
+              <div>
+                <dt>
+                  <Code>line:(launch date)</Code>
+                </dt>
+                <dd>All words on the same line</dd>
+              </div>
+              <div>
+                <dt>
+                  <Code>a OR b</Code>, <Code>-draft</Code>
+                </dt>
+                <dd>Either one, or leave a word out</dd>
+              </div>
+            </dl>
           </div>
+        </section>
+
+        <section id="more" className="lp-section" aria-labelledby="more-title">
+          <SectionHead id="more-title" title="Canvas, templates and files" sub="The rest of the toolkit, in the same vault.">
+            <p>
+              A canvas is a .canvas file in the JSON Canvas format, so it opens in Obsidian too. Everything else on this
+              list is stored as markdown or as a file next to it.
+            </p>
+          </SectionHead>
+          <div className="lp-split lp-split-canvas">
+            <div data-reveal>
+              <CanvasFragment />
+            </div>
+            <dl className="lp-facts">
+              <Fact term="Templates">Insert one with variables for the date and title; daily notes can use one too.</Fact>
+              <Fact term="Properties">Frontmatter as a form you can edit, written back to the file without loss.</Fact>
+              <Fact term="Attachments">Paste or drop images, PDFs, audio and video into a note.</Fact>
+              <Fact term="Callouts, math, diagrams">Obsidian callouts that fold, KaTeX math and Mermaid in reading view.</Fact>
+              <Fact term="Share links">Publish one note as a read-only page, with an optional expiry, and revoke it any time.</Fact>
+              <Fact term="Several vaults">Keep work and personal notes apart and switch between them.</Fact>
+            </dl>
+          </div>
+        </section>
+
+        <section id="devices" className="lp-section" aria-labelledby="devices-title">
+          <SectionHead id="devices-title" title="On every device you own" sub="A phone is not a smaller desktop here.">
+            <p>
+              The workspace has its own phone layout and installs from the browser. Notes you open are kept on the
+              device, so you can keep writing on a train; edits sync when you are back online.
+            </p>
+          </SectionHead>
+          <div className="lp-devices">
+            <div data-reveal>
+              <PhoneFragment />
+            </div>
+            <dl className="lp-facts lp-facts-tall">
+              <Fact term="Installs like an app">On iPhone, Android or desktop, from the browser’s menu.</Fact>
+              <Fact term="Works offline">Changes wait in an outbox on the device and are sent on reconnect.</Fact>
+              <Fact term="Live editing">
+                Open a note in two places and edits arrive as they are typed, with a marker for each open session.
+              </Fact>
+            </dl>
+          </div>
+        </section>
+
+        <section id="self-host" className="lp-section" aria-labelledby="self-host-title">
+          <SectionHead
+            id="self-host-title"
+            title="Your server, your files"
+            sub="One Docker Compose file, and a vault you can always take with you."
+          >
+            <p>
+              Compose starts Postgres, a migration step that exits when it is done, the app and the collaboration
+              service. Export the vault as a .zip of .md files that opens in Obsidian, or import an Obsidian vault.
+            </p>
+          </SectionHead>
+          <dl className="lp-stats">
+            <div data-reveal>
+              <dt>Services in one Compose file</dt>
+              <dd>4</dd>
+            </div>
+            <div data-reveal style={{ ["--d" as string]: 1 }}>
+              <dt>Notes in one vault</dt>
+              <dd>20,000</dd>
+            </div>
+            <div data-reveal style={{ ["--d" as string]: 2 }}>
+              <dt>Storage per vault</dt>
+              <dd>500 MiB</dd>
+            </div>
+            <div data-reveal style={{ ["--d" as string]: 3 }}>
+              <dt>Format of every note</dt>
+              <dd>.md</dd>
+            </div>
+          </dl>
+          <div className="lp-split lp-split-code">
+            <div className="lp-terminal" data-reveal>
+              <div className="lp-terminal-bar">
+                <span>Terminal</span>
+                <CopyButton text={COMPOSE} label="Copy the commands" className="lp-copy" />
+              </div>
+              <pre tabIndex={0} aria-label="Commands to start Nexus with Docker Compose">
+                <code>
+                  <Compose />
+                </code>
+              </pre>
+            </div>
+            <div data-reveal style={{ ["--d" as string]: 1 }}>
+              <FilesFragment />
+            </div>
+          </div>
+          <dl className="lp-facts lp-facts-row">
+            <Fact term="Sign-up is closed by default">
+              Set <Code>NEXUS_ALLOW_SIGNUP=true</Code>, restart, create the owner account, then set it back.
+            </Fact>
+            <Fact term="HTTPS in front">
+              The app listens on <Code>127.0.0.1:3000</Code>. Put Caddy or Nginx with HTTPS in front of it.
+            </Fact>
+            <Fact term="Leave any time">Export the vault from Settings, notes and attachments together.</Fact>
+          </dl>
         </section>
       </main>
 
       <footer className="lp-footer">
-        <div className="lp-wrap">
-          <div className="lp-footer-inner">
-            <p>Nexus keeps your notes as plain markdown.</p>
-            <nav aria-label="Footer" className="lp-footer-nav">
-              <OpenVault className="lp-link" />
-              <a href="#self-host" className="lp-link">
-                Self-host
-              </a>
-            </nav>
-          </div>
+        <p className="lp-footer-name" translate="no" aria-hidden="true">
+          Nexus
+        </p>
+        <div className="lp-footer-row">
+          <nav aria-label="Footer" className="lp-footer-nav">
+            <OpenVault className="lp-text-link" />
+            <Link href="/login" className="lp-text-link">
+              Sign in
+            </Link>
+            <a href="#self-host" className="lp-text-link">
+              Self-host
+            </a>
+          </nav>
+          <p>Linked notes in plain markdown, on your own server.</p>
+          <p>
+            <a href="#main" className="lp-text-link">
+              Back to top
+            </a>
+          </p>
         </div>
       </footer>
     </div>

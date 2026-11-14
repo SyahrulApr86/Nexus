@@ -1,0 +1,215 @@
+/*
+ * Sign-in and sign-up, in the landing page's blueprint atlas (docs/design/landing-direction.md):
+ * the title set large on the canvas with a quiet graph drawing under it, the form on one flat panel.
+ * Tokens in ./tokens.css.
+ */
+
+body:has(.au) {
+  background: var(--lp-canvas);
+}
+
+.au {
+  display: grid;
+  min-height: 100dvh;
+  background: var(--lp-canvas);
+  color: var(--lp-ink);
+  font-family: var(--lp-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 16px 16px 48px;
+  gap: 32px;
+  align-content: start;
+}
+@media (min-width: 900px) {
+  .au {
+    grid-template-columns: minmax(0, 7fr) minmax(360px, 5fr);
+    align-content: stretch;
+    gap: 0;
+    padding: 0;
+  }
+}
+
+.au-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+@media (min-width: 900px) {
+  .au-intro {
+    padding: 24px 32px 32px;
+    border-right: 1px solid var(--lp-hairline);
+  }
+}
+
+.au-wordmark {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  color: var(--lp-ink);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+.au-wordmark span {
+  color: var(--lp-blue-ink);
+  font-weight: 400;
+}
+
+.au-copy h1 {
+  margin: 0;
+  max-width: 9em;
+  font-size: clamp(44px, 6.4vw, 96px);
+  font-weight: 500;
+  line-height: 0.96;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+.au-copy p {
+  margin: 16px 0 0;
+  max-width: 26em;
+  color: var(--lp-slate);
+  font-size: 22px;
+  line-height: 1.35;
+  letter-spacing: -0.012em;
+}
+@media (min-width: 900px) {
+  .au-copy {
+    margin-top: auto;
+  }
+}
+
+.au-atlas {
+  display: none;
+}
+@media (min-width: 900px) {
+  .au-atlas {
+    display: block;
+    width: 100%;
+    max-width: 640px;
+    height: auto;
+    margin-bottom: auto;
+  }
+}
+.au-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+}
+@media (min-width: 900px) {
+  .au-panel {
+    padding: 32px;
+  }
+}
+
+.au-form {
+  width: 100%;
+  max-width: 420px;
+  padding: 24px;
+  border-radius: var(--lp-r);
+  background: var(--lp-panel);
+}
+@media (min-width: 900px) {
+  .au-form {
+    padding: 32px;
+  }
+}
+.au-fields {
+  display: grid;
+  gap: 20px;
+}
+.au-field label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.au-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--lp-edge);
+  border-radius: var(--lp-r);
+  background: var(--lp-canvas);
+  color: var(--lp-ink);
+  font: 400 16px / 1.5 var(--lp-sans);
+  transition: border-color 150ms var(--lp-ease);
+}
+.au-input:hover {
+  border-color: var(--lp-ink);
+}
+.au-input:focus-visible {
+  outline: 2px solid var(--lp-blue);
+  outline-offset: 1px;
+  border-color: var(--lp-blue);
+}
+.au-input[aria-invalid="true"] {
+  border-color: var(--lp-negative);
+}
+.au-hint,
+.au-field-error {
+  margin: 6px 0 0;
+  font-size: 14px;
+}
+.au-hint {
+  color: var(--lp-slate);
+}
+.au-field-error,
+.au-error {
+  color: var(--lp-negative);
+}
+.au-error {
+  margin: 16px 0 0;
+  font-size: 14px;
+}
+.au-notice {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border-left: 1px solid var(--lp-blue);
+  background: var(--lp-canvas);
+  font-size: 14px;
+}
+.au-submit {
+  width: 100%;
+  margin-top: 24px;
+}
+
+.au-switch {
+  margin: 0;
+  max-width: 420px;
+  color: var(--lp-slate);
+  font-size: 16px;
+}
+.au-link {
+  color: var(--lp-blue-ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+.au-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .au-copy,
+  .au-form {
+    animation: au-rise 700ms var(--lp-ease) both;
+  }
+  .au-form {
+    animation-delay: 80ms;
+  }
+}
+@keyframes au-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

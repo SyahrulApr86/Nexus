@@ -66,56 +66,36 @@ async function SharedNote({ params }: { params: PageProps<"/s/[token]">["params"
   if (found.kind === "missing") notFound();
   if (found.kind === "limited")
     return (
-      <Sheet>
-        <h1 className="font-note text-2xl font-semibold text-balance">Too many requests</h1>
-        <p className="mt-3 font-ui text-[15px] leading-6 text-muted">
-          This link was opened too often from your network. Wait a minute, then reload the page.
-        </p>
-      </Sheet>
+      <div className="sh-note">
+        <h1 className="sh-title">Too many requests</h1>
+        <p className="sh-lead">This link was opened too often from your network. Wait a minute, then reload the page.</p>
+      </div>
     );
   return (
-    <>
-      <Sheet>
-        <article>
-          <h1 className="font-note text-[24px] leading-8 font-semibold tracking-[-0.01em] text-balance [overflow-wrap:anywhere] md:text-[28px] md:leading-9">
-            {found.name}
-          </h1>
-          <p className="mt-2 mb-8 font-ui text-[13px] leading-5 text-muted">
-            Updated <time dateTime={found.updatedAt.toISOString()}>{dateFormat.format(found.updatedAt)}</time>
-          </p>
-          {/* Sanitised by the app's markdown renderer (rehype-sanitize), then links and images made safe in renderSharedNote. */}
-          <div className="reading" dangerouslySetInnerHTML={{ __html: found.html }} />
-        </article>
-      </Sheet>
-      <p className="mx-auto mt-4 max-w-[700px] px-3 text-center font-ui text-[13px] leading-5 text-muted md:px-0">
-        Anyone with this link can read this note. Links to other notes show as plain text.
+    <article className="sh-note">
+      <h1 className="sh-title">{found.name}</h1>
+      <p className="sh-meta">
+        Updated <time dateTime={found.updatedAt.toISOString()}>{dateFormat.format(found.updatedAt)}</time>
       </p>
-    </>
+      {/* Sanitised by the app's markdown renderer (rehype-sanitize), then links and images made safe in renderSharedNote. */}
+      <div className="reading sh-body" dangerouslySetInnerHTML={{ __html: found.html }} />
+    </article>
   );
 }
 
-/** The note sheet: the app's reading view, centred on the 700px measure. */
-function Sheet({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-[14px] border border-border bg-sheet px-5 py-7 md:px-10 md:py-12">
-      <div className="mx-auto max-w-[700px]">{children}</div>
-    </div>
-  );
-}
-
-/** The sheet at its final width, text replaced by flat bars: no layout shift when the note arrives. */
+/** The note column at its final width, text replaced by flat bars: no layout shift when the note arrives. */
 function NoteSkeleton() {
   return (
-    <div className="rounded-[14px] border border-border bg-sheet px-5 py-7 md:px-10 md:py-12" aria-busy="true">
+    <div className="sh-note" aria-busy="true">
       <p role="status" className="sr-only">
         Opening the shared note…
       </p>
-      <div aria-hidden="true" className="space-y-4">
-        <span className="block h-7 w-2/5 rounded bg-active" />
-        <span className="block h-3 w-1/4 rounded bg-active" />
-        <span className="block h-3.5 w-full rounded bg-active" />
-        <span className="block h-3.5 w-11/12 rounded bg-active" />
-        <span className="block h-3.5 w-3/4 rounded bg-active" />
+      <div aria-hidden="true" className="sh-skel">
+        <span style={{ width: "55%", height: 40 }} />
+        <span style={{ width: "22%" }} />
+        <span style={{ width: "100%" }} />
+        <span style={{ width: "92%" }} />
+        <span style={{ width: "74%" }} />
       </div>
     </div>
   );

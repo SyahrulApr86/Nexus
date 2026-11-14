@@ -1,0 +1,142 @@
+/*
+ * Public-page tokens (landing, sign-in, sign-up, share page), mapped from the owner's "blueprint atlas"
+ * reference (DESIGN/) onto the Nexus brand. See docs/design/landing-direction.md, "Token mapping".
+ *
+ * Reference role        -> Nexus value (light / dark)
+ *   pure white canvas   -> --lp-canvas   #ffffff / #02070a (navy)
+ *   ash panel fill      -> --lp-panel    #f2f2f2 / #0b1218 (one tone step up)
+ *   carbon ink          -> --lp-ink      #02070a / #e6edf2
+ *   slate (darkened)    -> --lp-slate    #646b79 / #9aa5b1   5.36:1 on canvas, 4.78:1 on panel / 8.09:1, 7.53:1
+ *   mist hairline       -> --lp-hairline #b1b7c3 / #26313b   structure only, never the only edge of a control
+ *   graphite edge       -> --lp-edge     #858c99 / #5d7182   control edges, 3.38:1 / 4.0:1
+ *   electric blue       -> --lp-blue     #0297de             primary fill, active item, focus, data points
+ *                          --lp-blue-ink #01669a / #36aeeb   blue as text (links), 6.23:1 / 8.11:1
+ *   wireframe green     -> --lp-orange   #fc734d             tags, highlights, search hits only
+ *                          --lp-orange-ink #b42a03 / #ff8a66 orange as text, 6.42:1 / 8.15:1
+ * Navy on the blue fill: 6.25:1. Radii 8px (panels, buttons) and 2px (tags). 4px spacing grid.
+ * Names are prefixed --lp- so they never collide with the workspace tokens in globals.css.
+ */
+:root {
+  --lp-canvas: #ffffff;
+  --lp-panel: #f2f2f2;
+  --lp-panel-2: #e8eaed;
+  --lp-ink: #02070a;
+  --lp-slate: #646b79;
+  --lp-hairline: #b1b7c3;
+  --lp-edge: #858c99;
+  --lp-blue: #0297de;
+  --lp-blue-ink: #01669a;
+  --lp-blue-soft: #e1f3fb;
+  --lp-on-blue: #02070a;
+  --lp-orange: #fc734d;
+  --lp-orange-ink: #b42a03;
+  --lp-orange-soft: #ffe8e0;
+  --lp-negative: #c4242a;
+  --lp-graph-edge: #b1b7c3;
+  --lp-r: 8px;
+  --lp-r-tag: 2px;
+  --lp-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --lp-serif: var(--font-literata), ui-serif, Georgia, serif;
+  --lp-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --lp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root[data-theme="dark"] {
+  --lp-canvas: #02070a;
+  --lp-panel: #0b1218;
+  --lp-panel-2: #121c24;
+  --lp-ink: #e6edf2;
+  --lp-slate: #9aa5b1;
+  --lp-hairline: #26313b;
+  --lp-edge: #5d7182;
+  --lp-blue-ink: #36aeeb;
+  --lp-blue-soft: #092a3c;
+  --lp-orange-ink: #ff8a66;
+  --lp-orange-soft: #3a231d;
+  --lp-negative: #ef6a73;
+  --lp-graph-edge: #34434f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lp-canvas: #02070a;
+    --lp-panel: #0b1218;
+    --lp-panel-2: #121c24;
+    --lp-ink: #e6edf2;
+    --lp-slate: #9aa5b1;
+    --lp-hairline: #26313b;
+    --lp-edge: #5d7182;
+    --lp-blue-ink: #36aeeb;
+    --lp-blue-soft: #092a3c;
+    --lp-orange-ink: #ff8a66;
+    --lp-orange-soft: #3a231d;
+    --lp-negative: #ef6a73;
+    --lp-graph-edge: #34434f;
+  }
+}
+
+/* Shared controls for the public pages. */
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 12px 16px;
+  border-radius: var(--lp-r);
+  font-family: var(--lp-sans);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 20px;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 150ms var(--lp-ease),
+    color 150ms var(--lp-ease),
+    transform 150ms var(--lp-ease);
+}
+.lp-btn:active {
+  transform: translateY(1px);
+}
+.lp-btn-primary {
+  border: 0;
+  background: var(--lp-blue);
+  color: var(--lp-on-blue);
+}
+.lp-btn-primary:hover {
+  background: color-mix(in srgb, var(--lp-blue) 86%, #02070a);
+}
+.lp-btn-ghost {
+  border: 1px solid var(--lp-edge);
+  background: var(--lp-canvas);
+  color: var(--lp-ink);
+}
+.lp-btn-ghost:hover {
+  background: var(--lp-panel);
+}
+.lp-btn[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: progress;
+}
+.lp-btn svg {
+  transition: transform 150ms var(--lp-ease);
+}
+.lp-btn:hover svg {
+  transform: translateX(2px);
+}
+
+.lp-scope :focus-visible {
+  outline: 2px solid var(--lp-blue);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-btn,
+  .lp-btn svg {
+    transition: none;
+  }
+  .lp-btn:active,
+  .lp-btn:hover svg {
+    transform: none;
+  }
+}
