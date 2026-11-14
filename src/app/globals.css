@@ -1740,5 +1740,22 @@
     border-radius: calc(8px - 1px / var(--canvas-zoom));
     pointer-events: none;
   }
+  /* Phone top bar: who else is on the note, beside its title. */
+  .collab-presence-phone {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .collab-presence-phone .collab-avatar {
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+    box-shadow: 0 0 0 1.5px var(--frame);
+  }
 }
 /* end sync */
