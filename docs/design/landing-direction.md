@@ -83,7 +83,9 @@ Share page
    single h1 (the note name).
 2. Title block in Literata at display size with a meta row (updated date, reading time) and a rule.
 3. The close is a band one tone up, signed "Shared from [[Nexus]]". The static 404 in `src/proxy.ts` is
-   restyled to the same frame (copy unchanged); it cannot load the web fonts, so it uses system fallbacks.
+   restyled to the same frame (copy unchanged) and is always dark, like the landing and auth pages. It
+   cannot load the web fonts, so its title is set in the Hanken/system-ui display style (500, -0.04em)
+   rather than a serif that would fall back to a heavy Times bold.
 
 Also: the landing OG image is redrawn dark (Literata headline on navy, bar floor) to match.
 
