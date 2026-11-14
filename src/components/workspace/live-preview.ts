@@ -10,6 +10,10 @@
  * ==highlight== marks, [text](url) links, <autolinks>, bare URLs, [[wikilinks]]
  * (brackets, alias targets, heading separators), task checkboxes, bullet
  * markers, blockquote marks, horizontal rules and code fence markers.
+ * Callouts (`> [!tip]- Title`) render as the reading view's callout block,
+ * folding included, until the selection enters them. Trailing `^blockid`
+ * markers are hidden. Heading and block links (`[[Note#Heading]]`,
+ * `[[Note#^id]]`) carry their fragment to `openLink`.
  * Left as source on purpose: tables, HTML, frontmatter, images, embeds
  * (![[note]]), ordered list numbers, setext headings, links whose syntax spans
  * lines, and everything inside those regions.
@@ -18,7 +22,15 @@
  * that from plugins), and any unexpected parser edge case falls back to no
  * decorations instead of breaking the editor.
  */
-import { EditorSelection, Prec, type Extension, type Range, type EditorState } from "@codemirror/state";
+import {
+  EditorSelection,
+  Prec,
+  StateEffect,
+  StateField,
+  type Extension,
+  type Range,
+  type EditorState,
+} from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -29,13 +41,31 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
+import { renderMarkdown } from "@/lib/markdown/render";
+import { renderMath } from "@/lib/markdown/math-client";
+import { fragmentLine, type Fragment } from "@/lib/markdown/fragment-nav";
+import type { AttachmentLookup } from "@/lib/markdown/attachments";
 
 export type LivePreviewHandlers = {
-  /** Open a [[wikilink]] target; same callback the editor's Ctrl+click uses. */
-  openLink: (target: string, newTab: boolean) => void;
+  /**
+   * Open a [[wikilink]] target; same callback the editor's Ctrl+click uses. `fragment` is what
+   * follows the "#" ("Heading" or "^blockid"), when the link has one; the target is empty for a
+   * link into this note (`[[#Heading]]`).
+   */
+  openLink: (target: string, newTab: boolean, fragment?: string) => void;
+  /** Whether a note exists, so links in rendered callouts show missing notes as such. */
+  exists?: () => (target: string) => boolean;
+  /** Open a #tag (a tag inside a rendered callout). */
+  openTag?: (tag: string) => void;
+  /** Attachments, so images inside a rendered callout resolve. */
+  attachments?: () => AttachmentLookup | undefined;
 };
 
 const WIKILINK = /(!?)\[\[([^\[\]\n]+?)\]\]/g;
+/** A trailing block id: ` ^id` at the end of a line, or `^id` alone on it. */
+const BLOCK_ID = /(^|[ \t])\^[A-Za-z0-9-]+[ \t]*$/gm;
+/** First line of a callout: `> [!type]` (optionally `+`/`-` and a title). */
+const CALLOUT_HEAD = /^ {0,3}>[ \t]?\[![A-Za-z][\w-]*\][+-]?/;
 const HIGHLIGHT = /==([^=\n]+)==/g;
 // Quote prefixes and stacked list markers are allowed ("> - [ ] x", "- - [ ] x").
 const TASK_LINE = /^(\s*(?:>\s?)*\s*(?:(?:[-*+]|\d+[.)])\s+)+\[)([ xX])(\])/;
@@ -116,6 +146,173 @@ class RuleWidget extends WidgetType {
     el.setAttribute("aria-hidden", "true");
     return el;
   }
+}
+
+/**
+ * A callout drawn as the reading view draws it: the same renderer and the same `.reading .callout`
+ * styles. Links, tags and task boxes inside it work; a foldable callout's title folds it; any other
+ * click places the caret there, which turns the callout back into source for editing.
+ */
+class CalloutWidget extends WidgetType {
+  constructor(
+    readonly source: string,
+    readonly handlers: LivePreviewHandlers,
+  ) {
+    super();
+  }
+  eq(other: CalloutWidget) {
+    // Same source: keep the DOM, so a callout folded or opened here stays that way.
+    return other.source === this.source;
+  }
+  toDOM(view: EditorView) {
+    const wrap = document.createElement("div");
+    wrap.className = "cm-lp-callout reading";
+    const exists = this.handlers.exists?.() ?? (() => true);
+    let html: string;
+    try {
+      html = renderMarkdown(this.source, exists, this.handlers.attachments?.());
+    } catch {
+      html = "";
+    }
+    wrap.innerHTML = html;
+    if (!wrap.querySelector(".callout")) {
+      wrap.textContent = this.source; // never hide text the renderer could not draw
+    }
+    // Task boxes in the source text; links and tags open as in the reading view.
+    for (const box of wrap.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+      box.disabled = false;
+      box.tabIndex = -1;
+    }
+    for (const a of wrap.querySelectorAll("a")) a.tabIndex = -1;
+    for (const s of wrap.querySelectorAll("summary")) s.tabIndex = -1;
+    void renderMath(wrap, { cancelled: false });
+
+    wrap.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      const el = e.target as HTMLElement;
+      const summary = el.closest("summary");
+      const a = el.closest("a");
+      const box = el instanceof HTMLInputElement && el.type === "checkbox" ? el : null;
+      if (!summary && !a && !box) return; // the editor places the caret
+      e.preventDefault();
+      if (box) {
+        const at = Number(box.closest("li[data-task-offset]")?.getAttribute("data-task-offset"));
+        const pos = view.posAtDOM(wrap) + at;
+        const ch = view.state.doc.sliceString(pos, pos + 1);
+        if (Number.isFinite(at) && /[ xX]/.test(ch))
+          view.dispatch({ changes: { from: pos, to: pos + 1, insert: ch === " " ? "x" : " " }, userEvent: "input.toggle" });
+        return;
+      }
+      if (a) {
+        const href = a.getAttribute("href") ?? "";
+        const decode = (s: string) => {
+          try {
+            return decodeURIComponent(s);
+          } catch {
+            return s;
+          }
+        };
+        if (href.startsWith("wikilink:")) {
+          if (a.classList.contains("ghost") && !(e.ctrlKey || e.metaKey)) return;
+          const [t, ...f] = href.slice(9).split("#");
+          this.handlers.openLink(decode(t), e.ctrlKey || e.metaKey, decode(f.join("#")) || undefined);
+        } else if (href.startsWith("tag:")) this.handlers.openTag?.(decode(href.slice(4)));
+        else if (safeHref(href)) window.open(safeHref(href)!, "_blank", "noopener,noreferrer");
+        return;
+      }
+      const details = summary!.closest("details");
+      if (details) {
+        details.open = !details.open;
+        view.requestMeasure();
+      }
+    });
+    // The browser's own <summary> toggle would undo the one above.
+    wrap.addEventListener("click", (e) => {
+      if ((e.target as HTMLElement).closest("summary, a")) e.preventDefault();
+    });
+    return wrap;
+  }
+  ignoreEvent(e: Event) {
+    const el = e.target as HTMLElement | null;
+    // Links, task boxes and fold toggles belong to the widget; everything else to the editor.
+    return !!el?.closest?.("summary, a, input");
+  }
+  get estimatedHeight() {
+    return Math.max(48, this.source.split("\n").length * 29 + 24);
+  }
+}
+
+/** Top-level callouts as whole-line ranges, from the syntax tree. */
+function calloutRanges(state: EditorState): { from: number; to: number }[] {
+  const out: { from: number; to: number }[] = [];
+  const fmEnd = frontmatterEnd(state);
+  for (let n = syntaxTree(state).topNode.firstChild; n; n = n.nextSibling) {
+    if (n.name !== "Blockquote" || n.from < fmEnd) continue;
+    const first = state.doc.lineAt(n.from);
+    if (!CALLOUT_HEAD.test(first.text)) continue;
+    out.push({ from: first.from, to: state.doc.lineAt(n.to).to });
+  }
+  return out;
+}
+
+/** Callouts drawn as widgets: all of them, except one the selection touches while the editor has focus. */
+function renderedCallouts(state: EditorState, focused: boolean) {
+  return calloutRanges(state).filter(
+    (c) => !(focused && state.selection.ranges.some((r) => r.from <= c.to && r.to >= c.from)),
+  );
+}
+
+const calloutFocus = StateEffect.define<boolean>();
+
+/**
+ * Up and Down step into a rendered callout instead of over it (a block widget is one unit for
+ * vertical motion): the caret lands on its first line going down, its last going up, which turns
+ * it into source.
+ */
+const enterCallout = (dir: 1 | -1) => (view: EditorView) => {
+  const sel = view.state.selection.main;
+  if (!sel.empty || view.state.selection.ranges.length > 1) return false;
+  const { doc } = view.state;
+  const n = doc.lineAt(sel.head).number + dir;
+  if (n < 1 || n > doc.lines) return false;
+  const next = doc.line(n);
+  const c = renderedCallouts(view.state, true).find((r) => (dir > 0 ? r.from === next.from : r.to === next.to));
+  if (!c) return false;
+  view.dispatch({ selection: { anchor: dir > 0 ? c.from : doc.lineAt(c.to).from }, scrollIntoView: true, userEvent: "select" });
+  return true;
+};
+
+/** Line flashed after a heading or block link lands on it (null clears it). */
+const flashEffect = StateEffect.define<number | null>();
+const flashLine = Decoration.line({ class: "cm-fragment-flash" });
+const flashField = StateField.define({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    deco = deco.map(tr.changes);
+    for (const e of tr.effects)
+      if (e.is(flashEffect)) deco = e.value === null ? Decoration.none : Decoration.set([flashLine.range(e.value)]);
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+/**
+ * Put the caret on the heading or block that `fragment` names, scroll it to the middle and flash
+ * it. False when the note has no such heading or block.
+ */
+export function revealFragment(view: EditorView, fragment: Fragment): boolean {
+  const n = fragmentLine(view.state.doc.toString(), fragment);
+  if (n === null || n + 1 > view.state.doc.lines) return false;
+  const line = view.state.doc.line(n + 1);
+  view.dispatch({
+    selection: { anchor: line.from },
+    effects: [EditorView.scrollIntoView(line.from, { y: "center" }), flashEffect.of(line.from)],
+  });
+  view.focus();
+  window.setTimeout(() => {
+    if (view.dom.isConnected) view.dispatch({ effects: flashEffect.of(null) });
+  }, 1600);
+  return true;
 }
 
 const hide = Decoration.replace({});
@@ -267,16 +464,19 @@ function bracketLinkOpen(state: EditorState, close: number): number | null {
   return null;
 }
 
-/** The link under the caret: a [[wikilink]] target, or an openable URL. */
-function linkAt(state: EditorState, pos: number): { target: string } | { href: string } | null {
+/** The link under the caret: a [[wikilink]] target (and fragment), or an openable URL. */
+function linkAt(state: EditorState, pos: number): { target: string; fragment: string } | { href: string } | null {
   const line = state.doc.lineAt(pos);
   const col = pos - line.from;
   const within = (m: RegExpMatchArray) => m.index! <= col && col <= m.index! + m[0].length;
   if (inRaw(state, pos) || pos < frontmatterEnd(state)) return null;
   for (const m of line.text.matchAll(WIKILINK)) {
     if (!within(m)) continue;
-    const target = m[2].split("|")[0].split("#")[0].trim();
-    return target ? { target } : null;
+    const part = m[2].split("|")[0];
+    const hash = part.indexOf("#");
+    const target = (hash === -1 ? part : part.slice(0, hash)).trim();
+    const fragment = hash === -1 ? "" : part.slice(hash + 1).trim();
+    return target || fragment ? { target, fragment } : null;
   }
   for (const m of line.text.matchAll(/\[(?:[^[\]\n]|\[[^[\]\n]*\])*\]\(\s*<?([^\s()<>]+)>?(?:\s+"[^"\n]*")?\s*\)|<([^\s<>]+)>|((?:https?:\/\/|www\.)[^\s<>()]+[^\s<>().,;:!?'"])/g)) {
     if (!within(m)) continue;
@@ -321,9 +521,20 @@ function buildDecorations(view: EditorView): DecorationSet {
   };
   const wikiRanges: [number, number][] = [];
   const insideWiki = (from: number, to: number) => wikiRanges.some(([a, b]) => from < b && to > a);
+  // Callouts drawn as widgets (calloutField) get no inline decorations of their own.
+  const callouts = renderedCallouts(state, view.hasFocus);
+  const inCallout = (pos: number) => callouts.some((c) => pos >= c.from && pos <= c.to);
 
   for (const { from, to } of view.visibleRanges) {
     const text = doc.sliceString(from, to);
+
+    // Trailing ^blockid markers are hidden like Obsidian's, except on the lines being edited.
+    for (const m of text.matchAll(BLOCK_ID)) {
+      const start = from + m.index! + m[1].length;
+      const end = from + m.index! + m[0].length;
+      if (start < fmEnd || inRaw(state, start) || isActive(start) || inCallout(start)) continue;
+      add(hide, start - m[1].length, end, "h");
+    }
 
     // Wikilinks and highlights are Obsidian syntax, not part of the markdown grammar.
     for (const m of text.matchAll(WIKILINK)) {
@@ -331,6 +542,7 @@ function buildDecorations(view: EditorView): DecorationSet {
       const end = start + m[0].length;
       if (start < fmEnd || inRaw(state, start)) continue;
       wikiRanges.push([start, end]);
+      if (inCallout(start)) continue;
       if (m[1] === "!" || isActive(start)) continue; // embeds stay as source
       const inner = m[2];
       const innerFrom = start + 2;
@@ -350,7 +562,7 @@ function buildDecorations(view: EditorView): DecorationSet {
     for (const m of text.matchAll(HIGHLIGHT)) {
       const start = from + m.index!;
       const end = start + m[0].length;
-      if (start < fmEnd || inRaw(state, start) || isActive(start)) continue;
+      if (start < fmEnd || inRaw(state, start) || isActive(start) || inCallout(start)) continue;
       add(hide, start, start + 2, "h");
       add(hide, end - 2, end, "h");
     }
@@ -360,6 +572,7 @@ function buildDecorations(view: EditorView): DecorationSet {
       to,
       enter: (node) => {
         if (node.to <= fmEnd) return false;
+        if (node.name === "Blockquote" && inCallout(node.from)) return false;
         switch (node.name) {
           case "FencedCode": {
             if (isActiveRange(node.from, node.to)) return false;
@@ -552,6 +765,11 @@ const theme = EditorView.baseTheme({
   },
   // Hidden fence lines collapse into a little padding at the top and bottom of the code band.
   ".cm-line.cm-codeblock.cm-lp-fence": { fontSize: "0.5em", lineHeight: "1" },
+  // A rendered callout: the reading view's block, its outer margin as padding (CodeMirror
+  // measures block widgets by their border box, so margins would throw its heights off).
+  ".cm-lp-callout": { padding: "6px 0", cursor: "text", whiteSpace: "normal" },
+  ".cm-lp-callout > .callout": { margin: "0" },
+  ".cm-lp-callout summary, .cm-lp-callout a, .cm-lp-callout input": { cursor: "pointer" },
 });
 
 export function livePreview(handlers: LivePreviewHandlers): Extension {
@@ -589,10 +807,11 @@ export function livePreview(handlers: LivePreviewHandlers): Extension {
       if (wiki) {
         // Ctrl/Cmd+click is the editor's own handler. A plain click opens a rendered link to an
         // existing note; a link to a note not created yet needs Ctrl/Cmd+click, so a stray tap
-        // never creates a note.
-        if (modifier || !rendered || !wiki.dataset.target || wiki.classList.contains("cm-wikilink-ghost")) return false;
+        // never creates a note. `[[#Heading]]` (no target) jumps within this note.
+        const fragment = wiki.dataset.fragment || undefined;
+        if (modifier || !rendered || !(wiki.dataset.target || fragment) || wiki.classList.contains("cm-wikilink-ghost")) return false;
         e.preventDefault();
-        handlers.openLink(wiki.dataset.target, false);
+        handlers.openLink(wiki.dataset.target ?? "", false, fragment);
         return true;
       }
       const href = safeHref(ext!.dataset.href ?? "");
@@ -607,18 +826,50 @@ export function livePreview(handlers: LivePreviewHandlers): Extension {
   const followLink = (newTab: boolean) => (view: EditorView) => {
     const link = linkAt(view.state, view.state.selection.main.head);
     if (!link) return false;
-    if ("target" in link) handlers.openLink(link.target, newTab);
+    if ("target" in link) handlers.openLink(link.target, newTab, link.fragment || undefined);
     else window.open(link.href, "_blank", "noopener,noreferrer");
     return true;
   };
 
+  const calloutField = StateField.define<{ focused: boolean; deco: DecorationSet }>({
+    create: (state) => ({ focused: false, deco: calloutDecorations(state, false) }),
+    update(value, tr) {
+      let focused = value.focused;
+      for (const e of tr.effects) if (e.is(calloutFocus)) focused = e.value;
+      if (focused === value.focused && !tr.docChanged && !tr.selection && syntaxTree(tr.startState) === syntaxTree(tr.state))
+        return value;
+      return { focused, deco: calloutDecorations(tr.state, focused) };
+    },
+    provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
+  });
+  function calloutDecorations(state: EditorState, focused: boolean): DecorationSet {
+    try {
+      return Decoration.set(
+        renderedCallouts(state, focused).map((c) =>
+          Decoration.replace({ widget: new CalloutWidget(state.doc.sliceString(c.from, c.to), handlers), block: true }).range(
+            c.from,
+            c.to,
+          ),
+        ),
+      );
+    } catch (err) {
+      console.error("Live preview: callouts left as source:", err);
+      return Decoration.none;
+    }
+  }
+
   return [
+    calloutField,
+    EditorView.focusChangeEffect.of((_state, focusing) => calloutFocus.of(focusing)),
+    flashField,
     plugin,
     clicks,
     theme,
     Prec.high(
       keymap.of([
         { key: "Mod-l", run: toggleChecklist },
+        { key: "ArrowDown", run: enterCallout(1) },
+        { key: "ArrowUp", run: enterCallout(-1) },
         { key: "Alt-Enter", run: followLink(false) },
         { key: "Shift-Alt-Enter", run: followLink(true) },
       ]),

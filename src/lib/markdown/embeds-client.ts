@@ -1,4 +1,5 @@
 import { extractSection } from "./embeds";
+import { extractBlock } from "./blocks";
 
 /** Loads a note by wikilink target; null when it does not exist. */
 export type EmbedLoader = (target: string) => Promise<{ id: string; content: string } | null>;
@@ -88,9 +89,11 @@ export async function hydrateEmbeds(root: HTMLElement, opts: Options): Promise<v
         el.dataset.embedState = "cycle";
         return;
       }
-      const md = heading ? extractSection(note.content, heading) : note.content;
+      // `#^id` embeds one block; `#Heading` embeds that section.
+      const block = heading.startsWith("^");
+      const md = !heading ? note.content : block ? extractBlock(note.content, heading) : extractSection(note.content, heading);
       if (md === null) {
-        say(body, `There is no heading “${heading}” in this note.`);
+        say(body, block ? `There is no block “${heading}” in this note.` : `There is no heading “${heading}” in this note.`);
         el.dataset.embedState = "missing";
         return;
       }

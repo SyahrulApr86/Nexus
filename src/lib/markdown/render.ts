@@ -13,6 +13,7 @@ import { CALLOUT_TYPES, remarkCallouts } from "./callouts";
 import { embedLinkMarkdown, isBlockEmbed, rehypeEmbeds } from "./embeds";
 import { ATTACHMENT_NAME, attachmentMarkdown, rehypeAttachments, type AttachmentLookup } from "./attachments";
 import { rehypeReadingView } from "./reading-view";
+import { BLOCK_CLOSE, BLOCK_OPEN, rehypeBlockIds } from "./block-anchors";
 
 const callouts = [...CALLOUT_TYPES];
 
@@ -93,6 +94,7 @@ const processor = unified()
   .use(rehypeEmbeds)
   .use(rehypeAttachments)
   .use(rehypeReadingView)
+  .use(rehypeBlockIds)
   .use(rehypeStringify);
 
 // Link text: brackets, backslashes, dollars and "<" are literal (so a note named like a tag shows as text).
@@ -136,7 +138,8 @@ function preprocess(
     const inner = md.slice(from + m[1].length + 2, to - 2);
     const [targetPart, alias] = inner.split("|");
     const [target, heading] = targetPart.split("#");
-    const label = alias ?? (heading ? `${target}${target ? " › " : ""}${heading}` : target);
+    // "Note › Heading", "Note › ^id"; a link inside the note itself shows just the fragment.
+    const label = alias ?? (heading ? `${target}${target.trim() ? " › " : ""}${heading}` : target);
     const file = target.trim();
     const known = file ? (attachments?.(file) ?? null) : null;
     if (file && (known || (m[1] && ATTACHMENT_NAME.test(file)))) {
@@ -159,6 +162,12 @@ function preprocess(
   for (const m of blanked.matchAll(/(^|[\s(])#([\p{L}\p{N}_\-/]*[\p{L}_\-/][\p{L}\p{N}_\-/]*)/gu)) {
     const start = m.index! + m[1].length;
     edits.push({ from: start, to: start + 1 + m[2].length, text: `[#${m[2]}](tag:${encodeURIComponent(m[2])})` });
+  }
+  // Block ids (`text ^id`, or `^id` alone on a line) become markers that rehypeBlockIds turns
+  // into a data-block attribute on the block, so the id is hidden but still linkable.
+  for (const m of blanked.matchAll(/(^|[ \t])\^([A-Za-z0-9-]+)[ \t]*$/gm)) {
+    const from = m.index! + m[1].length;
+    edits.push({ from: m.index!, to: from + 1 + m[2].length, text: `${BLOCK_OPEN}${m[2]}${BLOCK_CLOSE}` });
   }
   for (const m of blanked.matchAll(/==([^=\n]+)==/g)) {
     const from = m.index!;
@@ -200,7 +209,7 @@ export function renderMarkdown(md: string, exists: (target: string) => boolean, 
   const { yaml, body, offset } = splitFrontmatter(md);
   // Markers typed by the user are removed first, so only our own pairs remain.
   const removed: number[] = [];
-  const clean = body.replace(/[]/g, (_, i: number) => {
+  const clean = body.replace(/[\uE000-\uE003]/g, (_, i: number) => {
     removed.push(i);
     return "";
   });
@@ -217,7 +226,9 @@ export function renderMarkdown(md: string, exists: (target: string) => boolean, 
     .replace(/<a href="wikilink:([^"]*)" title="ghost">/g, '<a href="wikilink:$1" class="ghost">')
     // Linear: a marker pair can never contain another marker.
     .replace(/([^]*)/g, "<mark>$1</mark>")
-    .replace(/[]/g, "");
+    .replace(/[]/g, "")
+    // Any block marker the tree walk did not reach (e.g. inside an attribute).
+    .replace(/\uE002[A-Za-z0-9-]*\uE003/g, "");
   const fm = yaml ? `<div class="frontmatter">${escapeHtml(yaml)}</div>` : "";
   return fm + marked;
 }

@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { ATTACHMENT_CSP } from "../../src/lib/attachments/headers";
+import { BASE_URL } from "./support/env";
 import { test, expect, openVault, JSON_HEADERS } from "./support/fixtures";
 import { openNote, runCommand } from "./support/workspace";
 
@@ -47,4 +51,32 @@ test("a revoked or unknown share link answers HTTP 404", async ({ page, api }) =
 
   expect((await page.request.get(link.url)).status()).toBe(404);
   expect((await page.request.get("/s/not-a-real-token")).status()).toBe(404);
+});
+
+// The route handler sets these, but next.config.ts header rules run over route responses, so only a
+// request against the built app proves what a visitor's browser receives.
+test("a shared note's attachment is served with the sandbox CSP and no Referer", async ({ page, api }) => {
+  const png = readFileSync(path.join(__dirname, "fixtures", "tide-chart.png"));
+  const uploaded = await page.request.post("/api/attachments", {
+    headers: { Origin: BASE_URL },
+    multipart: { file: { name: "tide-chart.png", mimeType: "image/png", buffer: png }, folder: "Assets" },
+  });
+  expect(uploaded.status()).toBe(201);
+  const { path: filePath } = (await uploaded.json()) as { path: string };
+  const note = await api.createNote("Harbour chart", `# Harbour chart\n\n![[${filePath}]]`);
+  const created = await page.request.post(`/api/notes/${note.id}/share`, { headers: JSON_HEADERS, data: {} });
+  expect(created.ok()).toBe(true);
+  const link = (await created.json()) as { url: string };
+
+  const html = await (await page.request.get(link.url)).text();
+  const src = html.match(/\/s\/[A-Za-z0-9_-]+\/a\/[0-9a-f]{64}/)?.[0];
+  expect(src, "the share page embeds the image from its share-scoped route").toBeTruthy();
+
+  const file = await page.request.get(src!);
+  expect(file.status()).toBe(200);
+  const h = file.headers();
+  expect(h["content-type"]).toContain("image/png");
+  expect(h["content-security-policy"]).toBe(ATTACHMENT_CSP);
+  expect(h["referrer-policy"]).toBe("no-referrer");
+  expect(h["x-content-type-options"]).toBe("nosniff");
 });

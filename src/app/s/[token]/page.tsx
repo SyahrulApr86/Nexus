@@ -4,7 +4,9 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { HttpError, rateLimit } from "@/lib/session";
-import { SHARE_LIMITS, clientIp, renderSharedNote, resolveShare } from "@/lib/shares";
+import { SHARE_LIMITS, clientIp, renderSharedNote, resolveShare, sharedAttachments } from "@/lib/shares";
+import { ShareDiagrams } from "./share-diagrams";
+import "katex/dist/katex.min.css";
 
 /**
  * Public, read-only view of one shared note. No session: the token in the URL is the only key.
@@ -36,10 +38,12 @@ const lookup = cache(async (token: string): Promise<Lookup> => {
   }
   const shared = await resolveShare(token);
   if (!shared) return { kind: "missing" };
+  // Attachments the note names, served through this token only (./a/[hash]/route.ts).
+  const { lookup: attachments } = await sharedAttachments(token, shared);
   return {
     kind: "ok",
     name: shared.name,
-    html: demoteHeadings(renderSharedNote(shared.content)),
+    html: demoteHeadings(renderSharedNote(shared.content, { name: shared.name, attachments })),
     updatedAt: shared.updatedAt,
     // Reading time at about 220 words a minute, never under one.
     minutes: Math.max(1, Math.round(shared.content.split(/\s+/).filter(Boolean).length / 220)),
@@ -98,6 +102,8 @@ async function SharedNote({ params }: { params: PageProps<"/s/[token]">["params"
       </header>
       {/* Sanitised by the app's markdown renderer (rehype-sanitize), then links and images made safe in renderSharedNote. */}
       <div className="reading sh-body" dangerouslySetInnerHTML={{ __html: found.html }} />
+      {/* Mermaid diagrams are drawn in the browser (strict security level); everything else is static. */}
+      {found.html.includes('class="language-mermaid"') && <ShareDiagrams />}
     </article>
   );
 }
