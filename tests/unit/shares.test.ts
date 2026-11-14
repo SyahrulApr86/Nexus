@@ -100,3 +100,31 @@ describe("share options and policy", () => {
     expect(p).not.toMatch(/https:/);
   });
 });
+
+describe("renderSharedNote: math, mermaid, heading and block links", () => {
+  const html = renderSharedNote(
+    "# Plan\n\nInline $a<b$ and\n\n$$\n\\frac{1}{2}\n$$\n\n```mermaid\ngraph TD\nA-->B\n```\n\nSee [[#Plan]], [[Plan#^x]], [[Other#Plan]] and [[#Nowhere]].\n\nA block. ^x\n",
+    { name: "Plan" },
+  );
+
+  it("renders formulas on the server with KaTeX (trust off), MathML included", () => {
+    expect(html).toContain('<span class="math"><span class="katex">');
+    expect(html).toContain('<div class="math math-block"><span class="katex-display">');
+    expect(html).toContain("<math");
+    expect(html).not.toContain("math-inline");
+  });
+
+  it("leaves mermaid as code for the page's client script", () => {
+    expect(html).toContain('<pre><code class="language-mermaid">');
+  });
+
+  it("links into the note itself become in-page anchors; others stay plain text", () => {
+    expect(html).toContain('<h1 id="h-plan">Plan</h1>');
+    expect(html).toContain('<a class="share-anchor" href="#h-plan">Plan</a>');
+    expect(html).toContain('<a class="share-anchor" href="#b-x">Plan › ^x</a>');
+    expect(html).toContain('<span class="share-link">Other › Plan</span>');
+    expect(html).toContain('<span class="share-link">Nowhere</span>');
+    expect(html).toContain('<p data-block="x" id="b-x">A block.</p>');
+    expect(html).not.toContain("^x</p>");
+  });
+});

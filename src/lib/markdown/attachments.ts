@@ -17,8 +17,12 @@
 
 export type AttachmentKind = "image" | "pdf" | "audio" | "video" | "file";
 
-/** What the renderer needs to know about one stored attachment. */
-export type AttachmentRef = { path: string; mime: string; sha256?: string };
+/**
+ * What the renderer needs to know about one stored attachment. `url` replaces the vault URL (the
+ * share page serves files through its token); `download` makes anything but an image a download
+ * link instead of a player or a new-tab card.
+ */
+export type AttachmentRef = { path: string; mime: string; sha256?: string; url?: string; download?: boolean };
 
 /** Resolves a link target ("photo.png", "Assets/photo.png") to an attachment, or null. */
 export type AttachmentLookup = (target: string) => AttachmentRef | null;
@@ -73,6 +77,7 @@ export function kindOf(mime: string): AttachmentKind {
 
 /** Same-origin URL of an attachment; `v` pins the content, so the browser may cache it for good. */
 export function attachmentUrl(ref: AttachmentRef): string {
+  if (ref.url) return ref.url;
   const v = ref.sha256 ? `&v=${ref.sha256.slice(0, 16)}` : "";
   return `/api/attachments/file?path=${encodeURIComponent(ref.path)}${v}`;
 }
@@ -154,7 +159,9 @@ function media(src: string, alt: string, lookup: AttachmentLookup | undefined): 
   const url = attachmentUrl(ref);
   const name = baseName(ref.path);
   const size = { ...(width ? { width } : {}), ...(height ? { height } : {}) };
-  switch (kindOf(ref.mime)) {
+  const kind = kindOf(ref.mime);
+  if (ref.download && kind !== "image") return downloadCard(url, display(label, name), name, kind);
+  switch (kind) {
     case "image":
       // rehypeReadingView adds loading/decoding and applies the size written in the alt text.
       return el("img", { src: url, alt });
@@ -180,6 +187,32 @@ function card(href: string, name: string, meta: string): HNode {
   ]);
 }
 
+const KIND_LABEL: Record<AttachmentKind, string> = { image: "Image", pdf: "PDF", audio: "Audio", video: "Video", file: "File" };
+
+/** A file offered as a download (share page): the card look, with the kind and the action. */
+function downloadCard(href: string, label: string, name: string, kind: AttachmentKind): HNode {
+  return el("a", { href, className: ["attachment-card"], download: name }, [
+    el("span", { className: ["attachment-name"] }, [text(label)]),
+    el("span", { className: ["attachment-meta"] }, [text(`${KIND_LABEL[kind]}, download`)]),
+  ]);
+}
+
+/** Vault targets a note refers to: `[[x]]`/`![[x]]` targets and relative markdown links and images. */
+export function attachmentTargets(md: string, max = 200): string[] {
+  const out = new Set<string>();
+  // Code is masked by the caller's choice of text; here only obvious code spans are skipped.
+  const body = md.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`/g, " ");
+  for (const m of body.matchAll(/!?\[\[([^\[\]\n]+?)\]\]/g)) {
+    const t = m[1].split("|")[0].split("#")[0].trim();
+    if (t) out.add(t);
+  }
+  for (const m of body.matchAll(/!?\[[^\]\n]*\]\(\s*<?([^\s()<>]+)>?/g)) {
+    const t = targetOf(m[1]);
+    if (t?.target.trim()) out.add(cleanTarget(t.target));
+  }
+  return [...out].slice(0, max);
+}
+
 /** A link to an attachment (`[[doc.pdf]]`, `[text](doc.pdf)`): opens the file in a new tab. */
 function relink(a: HNode, lookup: AttachmentLookup | undefined): HNode {
   const href = String(a.properties?.href ?? "");
@@ -189,6 +222,10 @@ function relink(a: HNode, lookup: AttachmentLookup | undefined): HNode {
   if (!ref) {
     // Only our own `attachment:` links turn into ghosts; other relative links stay as written.
     return href.startsWith("attachment:") ? ghost(textOf(a), cleanTarget(t.target)) : a;
+  }
+  if (ref.download && kindOf(ref.mime) !== "image") {
+    a.properties = { ...a.properties, href: attachmentUrl(ref), download: baseName(ref.path) };
+    return a;
   }
   a.properties = {
     ...a.properties,
