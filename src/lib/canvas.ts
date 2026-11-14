@@ -356,3 +356,43 @@ export function colorVars(color: string | undefined): Record<string, string> | u
     return { "--cv-edge": color, "--cv-wash": `color-mix(in srgb, ${color} 10%, var(--sheet))` };
   return undefined;
 }
+
+/* ------------------------------------------------------------------ */
+/* Group backgrounds                                                   */
+/* ------------------------------------------------------------------ */
+
+/** Image files a group background (or an image card) can show. */
+export const CANVAS_IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
+
+export type GroupBackgroundStyle = "cover" | "ratio" | "repeat";
+
+/** The three JSON Canvas background styles, named the way the group menu names them. */
+export const BACKGROUND_STYLES: readonly { id: GroupBackgroundStyle; name: string }[] = [
+  { id: "cover", name: "Fill the group" },
+  { id: "ratio", name: "Fit, keep proportions" },
+  { id: "repeat", name: "Tile" },
+];
+
+/**
+ * The image a group shows behind its cards, as a same-origin attachment URL, or null. Only an
+ * image file in the vault is loaded: a web address or any other value is kept in the file but not
+ * fetched, so opening a canvas never reaches out to another site. `backgroundStyle` defaults to
+ * "cover", as in Obsidian.
+ */
+export function groupBackground(node: { background?: string; backgroundStyle?: string }): { url: string; path: string; style: GroupBackgroundStyle } | null {
+  const trimmed = node.background?.trim() ?? "";
+  if (trimmed.startsWith("//") || trimmed.startsWith("\\")) return null;
+  const raw = trimmed.replace(/^\//, "");
+  if (!raw || /^[a-z][a-z0-9+.-]*:/i.test(raw) || !CANVAS_IMAGE.test(raw)) return null;
+  if (raw.split("/").some((s) => s === ".." || s === ".")) return null;
+  const style = node.backgroundStyle === "ratio" || node.backgroundStyle === "repeat" ? node.backgroundStyle : "cover";
+  return { url: `/api/attachments/file?path=${encodeURIComponent(raw)}`, path: raw, style };
+}
+
+/** CSS for a group's background layer (encodeURIComponent leaves no quote to break out of url("")). */
+export function backgroundCss(bg: { url: string; style: GroupBackgroundStyle }): Record<string, string> {
+  const image = `url("${bg.url}")`;
+  if (bg.style === "repeat") return { backgroundImage: image, backgroundRepeat: "repeat", backgroundSize: "auto", backgroundPosition: "top left" };
+  if (bg.style === "ratio") return { backgroundImage: image, backgroundRepeat: "no-repeat", backgroundSize: "contain", backgroundPosition: "center" };
+  return { backgroundImage: image, backgroundRepeat: "no-repeat", backgroundSize: "cover", backgroundPosition: "center" };
+}

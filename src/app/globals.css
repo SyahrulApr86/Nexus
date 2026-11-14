@@ -1730,3 +1730,15 @@
     margin-left: -3px;
   }
 }
+
+/* sync */
+@layer components {
+  /* A canvas group's background image (JSON Canvas `background`), under its label and cards. */
+  .canvas-group-bg {
+    position: absolute;
+    inset: 0;
+    border-radius: calc(8px - 1px / var(--canvas-zoom));
+    pointer-events: none;
+  }
+}
+/* end sync */
