@@ -45,6 +45,7 @@ export function useOfflineSync(email: string, wiring: OfflineWiring) {
       created: (tempId, real) => ref.current.created(tempId, real),
       dropped: (op, err) => ref.current.dropped(op, err),
       finished: (r) => ref.current.finished(r),
+      notice: (message, tone) => ref.current.notify(message, tone ? { tone } : undefined),
     });
     return () => setSyncBridge(null);
   }, []);

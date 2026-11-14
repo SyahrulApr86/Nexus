@@ -13,8 +13,11 @@ import { api as server, ApiError, initActiveVault, type FullNote, type NoteRef, 
 import { DB_PREFIX, deleteKV, openKV, userKey, type KV } from "./idb";
 import {
   TEMP_PREFIX,
+  deletedWithFolder,
   dropId,
   enqueue,
+  movePath,
+  within,
   findInTree,
   isTempId,
   overlayTree,
@@ -23,10 +26,12 @@ import {
   remapId,
   touches,
   type CreateOp,
+  type FolderOp,
   type NewOp,
   type OutboxOp,
   type SaveOp,
 } from "./outbox";
+import { planFolderDelete, planFolderRename } from "./folders";
 import { replay, type ReplayResult, type SaveOutcome } from "./replay";
 import { warmServiceWorker } from "./sw-events";
 
@@ -181,6 +186,8 @@ export type SyncBridge = {
   created: (tempId: string, ref: NoteRef) => Promise<void> | void;
   dropped: (op: OutboxOp, err: unknown) => void;
   finished: (r: ReplayResult) => void;
+  /** Tell the user something about a replayed folder edit (a conflict, or a refusal). */
+  notice?: (message: string, tone?: "error") => void;
 };
 
 let bridge: SyncBridge | null = null;
@@ -241,7 +248,11 @@ export function syncNow(): Promise<void> {
           await persist(s);
           await b.created(op.id, ref);
         },
-        dropped: (op, err) => b.dropped(op, err),
+        folder: (op) => replayFolder(s, op, b),
+        dropped: (op, err) => {
+          if (op.id === undefined) b.notice?.(`Couldn’t sync a folder change. ${err instanceof ApiError ? err.message : "The server refused it."}`, "error");
+          else b.dropped(op, err);
+        },
       });
       if (result.stopped === "offline") markUnreachable();
       b.finished(result);
@@ -253,6 +264,49 @@ export function syncNow(): Promise<void> {
   })();
   return syncing;
 }
+
+const quote = (p: string) => `“${basename(p)}”`;
+
+/** One folder edit from the outbox, checked against the server's tree as it is now (./folders.ts). */
+async function replayFolder(s: Session, op: FolderOp, b: SyncBridge): Promise<"done" | "conflict"> {
+  if (op.kind === "mkdir") {
+    await server.mkdir(op.path);
+    return "done";
+  }
+  const tree = await server.tree();
+  if (op.kind === "mvdir") {
+    const plan = planFolderRename(tree, op.from, op.to);
+    if (plan.kind === "done") return "done";
+    if (plan.kind === "missing") {
+      b.notice?.(`${quote(op.from)} was renamed or deleted on another device, so it wasn’t renamed to ${quote(op.to)}. Its notes are where that device left them.`);
+      return "conflict";
+    }
+    await server.mvdir(op.from, plan.to);
+    // Keep the mirrored notes' paths in step, so they open in the right place offline.
+    for (const n of tree.notes) if (within(n.path, op.from)) await mirrorPatch(s, n.id, { path: movePath(n.path, op.from, plan.to), name: n.name });
+    if (!plan.renamed) return "done";
+    b.notice?.(`${quote(op.to)} already had notes with the same names, so the folder renamed offline is now ${quote(plan.to)}.`);
+    return "conflict";
+  }
+  const plan = planFolderDelete(tree, op.path, op.notes);
+  if (plan.whole) await server.rmdir(op.path);
+  for (const id of plan.remove) {
+    try {
+      await server.remove(id);
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 404)) throw e;
+    }
+  }
+  for (const id of [...plan.remove, ...op.notes.map((n) => n.id)]) await s.kv?.del(`note:${id}`);
+  if (plan.whole) return "done";
+  b.notice?.(
+    `${quote(op.path)} changed on another device after you deleted it here, so ${plan.kept} ${plan.kept === 1 ? "note was" : "notes were"} kept in it.`,
+  );
+  return "conflict";
+}
+
+/** True while this device's outbox holds an edit of the note (live collaboration waits for it). */
+export const hasQueuedEdits = (id: string) => !!session && touches(session.ops, id);
 
 /** Edits still waiting for the server. */
 export const queuedCount = () => session?.ops.length ?? 0;
@@ -267,7 +321,7 @@ async function mirrorPatch(s: Session, id: string, patch: Partial<FullNote>) {
 /** A mirrored (server) note with this device's queued edits on top. */
 function withQueued(s: Session, n: FullNote): FullNote {
   const q = queuedText(s.ops, n.id);
-  const path = queuedPath(s.ops, n.id);
+  const path = queuedPath(s.ops, n.id, n.path);
   return {
     ...n,
     ...(path ? { path, name: basename(path) } : null),
@@ -308,7 +362,8 @@ async function get(id: string): Promise<FullNote> {
     const at = new Date(c.at).toISOString();
     return { id, path: c.path, name: basename(c.path), content: c.content, frontmatter: null, createdAt: at, updatedAt: at, backlinks: [] };
   }
-  if (s.ops.some((o) => o.kind === "delete" && o.id === id)) throw new ApiError("This note was deleted on this device.", 404);
+  if (s.ops.some((o) => o.kind === "delete" && o.id === id) || deletedWithFolder(s.ops, id))
+    throw new ApiError("This note was deleted on this device.", 404);
   if (!isOffline()) {
     try {
       const fresh = await server.get(id);
@@ -409,6 +464,49 @@ async function remove(id: string): Promise<unknown> {
   }
 }
 
+/* ---------------- folders ---------------- */
+
+/**
+ * Folder edits queue like note edits: offline, and also while note edits wait, so they reach the
+ * server in the order they were made (a folder renamed before one of its notes was edited).
+ */
+async function folderOp<T>(op: NewOp, direct: () => Promise<T>, offline: T): Promise<T> {
+  const s = await ready();
+  if (!s) return direct();
+  if (!isOffline() && !s.ops.length) {
+    try {
+      return await direct();
+    } catch (e) {
+      if (!isNetworkError(e)) throw e;
+      markUnreachable();
+    }
+  }
+  push(s, op);
+  return offline;
+}
+
+function mkdir(path: string) {
+  return folderOp({ kind: "mkdir", path }, () => server.mkdir(path), { path: normalizePath(path) });
+}
+
+function mvdir(from: string, to: string) {
+  return folderOp({ kind: "mvdir", from, to }, () => server.mvdir(from, to), { moved: 0 });
+}
+
+async function rmdir(path: string) {
+  const s = await ready();
+  const p = normalizePath(path);
+  // The notes this device shows in the folder, at the server version it knows (none for notes created here).
+  const mirror = s ? ((await s.kv?.get<Tree>("tree")) ?? { notes: [], folders: [] }) : { notes: [], folders: [] };
+  const version = new Map(mirror.notes.map((n) => [n.id, n.updatedAt]));
+  const notes = s
+    ? overlayTree(mirror, s.ops)
+        .notes.filter((n) => within(n.path, p) && version.has(n.id))
+        .map((n) => ({ id: n.id, updatedAt: version.get(n.id)! }))
+    : [];
+  return folderOp({ kind: "rmdir", path, notes }, () => server.rmdir(path), { ok: true });
+}
+
 type Resolved = Awaited<ReturnType<typeof server.resolve>>;
 
 async function resolve(target: string, createIt = false, content?: string): Promise<Resolved> {
@@ -444,7 +542,7 @@ async function vault(): Promise<{ id: string; name: string }> {
   return v;
 }
 
-export const offlineApi: typeof server = { ...server, tree, get, save, create, rename, remove, resolve, vault };
+export const offlineApi: typeof server = { ...server, tree, get, save, create, rename, remove, resolve, vault, mkdir, mvdir, rmdir };
 
 /* ---------------- signing out ---------------- */
 
