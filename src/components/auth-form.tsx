@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import { signIn, signUp } from "@/lib/auth-client";
-import { VaultAtlas } from "@/components/landing/atlas";
+import { VaultBars } from "@/components/landing/atlas";
+import { BacklinksFragment, CanvasFragment, GraphFragment, SearchFragment } from "@/components/landing/fragments";
 import "@/components/landing/tokens.css";
+import "@/components/landing/atlas.css";
+import "@/components/landing/fragments.css";
 import "@/components/landing/auth.css";
 
 type FieldErrors = { email?: string; password?: string };
@@ -149,73 +152,88 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       .join(" ") || undefined;
 
   return (
-    <main className="lp-scope au">
-      <div className="au-intro">
+    <div className="lp-dark au">
+      <header className="au-top">
         <Link href="/" className="au-wordmark" translate="no" aria-label="Nexus home">
           <span aria-hidden="true">[[</span>
           Nexus
           <span aria-hidden="true">]]</span>
         </Link>
-        <div className="au-copy">
-          <h1 id={`${errorId}-title`}>{isSignup ? "Create your vault" : "Sign in to your vault"}</h1>
-          <p>{isSignup ? "Your notes stay plain markdown you can export any time." : "Open your notes on this device."}</p>
-        </div>
-        <VaultAtlas width={560} height={260} count={30} seed={4} labels={false} decorative className="au-atlas" />
-      </div>
-      <div className="au-panel">
-        <form onSubmit={onSubmit} noValidate className="au-form" aria-labelledby={`${errorId}-title`}>
-          {created && (
-            <p id={noticeId} role="status" className="au-notice">
-              {SIGNUP_DONE}
-            </p>
-          )}
-          <div className="au-fields">
-            {isSignup && <Field name="name" label="Name" autoComplete="name" />}
-            <Field
-              ref={emailRef}
-              name="email"
-              label="Email"
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              spellCheck={false}
-              required
-              error={fieldErrors.email}
-              errorId={`${errorId}-email`}
-              invalid={!!fieldErrors.email || !!error}
-              aria-describedby={describe("email")}
-            />
-            <Field
-              name="password"
-              label="Password"
-              type="password"
-              autoComplete={isSignup ? "new-password" : "current-password"}
-              minLength={isSignup ? 8 : undefined}
-              required
-              hint={isSignup ? "At least 8 characters" : undefined}
-              error={fieldErrors.password}
-              errorId={`${errorId}-password`}
-              invalid={!!fieldErrors.password || !!error}
-              aria-describedby={describe("password")}
-            />
+        <Link href="/#self-host" className="au-top-link">
+          Run your own server
+        </Link>
+      </header>
+      <main className="au-main">
+        <div className="au-intro">
+          <h1 id={`${errorId}-title`} className="au-title">
+            {isSignup ? "Create your vault" : "Sign in to your vault"}
+          </h1>
+          <p className="au-lead">
+            {isSignup ? "Your notes stay plain markdown you can export any time." : "Open your notes on this device."}
+          </p>
+          <div className="au-glimpse" aria-label="Inside a vault" role="group">
+            <BacklinksFragment />
+            <SearchFragment />
+            <CanvasFragment />
+            <GraphFragment />
           </div>
-          {error && (
-            <p id={errorId} role="alert" className="au-error">
-              {error}
-            </p>
-          )}
-          <button aria-disabled={busy || undefined} className="lp-btn lp-btn-primary au-submit">
-            {busy ? (isSignup ? "Creating…" : "Signing in…") : isSignup ? "Create vault" : "Sign in"}
-          </button>
-        </form>
-        <p className="au-switch">
-          {isSignup ? "Already have a vault? " : "New to Nexus? "}
-          <Link href={isSignup ? "/login" : "/signup"} className="au-link">
-            {isSignup ? "Sign in" : "Create one"}
-          </Link>
-        </p>
-      </div>
-    </main>
+        </div>
+        <div className="au-panel">
+          <form onSubmit={onSubmit} noValidate className="au-form" aria-labelledby={`${errorId}-title`}>
+            {created && (
+              <p id={noticeId} role="status" className="au-notice">
+                {SIGNUP_DONE}
+              </p>
+            )}
+            <div className="au-fields">
+              {isSignup && <Field name="name" label="Name" autoComplete="name" />}
+              <Field
+                ref={emailRef}
+                name="email"
+                label="Email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                spellCheck={false}
+                required
+                error={fieldErrors.email}
+                errorId={`${errorId}-email`}
+                invalid={!!fieldErrors.email || !!error}
+                aria-describedby={describe("email")}
+              />
+              <Field
+                name="password"
+                label="Password"
+                type="password"
+                autoComplete={isSignup ? "new-password" : "current-password"}
+                minLength={isSignup ? 8 : undefined}
+                required
+                hint={isSignup ? "At least 8 characters" : undefined}
+                error={fieldErrors.password}
+                errorId={`${errorId}-password`}
+                invalid={!!fieldErrors.password || !!error}
+                aria-describedby={describe("password")}
+              />
+            </div>
+            {error && (
+              <p id={errorId} role="alert" className="au-error">
+                {error}
+              </p>
+            )}
+            <button aria-disabled={busy || undefined} className="lp-btn lp-btn-primary au-submit">
+              {busy ? (isSignup ? "Creating…" : "Signing in…") : isSignup ? "Create vault" : "Sign in"}
+            </button>
+          </form>
+          <p className="au-switch">
+            {isSignup ? "Already have a vault? " : "New to Nexus? "}
+            <Link href={isSignup ? "/login" : "/signup"} className="au-link">
+              {isSignup ? "Sign in" : "Create one"}
+            </Link>
+          </p>
+        </div>
+      </main>
+      <VaultBars className="au-bars" count={180} seed={11} />
+    </div>
   );
 }
 

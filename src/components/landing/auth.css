@@ -1,157 +1,193 @@
 /*
- * Sign-in and sign-up, in the landing page's blueprint atlas (docs/design/landing-direction.md):
- * the title set large on the canvas with a quiet graph drawing under it, the form on one flat panel.
- * Tokens in ./tokens.css.
+ * Sign-in and sign-up, always dark like the landing (docs/design/landing-direction.md): a plain top bar,
+ * the title set large with four crops of the workspace under it, the form on one flat panel, and the vault drawn
+ * as a floor of bars along the foot of the screen. Tokens in ./tokens.css.
  */
 
-body:has(.au) {
-  background: var(--lp-canvas);
-}
-
 .au {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-height: 100dvh;
   background: var(--lp-canvas);
   color: var(--lp-ink);
   font-family: var(--lp-sans);
   font-size: 16px;
   line-height: 1.5;
-  padding: 16px 16px 48px;
-  gap: 32px;
-  align-content: start;
+  -webkit-font-smoothing: antialiased;
+  --au-gut: clamp(16px, 3vw, 40px);
 }
-@media (min-width: 900px) {
-  .au {
-    grid-template-columns: minmax(0, 7fr) minmax(360px, 5fr);
-    align-content: stretch;
-    gap: 0;
-    padding: 0;
-  }
+:where(.au) :where(p, h1, dl, dd) {
+  margin: 0;
 }
 
-.au-intro {
+.au-top {
   display: flex;
-  flex-direction: column;
-  gap: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  padding: 0 var(--au-gut);
+  border-bottom: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
 }
-@media (min-width: 900px) {
-  .au-intro {
-    padding: 24px 32px 32px;
-    border-right: 1px solid var(--lp-hairline);
-  }
-}
-
 .au-wordmark {
   display: inline-flex;
   align-items: center;
-  align-self: flex-start;
-  gap: 2px;
   min-height: 44px;
   color: var(--lp-ink);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
   text-decoration: none;
 }
 .au-wordmark span {
-  color: var(--lp-blue-ink);
+  color: var(--lp-blue);
   font-weight: 400;
 }
+.au-top-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  margin-right: -12px;
+  border-radius: var(--lp-r);
+  color: var(--lp-slate);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    color 160ms var(--lp-ease),
+    background-color 160ms var(--lp-ease);
+}
+.au-top-link:hover {
+  color: var(--lp-ink);
+  background: var(--lp-panel);
+}
 
-.au-copy h1 {
-  margin: 0;
-  max-width: 9em;
+.au-main {
+  display: grid;
+  flex: 1;
+  gap: 40px;
+  width: 100%;
+  max-width: calc(1360px + 2 * var(--au-gut));
+  margin: 0 auto;
+  padding: clamp(40px, 7vw, 112px) var(--au-gut) 48px;
+  box-sizing: border-box;
+  align-content: start;
+}
+@media (min-width: 960px) {
+  .au-main {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 24px;
+    align-items: start;
+  }
+  .au-intro {
+    grid-column: 1 / 8;
+  }
+  .au-panel {
+    grid-column: 8 / 13;
+  }
+}
+
+.au-title {
+  max-width: 11ch;
   font-size: clamp(44px, 6.4vw, 96px);
   font-weight: 500;
   line-height: 0.96;
   letter-spacing: -0.045em;
   text-wrap: balance;
 }
-.au-copy p {
-  margin: 16px 0 0;
-  max-width: 26em;
+.au-lead {
+  max-width: 40ch;
+  margin-top: 24px;
   color: var(--lp-slate);
-  font-size: 22px;
-  line-height: 1.35;
-  letter-spacing: -0.012em;
-}
-@media (min-width: 900px) {
-  .au-copy {
-    margin-top: auto;
-  }
+  font-size: clamp(18px, 1.45vw, 21px);
+  line-height: 1.45;
+  letter-spacing: -0.01em;
 }
 
-.au-atlas {
+/* A glimpse of the vault: four crops of the workspace, each cut to one height. Desktop only. */
+.au-glimpse {
   display: none;
 }
-@media (min-width: 900px) {
-  .au-atlas {
-    display: block;
-    width: 100%;
-    max-width: 640px;
-    height: auto;
-    margin-bottom: auto;
+@media (min-width: 960px) {
+  .au-glimpse {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: clamp(40px, 4vw, 64px);
   }
-}
-.au-panel {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 16px;
-}
-@media (min-width: 900px) {
-  .au-panel {
-    padding: 32px;
+  .au-glimpse > .fx {
+    height: 248px;
+  }
+  .au-glimpse .fx-query {
+    padding: 16px;
+  }
+  .au-glimpse .fx-query-text {
+    font-size: 22px;
+  }
+  .au-glimpse .fx-query-icon {
+    width: 18px;
+  }
+  .au-glimpse .fx-search-body .fx-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 10px 16px;
+  }
+  .au-glimpse .fx-search-body .fx-sec {
+    padding-inline: 16px;
+  }
+  .au-glimpse .fx-legend,
+  .au-glimpse .fx-graph-filter {
+    display: none;
   }
 }
 
-.au-form {
-  width: 100%;
-  max-width: 420px;
-  padding: 24px;
+.au-panel {
+  padding: clamp(24px, 3vw, 40px);
+  border: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
   border-radius: var(--lp-r);
   background: var(--lp-panel);
 }
-@media (min-width: 900px) {
-  .au-form {
-    padding: 32px;
-  }
+.au-form {
+  display: grid;
+  gap: 24px;
 }
 .au-fields {
   display: grid;
   gap: 20px;
 }
+.au-field {
+  display: grid;
+  gap: 8px;
+}
 .au-field label {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
 }
 .au-input {
   width: 100%;
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--lp-edge);
+  min-height: 48px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  border: 1px solid var(--lp-edge); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
   border-radius: var(--lp-r);
   background: var(--lp-canvas);
   color: var(--lp-ink);
-  font: 400 16px / 1.5 var(--lp-sans);
-  transition: border-color 150ms var(--lp-ease);
+  font: 400 16px/1.4 var(--lp-sans);
+  transition: border-color 160ms var(--lp-ease);
 }
 .au-input:hover {
-  border-color: var(--lp-ink);
+  border-color: var(--lp-slate);
 }
 .au-input:focus-visible {
-  outline: 2px solid var(--lp-blue);
-  outline-offset: 1px;
   border-color: var(--lp-blue);
+  outline: 1px solid var(--lp-blue);
+  outline-offset: 0;
 }
 .au-input[aria-invalid="true"] {
   border-color: var(--lp-negative);
 }
 .au-hint,
 .au-field-error {
-  margin: 6px 0 0;
   font-size: 14px;
 }
 .au-hint {
@@ -162,54 +198,84 @@ body:has(.au) {
   color: var(--lp-negative);
 }
 .au-error {
-  margin: 16px 0 0;
-  font-size: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--lp-negative); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
+  border-radius: var(--lp-r);
+  font-size: 15px;
 }
 .au-notice {
-  margin: 0 0 20px;
   padding: 12px 14px;
-  border-left: 1px solid var(--lp-blue);
-  background: var(--lp-canvas);
-  font-size: 14px;
+  border: 1px solid var(--lp-blue); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
+  border-radius: var(--lp-r);
+  background: var(--lp-blue-soft);
+  font-size: 15px;
 }
 .au-submit {
   width: 100%;
-  margin-top: 24px;
+  min-height: 48px;
 }
-
 .au-switch {
-  margin: 0;
-  max-width: 420px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
   color: var(--lp-slate);
-  font-size: 16px;
+  font-size: 15px;
 }
 .au-link {
   color: var(--lp-blue-ink);
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.2em;
+  text-decoration-color: color-mix(in srgb, var(--lp-blue-ink) 45%, transparent);
+  text-underline-offset: 3px;
 }
 .au-link:hover {
-  text-decoration-thickness: 2px;
+  text-decoration-color: currentColor;
+}
+
+/* The vault as a floor of bars: one bar per note, its height the note's length. */
+.au-bars {
+  display: block;
+  width: 100%;
+  height: clamp(48px, 7vw, 96px);
+  margin-top: auto;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .au-copy,
-  .au-form {
-    animation: au-rise 700ms var(--lp-ease) both;
+  .au-intro > *,
+  .au-panel {
+    animation: au-rise 800ms var(--lp-ease) both;
   }
-  .au-form {
-    animation-delay: 80ms;
+  .au-lead {
+    animation-delay: 60ms;
+  }
+  .au-glimpse {
+    animation-delay: 120ms;
+  }
+  .au-panel {
+    animation-delay: 160ms;
+  }
+  .au-bars rect {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: au-grow 900ms var(--lp-ease) both;
+    animation-delay: 200ms;
   }
 }
 @keyframes au-rise {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
+    transform: none;
+  }
+}
+@keyframes au-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
     transform: none;
   }
 }
