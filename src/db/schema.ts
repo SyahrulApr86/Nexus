@@ -355,3 +355,49 @@ export const noteYdoc = pgTable("note_ydoc", {
     .$onUpdate(() => new Date())
     .notNull(),
 });
+
+/* ------------------------------------------------------------------ */
+/* Personal API tokens (feat/mcp). Self-contained: only this block.    */
+/* ------------------------------------------------------------------ */
+
+export const apiTokenScopes = ["read", "write"] as const;
+export type ApiTokenScope = (typeof apiTokenScopes)[number];
+
+/**
+ * A personal access token for the MCP endpoint (/api/mcp), bound to ONE vault of its owner. Only
+ * sha256(token) is stored, as 64 hex characters: the token is shown once, when it is made. `prefix`
+ * holds the first characters for recognising a token in the list. A token stops working when it is
+ * revoked, when it expires, or when its vault or owner is deleted (cascade). Policy lives in
+ * src/lib/api-tokens.ts.
+ */
+export const apiToken = pgTable(
+  "api_token",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    vaultId: uuid("vault_id")
+      .notNull()
+      .references(() => vault.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    prefix: text("prefix").notNull(),
+    scope: text("scope", { enum: apiTokenScopes }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    lastUsedAt: timestamp("last_used_at"),
+    expiresAt: timestamp("expires_at"),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (t) => [
+    uniqueIndex("api_token_hash_uq").on(t.tokenHash),
+    index("api_token_user_idx").on(t.userId),
+    // ON DELETE CASCADE from vault needs this to avoid a full scan.
+    index("api_token_vault_idx").on(t.vaultId),
+    check("api_token_hash_check", sql`${t.tokenHash} ~ '^[0-9a-f]{64}$'`),
+    check(
+      "api_token_scope_check",
+      sql`${t.scope} in (${sql.raw(apiTokenScopes.map((s) => `'${s}'`).join(", "))})`,
+    ),
+  ],
+);
