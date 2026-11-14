@@ -12,7 +12,16 @@ import { SHARE_LIMITS, clientIp, renderSharedNote, resolveShare } from "@/lib/sh
  * never sends the token on as a Referer; the frame and the stricter CSP are in ../layout.tsx.
  */
 
-type Lookup = { kind: "ok"; name: string; html: string; updatedAt: Date } | { kind: "missing" } | { kind: "limited" };
+type Lookup = { kind: "ok"; name: string; html: string; updatedAt: Date; minutes: number } | { kind: "missing" } | { kind: "limited" };
+
+/**
+ * The page's own h1 is the note's name, so the note's headings move down one level (h1 to h2 … h5 to h6)
+ * and the outline keeps a single h1. Safe on this HTML: it is sanitised, so a literal "<h1" in the text
+ * is already escaped.
+ */
+function demoteHeadings(html: string) {
+  return html.replace(/<(\/?)h([1-5])(?=[\s>])/g, (_m, close: string, n: string) => `<${close}h${Number(n) + 1}`);
+}
 
 /** One lookup per request, shared by the metadata and the page. */
 const lookup = cache(async (token: string): Promise<Lookup> => {
@@ -30,8 +39,10 @@ const lookup = cache(async (token: string): Promise<Lookup> => {
   return {
     kind: "ok",
     name: shared.name,
-    html: renderSharedNote(shared.content),
+    html: demoteHeadings(renderSharedNote(shared.content)),
     updatedAt: shared.updatedAt,
+    // Reading time at about 220 words a minute, never under one.
+    minutes: Math.max(1, Math.round(shared.content.split(/\s+/).filter(Boolean).length / 220)),
   };
 });
 
@@ -72,11 +83,19 @@ async function SharedNote({ params }: { params: PageProps<"/s/[token]">["params"
       </div>
     );
   return (
-    <article className="sh-note">
-      <h1 className="sh-title">{found.name}</h1>
-      <p className="sh-meta">
-        Updated <time dateTime={found.updatedAt.toISOString()}>{dateFormat.format(found.updatedAt)}</time>
-      </p>
+    <article className="sh-note" aria-labelledby="sh-title">
+      <header className="sh-head">
+        <h1 id="sh-title" className="sh-title">
+          {found.name}
+        </h1>
+        <p className="sh-meta">
+          <span>
+            Updated <time dateTime={found.updatedAt.toISOString()}>{dateFormat.format(found.updatedAt)}</time>
+          </span>
+          <span aria-hidden="true" className="sh-meta-sep" />
+          <span>{found.minutes} min read</span>
+        </p>
+      </header>
       {/* Sanitised by the app's markdown renderer (rehype-sanitize), then links and images made safe in renderSharedNote. */}
       <div className="reading sh-body" dangerouslySetInnerHTML={{ __html: found.html }} />
     </article>

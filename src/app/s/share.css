@@ -1,33 +1,48 @@
 /*
- * Public share page (src/app/s/[token]): one note as a reading page, in the landing's blueprint atlas
- * (docs/design/landing-direction.md). Page tokens (--lp-*) come from src/components/landing/tokens.css;
+ * Public share page (src/app/s/[token]): one note as a reading page (docs/design/landing-direction.md).
+ * Page tokens (--lp-*) come from src/components/landing/tokens.css and follow the system theme here;
  * the note body keeps the app's .reading styles from globals.css.
  */
 
+html:has(.sh),
 body:has(.sh) {
-  background: var(--lp-canvas);
+  background: var(--sh-ground, #02070a);
 }
+@media (prefers-color-scheme: light) {
+  html:not([data-theme="dark"]):has(.sh),
+  html:not([data-theme="dark"]):has(.sh) body {
+    background: #ffffff;
+  }
+}
+html[data-theme="light"]:has(.sh),
+html[data-theme="light"]:has(.sh) body {
+  background: #ffffff;
+}
+
 .sh {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
-  padding: 0 max(16px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px, env(safe-area-inset-left));
   background: var(--lp-canvas);
   color: var(--lp-ink);
   font-family: var(--lp-sans);
+  -webkit-font-smoothing: antialiased;
+  --sh-gut: max(16px, env(safe-area-inset-left));
 }
 @media (min-width: 768px) {
   .sh {
-    padding-inline: 32px;
+    --sh-gut: 40px;
   }
 }
+
 .sh-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 64px;
-  border-bottom: 1px solid var(--lp-hairline);
+  min-height: 56px;
+  padding: 0 var(--sh-gut);
+  border-bottom: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
   font-size: 14px;
 }
 .sh-home {
@@ -38,58 +53,80 @@ body:has(.sh) {
   text-decoration: none;
 }
 .sh-wordmark {
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 650;
+  letter-spacing: -0.03em;
 }
 .sh-home .sh-wordmark {
-  font-size: 20px;
+  font-size: 18px;
 }
 .sh-wordmark span {
-  color: var(--lp-blue-ink);
+  color: var(--lp-blue);
   font-weight: 400;
 }
 .sh-kind {
+  padding: 2px 8px;
+  border: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
+  border-radius: var(--lp-r-tag);
   color: var(--lp-slate);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .sh-main {
   flex: 1;
   width: 100%;
-  max-width: 68ch;
+  max-width: calc(68ch + 2 * var(--sh-gut));
   margin: 0 auto;
-  padding: clamp(40px, 8vw, 96px) 0 64px;
+  padding: clamp(48px, 9vw, 120px) var(--sh-gut) clamp(64px, 8vw, 120px);
+  box-sizing: border-box;
   font-family: var(--lp-serif);
+  font-size: 19px;
 }
 .sh-note {
   width: 100%;
 }
+.sh-head {
+  margin-bottom: clamp(32px, 4vw, 48px);
+  padding-bottom: clamp(24px, 3vw, 32px);
+  border-bottom: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
+}
 .sh-title {
   margin: 0;
   font-family: var(--lp-serif);
-  font-size: clamp(32px, 4.4vw, 48px);
+  font-size: clamp(36px, 5.2vw, 60px);
+  font-optical-sizing: auto;
   font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
 .sh-meta {
-  margin: 16px 0 40px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--lp-hairline);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 20px 0 0;
   color: var(--lp-slate);
   font-family: var(--lp-sans);
-  font-size: 14px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.sh-meta-sep {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--lp-faint);
 }
 .sh-lead {
-  margin: 16px 0 0;
+  margin: 20px 0 0;
   color: var(--lp-slate);
   font-family: var(--lp-sans);
   font-size: 18px;
   line-height: 1.5;
 }
 .sh-body {
-  font-size: 18px;
+  font-size: 19px;
   line-height: 1.7;
 }
 
@@ -104,31 +141,49 @@ body:has(.sh) {
   background: var(--lp-panel);
 }
 
+/* The close: a quiet band one tone up, signed with the product name. */
 .sh-foot {
+  background: var(--lp-panel);
+  border-top: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
+}
+.sh-foot-in {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 8px 24px;
-  padding: 16px 0 24px;
-  border-top: 1px solid var(--lp-hairline);
-  color: var(--lp-slate);
-  font-size: 14px;
+  gap: 16px 40px;
+  max-width: calc(68ch + 2 * var(--sh-gut));
+  margin: 0 auto;
+  padding: 40px var(--sh-gut) max(40px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  font-family: var(--lp-serif);
+  font-size: 19px;
 }
-.sh-foot p {
+.sh-foot-note {
+  max-width: 40ch;
   margin: 0;
+  color: var(--lp-slate);
+  font-family: var(--lp-sans);
+  font-size: 15px;
 }
 .sh-made {
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
   min-height: 44px;
   color: var(--lp-ink);
+  font-family: var(--lp-sans);
   text-decoration: none;
 }
-.sh-made:hover {
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
+.sh-made-k {
+  color: var(--lp-slate);
+  font-size: 14px;
+}
+.sh-made .sh-wordmark {
+  font-size: 32px;
+  line-height: 1.1;
+}
+.sh-made:hover .sh-made-k {
+  color: var(--lp-ink);
 }
 
 /* [[Links]] to other notes: plain text, since nothing else in the vault is reachable from here. */
@@ -148,7 +203,7 @@ body:has(.sh) {
 .reading .share-embed {
   margin: 1.25em 0;
   padding: 10px 16px;
-  border-left: 1px solid var(--lp-edge);
+  border-left: 1px solid var(--lp-edge); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
   background: var(--lp-panel);
   border-radius: 0 var(--lp-r) var(--lp-r) 0;
   font-family: var(--lp-sans);
@@ -166,7 +221,7 @@ body:has(.sh) {
   display: inline-block;
   width: 15px;
   height: 15px;
-  border: 1px solid var(--lp-edge);
+  border: 1px solid var(--lp-edge); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
   border-radius: 3px;
   background: var(--lp-canvas) no-repeat center / 11px 11px;
   opacity: 1;
