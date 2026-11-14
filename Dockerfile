@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24-alpine AS base
+FROM node:25-alpine AS base
 RUN corepack enable
 WORKDIR /app
 
@@ -24,7 +24,7 @@ COPY scripts ./scripts
 CMD ["node", "scripts/migrate.mjs"]
 
 # --- Minimal runtime image ---
-FROM node:24-alpine AS runner
+FROM node:25-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
