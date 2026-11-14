@@ -11,6 +11,7 @@
  */
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
+import { hasQueuedEdits } from "../offline/offline-api";
 import type { Awareness } from "y-protocols/awareness";
 import * as decoding from "lib0/decoding";
 import {
@@ -221,6 +222,15 @@ class Session {
     clearTimeout(this.syncTimer);
     const h = host;
     if (!h) return;
+    if (hasQueuedEdits(this.noteId)) {
+      // Edits made offline wait in the outbox. The store counts them as saved (their text is its save
+      // base), so seeding the shared document from them would see nothing new and drop them. They go
+      // through REST first, the service merges that write, and the note goes live on the next try.
+      this.teardown();
+      this.set("off", []);
+      this.schedule();
+      return;
+    }
     const start = await h.enter(this.noteId);
     const text = this.text;
     if (provider !== this.provider || !text || !this.doc) {
