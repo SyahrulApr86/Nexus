@@ -106,6 +106,7 @@ export function VaultAtlas({
             y1={nodes[a].y}
             x2={nodes[b].x}
             y2={nodes[b].y}
+            pathLength={1}
             className={hot ? "at-edge at-edge-hot" : "at-edge"}
             style={{ ["--i" as string]: i % 24 }}
           />

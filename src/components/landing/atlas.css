@@ -1,6 +1,6 @@
 /* The vault drawn as line art (./atlas.tsx), shared by the landing, sign-in and sign-up pages. */
 .at-edge {
-  stroke: var(--lp-graph-edge);
+  stroke: var(--lp-mist);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
@@ -25,7 +25,7 @@
   font-family: var(--lp-sans);
   font-size: 14px;
   paint-order: stroke;
-  stroke: var(--lp-canvas);
+  stroke: var(--at-ground, var(--lp-canvas));
   stroke-width: 4px;
   stroke-linejoin: round;
 }
@@ -34,7 +34,7 @@
   font-weight: 600;
 }
 .at-bar {
-  fill: var(--lp-graph-edge);
+  fill: var(--lp-mist);
 }
 .at-bar-open {
   fill: var(--lp-blue);
@@ -43,3 +43,6 @@
   fill: var(--lp-orange);
 }
 
+.at-plain {
+  fill: var(--lp-slate);
+}

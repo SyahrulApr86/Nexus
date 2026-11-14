@@ -11,20 +11,27 @@ export function Reveal() {
   useEffect(() => {
     const root = document.documentElement;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObserver" in window)) return;
+    // Observe each item's parent, not the item: an item waiting to arrive is clipped to nothing, and a
+    // fully clipped target never reports an intersection.
     const items = [...document.querySelectorAll<HTMLElement>("[data-reveal]")];
+    const owners = new Map<Element, HTMLElement[]>();
+    for (const el of items) {
+      const p = el.parentElement ?? el;
+      owners.set(p, [...(owners.get(p) ?? []), el]);
+    }
     root.classList.add("lp-motion");
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
           if (!e.isIntersecting) continue;
-          (e.target as HTMLElement).dataset.in = "";
+          for (const el of owners.get(e.target) ?? []) el.dataset.in = "";
           io.unobserve(e.target);
         }
       },
-      { rootMargin: "0px 0px -8% 0px", threshold: 0.05 },
+      { rootMargin: "0px 0px -8% 0px", threshold: 0 },
     );
     // Next frame, so elements already on screen still play their entrance once.
-    const raf = requestAnimationFrame(() => items.forEach((el) => io.observe(el)));
+    const raf = requestAnimationFrame(() => owners.forEach((_v, p) => io.observe(p)));
     return () => {
       cancelAnimationFrame(raf);
       io.disconnect();

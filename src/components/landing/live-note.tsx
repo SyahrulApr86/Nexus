@@ -1,12 +1,14 @@
 "use client";
 
 import { useId, useState } from "react";
+import { VaultAtlas } from "./atlas";
+import { Icon } from "./icons";
 import { MiniMarkdown, parse } from "./mini-markdown";
 
 export const EXAMPLES = [
   {
-    name: "Meeting note",
-    file: "Weekly sync.md",
+    name: "Weekly sync",
+    folder: "Meetings",
     text: `## Weekly sync
 Launch moves to [[Q4 roadmap|the Q4 plan]].
 - [x] Draft the ==release notes==
@@ -15,7 +17,7 @@ Launch moves to [[Q4 roadmap|the Q4 plan]].
   },
   {
     name: "Reading list",
-    file: "Reading list.md",
+    folder: "Personal",
     text: `## Reading list
 - [x] *How to Take Smart Notes*
 - [ ] [[Zettelkasten]] in practice
@@ -23,8 +25,8 @@ Quote: ==notes are thinking tools==
 #books/2026`,
   },
   {
-    name: "Trip plan",
-    file: "Lisbon trip.md",
+    name: "Lisbon trip",
+    folder: "Personal",
     text: `## Lisbon, 3 days
 Flights are in [[Bookings]].
 - [ ] Tram 28 before **9 am**
@@ -33,90 +35,199 @@ Flights are in [[Bookings]].
   },
 ] as const;
 
+const TREE = [
+  { dir: "Daily notes", files: ["2026-11-13"] },
+  { dir: "Meetings", files: ["Design review", "Weekly sync"] },
+  { dir: "Personal", files: ["Lisbon trip", "Reading list"] },
+  { dir: "Projects", files: ["Project kickoff", "Q4 roadmap"] },
+] as const;
+
+const MENTIONS = [
+  { note: "Q4 roadmap", line: "Agenda lives in Weekly sync." },
+  { note: "2026-11-13", line: "Notes from Weekly sync, see tasks." },
+] as const;
+
 function lineAt(text: string, pos: number) {
   return text.slice(0, pos).split("\n").length - 1;
 }
 
+function words(text: string) {
+  return text
+    .replace(/[#*=\[\]|`>-]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
 /**
- * The landing page's one live thing: type markdown and read it back as Nexus shows it, with the
- * caret's line kept as source the way Live Preview does. Without script the textarea still holds
- * the first example and the preview is the server's render of it.
+ * The landing page's one live thing, set inside a crop of the workspace: type markdown on the left and
+ * read the note on the right as Nexus shows it, with the caret's line kept as source the way Live
+ * Preview does. The tabs load other example notes. Without script the textarea still holds the first
+ * example and the preview is the server's render of it.
  */
 export function LiveNote() {
   const [text, setText] = useState<string>(EXAMPLES[0].text);
-  const [file, setFile] = useState<string>(EXAMPLES[0].file);
+  const [open, setOpen] = useState(0);
   const [caret, setCaret] = useState(-1);
   const id = useId();
   const { links, tags } = parse(text);
+  const note = EXAMPLES[open];
 
   const track = (el: HTMLTextAreaElement) => setCaret(lineAt(el.value, el.selectionStart));
 
   return (
-    <div className="ln">
-      <div data-ui className="ln-ui">
-        <div className="ln-tab">
-          <span className="ln-file">{file}</span>
-          <span className="ln-mode">Live preview</span>
+    <figure data-ui className="aw" aria-labelledby={`${id}-cap`}>
+      <figcaption id={`${id}-cap`} className="sr-only">
+        The Nexus workspace with an example note you can edit
+      </figcaption>
+      <div className="aw-top">
+        <div className="aw-brand" aria-hidden="true">
+          <span className="aw-brand-b">[[</span>N<span className="aw-brand-b">]]</span>
         </div>
-        <div className="ln-panes">
-          <div className="ln-pane">
-            <label htmlFor={`${id}-src`} className="ln-label">
-              Markdown, as you type it
-            </label>
-            <textarea
-              id={`${id}-src`}
-              className="ln-src"
-              value={text}
-              spellCheck={false}
-              rows={7}
-              maxLength={600}
-              onChange={(e) => {
-                setText(e.target.value);
-                track(e.target);
+        <div className="aw-tabs" role="group" aria-label="Example notes">
+          {EXAMPLES.map((ex, i) => (
+            <button
+              key={ex.name}
+              type="button"
+              className="aw-tab"
+              aria-pressed={open === i}
+              onClick={() => {
+                setOpen(i);
+                setText(ex.text);
+                setCaret(-1);
               }}
-              onSelect={(e) => track(e.currentTarget)}
-              onFocus={(e) => track(e.currentTarget)}
-              onBlur={() => setCaret(-1)}
-            />
-          </div>
-          <div className="ln-pane ln-pane-out">
-            <p className="ln-label" id={`${id}-out-label`}>
-              The note, as Nexus shows it
-            </p>
-            <div className="ln-out" role="group" aria-labelledby={`${id}-out-label`}>
-              <MiniMarkdown text={text} caretLine={caret} />
+            >
+              <Icon name="file" size={14} />
+              {ex.name}
+            </button>
+          ))}
+        </div>
+        <div className="aw-presence" aria-hidden="true">
+          <span className="aw-avatar aw-avatar-you">Y</span>
+          <span className="aw-avatar aw-avatar-mira">M</span>
+        </div>
+      </div>
+
+      <div className="aw-body">
+        <div className="aw-rail" aria-hidden="true">
+          <span className="aw-rail-on">
+            <Icon name="files" />
+          </span>
+          <span>
+            <Icon name="search" />
+          </span>
+          <span>
+            <Icon name="graph" />
+          </span>
+          <span>
+            <Icon name="canvas" />
+          </span>
+          <span className="aw-rail-end">
+            <Icon name="settings" />
+          </span>
+        </div>
+
+        <div className="aw-side" aria-hidden="true">
+          <p className="aw-vault">
+            Work vault <Icon name="chevron" size={12} className="aw-vault-chev" />
+          </p>
+          <p className="aw-find">
+            <Icon name="search" size={14} />
+            Search
+            <kbd>Ctrl K</kbd>
+          </p>
+          <ul className="aw-tree">
+            {TREE.map((d) => (
+              <li key={d.dir}>
+                <span className="aw-dir">
+                  <Icon name="folder" size={14} />
+                  {d.dir}
+                </span>
+                <ul>
+                  {d.files.map((f) => (
+                    <li key={f} className={f === note.name ? "aw-file aw-file-on" : "aw-file"}>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+          <p className="aw-side-k">Tags</p>
+          <p className="aw-tags">
+            <span>#planning</span> <b>12</b>
+            <br />
+            <span>#team</span> <b>8</b>
+            <br />
+            <span>#research</span> <b>5</b>
+          </p>
+        </div>
+
+        <div className="aw-editor">
+          <p className="aw-crumbs" aria-hidden="true">
+            {note.folder} <Icon name="chevron" size={12} /> <span>{note.name}</span>
+          </p>
+          <div className="aw-split">
+            <div className="aw-src">
+              <label htmlFor={`${id}-src`} className="aw-pane-k">
+                Type markdown here
+              </label>
+              <textarea
+                id={`${id}-src`}
+                className="aw-textarea"
+                value={text}
+                spellCheck={false}
+                rows={7}
+                maxLength={600}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  track(e.target);
+                }}
+                onSelect={(e) => track(e.currentTarget)}
+                onFocus={(e) => track(e.currentTarget)}
+                onBlur={() => setCaret(-1)}
+              />
+            </div>
+            <div className="aw-out">
+              <p className="aw-pane-k" id={`${id}-out`}>
+                Live preview
+              </p>
+              <div className="aw-note" role="group" aria-labelledby={`${id}-out`}>
+                <MiniMarkdown text={text} caretLine={caret} />
+              </div>
             </div>
           </div>
         </div>
-        <div className="ln-meta" aria-live="polite">
-          <p>
-            <span className="ln-meta-k">Links out</span>{" "}
-            {links.length ? links.map((l) => <span key={l} className="mm-link ln-chip">{l}</span>) : <span>none yet</span>}
+
+        <div className="aw-pane" aria-hidden="true">
+          <p className="aw-pane-h">
+            Linked mentions <b>{MENTIONS.length}</b>
           </p>
-          <p>
-            <span className="ln-meta-k">Tags</span>{" "}
-            {tags.length ? tags.map((t) => <span key={t} className="mm-tag">{t}</span>) : <span>none yet</span>}
-          </p>
+          <ul className="aw-mentions">
+            {MENTIONS.map((m) => (
+              <li key={m.note}>
+                <span className="aw-m-note">{m.note}</span>
+                <span className="aw-m-line">{m.line}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="aw-pane-h">Local graph</p>
+          <VaultAtlas width={240} height={170} count={16} seed={9} labels={false} decorative className="aw-graph" />
         </div>
       </div>
-      <div className="ln-examples">
-        <p>Try another note:</p>
-        {EXAMPLES.map((ex) => (
-          <button
-            key={ex.name}
-            type="button"
-            className="ln-example"
-            aria-pressed={file === ex.file}
-            onClick={() => {
-              setText(ex.text);
-              setFile(ex.file);
-              setCaret(-1);
-            }}
-          >
-            {ex.name}
-          </button>
-        ))}
+
+      <div className="aw-status">
+        <span className="aw-status-live">
+          <span className="aw-dot" aria-hidden="true" />
+          Saved
+        </span>
+        <span>{words(text)} words</span>
+        <span>
+          {links.length} {links.length === 1 ? "link" : "links"} out
+        </span>
+        <span className="aw-status-tags">
+          {tags.length ? tags.map((t) => <span key={t} className="mm-tag">{t}</span>) : "No tags yet"}
+        </span>
       </div>
-    </div>
+    </figure>
   );
 }
