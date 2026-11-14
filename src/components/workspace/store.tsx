@@ -30,8 +30,12 @@ import { basename, dirname, extractTags, extractWikiLinks, linkKey } from "@/lib
 import { signOut } from "@/lib/auth-client";
 /* templates-properties */
 import { applyDailyTemplate } from "./templates-daily";
+/* daily */
+import { dailyPath } from "./calendar/daily-dates";
+import { dailyConfig } from "./calendar/daily-prefs";
+/* end daily */
 /* end templates-properties */
-import { writePrefsCookie, type LayoutPrefs, type LeftView, type RightView, type SortOrder } from "./prefs-cookie";
+import { writePrefsCookie, type LayoutPrefs, type LeftView, type RightView as CookieRightView, type SortOrder } from "./prefs-cookie";
 import { exportActiveVault } from "./vaults-export";
 /* attachments-ui: attachment tabs and the attachments provider */
 import type { AttachmentView } from "./attachments/model";
@@ -222,7 +226,12 @@ function layoutReducer(state: Layout, a: Action): Layout {
 /* Persisted preferences                                               */
 /* ------------------------------------------------------------------ */
 
-export type { LeftView, RightView, SortOrder } from "./prefs-cookie";
+export type { LeftView, SortOrder } from "./prefs-cookie";
+/* daily: the calendar is a right sidebar view too. The layout cookie does not know it yet, so the
+   server render falls back to backlinks and the saved choice takes over before paint. */
+export type RightView = CookieRightView | "calendar";
+const cookieRightView = (v: RightView): CookieRightView => (v === "calendar" ? "backlinks" : v);
+/* end daily */
 export type SaveState = "saved" | "dirty" | "saving" | "error" | "signedOut";
 export type SettingsSection = "general" | "editor" | "files" | "vault" | "integrations" | "account" | "hotkeys";
 /** A cached note. `rev` changes only when the server text replaced what the editor showed. */
@@ -1246,7 +1255,7 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
   useEffect(() => {
     if (restoring) return;
     writeJSON(PREFS_KEY, prefs);
-    writePrefsCookie(prefs);
+    writePrefsCookie({ ...prefs, rightView: cookieRightView(prefs.rightView) }); // daily
   }, [prefs, restoring]);
 
   // Keep ?n= in sync so the open note can be bookmarked or shared across devices.
@@ -1352,23 +1361,29 @@ function useWorkspaceState(user: User, initialPrefs?: InitialPrefs) {
     [createAndOpen],
   );
 
-  const dailyNote = useCallback(async () => {
-    const d = new Date();
-    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const seq = ++navSeq.current;
-    try {
-      // Empty body: the inline title already shows the date.
-      const res = await api.resolve(`Daily/${iso}`, true);
-      if (!res.id) return;
-      if (res.created) await refreshTree();
-      /* templates-properties: a new daily note starts from the daily note template */
-      if (res.created && (await applyDailyTemplate(res.id, iso, treeRef.current.notes))) bumpSignals(true, true);
-      /* end templates-properties */
-      if (seq === navSeq.current) await open(res.id, "current", "edit", { focus: "editor" });
-    } catch (e) {
-      fail(e);
-    }
-  }, [open, refreshTree, fail, bumpSignals]);
+  /* daily: open (or create) the daily note for a day, today by default, in the folder and name format from Settings */
+  const dailyNote = useCallback(
+    async (day?: Date) => {
+      const d = day instanceof Date ? day : new Date();
+      const path = dailyPath(d, dailyConfig());
+      const name = path.slice(path.lastIndexOf("/") + 1);
+      const seq = ++navSeq.current;
+      try {
+        // Empty body: the inline title already shows the date. Offline, the outbox creates it.
+        const res = await api.resolve(path, true);
+        if (!res.id) return;
+        if (res.created) await refreshTree();
+        /* templates-properties: a new daily note starts from the daily note template */
+        if (res.created && (await applyDailyTemplate(res.id, name, treeRef.current.notes, d))) bumpSignals(true, true);
+        /* end templates-properties */
+        if (seq === navSeq.current) await open(res.id, "current", "edit", { focus: "editor" });
+      } catch (e) {
+        fail(e);
+      }
+    },
+    [open, refreshTree, fail, bumpSignals],
+  );
+  /* end daily */
 
   /** Re-fetch cached notes in the background; open editors keep their state unless the text changed. */
   const revalidateCached = useCallback(() => {

@@ -505,3 +505,7 @@ export function OutlineView() {
     </nav>
   );
 }
+
+/* daily: the calendar view, registered as a right sidebar tab in workspace.tsx */
+export { CalendarView } from "./calendar/calendar-view";
+/* end daily */
