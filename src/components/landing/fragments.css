@@ -922,6 +922,29 @@
     padding: 0 12px;
   }
 }
+@media (max-width: 479px) {
+  /* The display query wraps between its terms instead of being cut on a phone. */
+  [data-ui] .fx-query {
+    align-items: flex-start;
+  }
+  [data-ui] .fx-query-icon {
+    margin-top: 0.15em;
+  }
+  [data-ui] .fx-query-text {
+    font-size: clamp(22px, 6.4vw, 28px);
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: break-word;
+    text-wrap: balance;
+  }
+  /* Three example tabs fit the figure without the file icon. */
+  [data-ui] .aw-tab {
+    padding: 0 12px;
+  }
+  [data-ui] .aw-tab svg {
+    display: none;
+  }
+}
 
 /* ---------- Live Preview rendering (./mini-markdown.tsx) ---------- */
 [data-ui] .mm-line {

@@ -290,7 +290,7 @@ export function Landing() {
               <dd>20,000</dd>
             </div>
             <div data-reveal style={{ ["--d" as string]: 2 }}>
-              <dt>Storage per vault</dt>
+              <dt>Of note text per vault</dt>
               <dd>500 MiB</dd>
             </div>
             <div data-reveal style={{ ["--d" as string]: 3 }}>
