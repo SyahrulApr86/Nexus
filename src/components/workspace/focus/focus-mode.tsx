@@ -8,7 +8,7 @@
  * has keyboard focus, for a moment after entering, and always on touch screens.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Minimize2 } from "lucide-react";
 import { shallowEqual, useWorkspaceActions, useWorkspaceSelector } from "../store";
 import { Shortcut, keyShortcuts } from "../ui";
@@ -56,6 +56,22 @@ function FocusModeOn() {
     if ((drawer && cleared) || (baseline !== null && sides !== baseline)) setFocusPrefs({ focus: false });
   }, [drawer, cleared, sides, baseline]);
 
+  // Where keyboard focus was on the way in, so the exit control can hand it back.
+  const entryFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = document.activeElement;
+    entryFocus.current = el instanceof HTMLElement && el !== document.body ? el : null;
+  }, []);
+  // The exit control unmounts on click: keyboard focus goes to the note, never to the page body.
+  const exit = () => {
+    const target = focusTarget(entryFocus.current, pane);
+    target?.focus({ preventScroll: true });
+    setFocusPrefs({ focus: false });
+    requestAnimationFrame(() => {
+      if (document.activeElement === document.body || !document.activeElement) focusTarget(null, pane)?.focus({ preventScroll: true });
+    });
+  };
+
   // Escape leaves focus mode, after anything that wants Escape first (completion, search, menus, dialogs).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -73,7 +89,7 @@ function FocusModeOn() {
       <div className="focus-exit" data-intro={intro || undefined}>
         <button
           type="button"
-          onClick={() => setFocusPrefs({ focus: false })}
+          onClick={exit}
           aria-keyshortcuts={`Escape ${keyShortcuts(FOCUS_SHORTCUT)}`}
           className="flex h-8 items-center gap-2 rounded-md border border-border bg-sheet pl-2 pr-1.5 text-[13px] font-medium text-muted transition-colors hover:border-control hover:text-fg pointer-coarse:h-11"
         >
@@ -85,5 +101,20 @@ function FocusModeOn() {
         </button>
       </div>
     </>
+  );
+}
+
+/**
+ * Where focus lands when the exit control is used: the element focused on the way in, when it
+ * is still on the page and not in a closed palette or menu; else the focused pane's editor;
+ * else something focusable in that pane; else the workbench itself (tabindex -1).
+ */
+function focusTarget(entry: HTMLElement | null, pane: number): HTMLElement | null {
+  if (entry?.isConnected && !entry.closest("dialog, [role='dialog'], [role='menu'], .focus-exit") && entry.checkVisibility?.() !== false) return entry;
+  const section = document.querySelector<HTMLElement>(`#workbench > section:nth-child(${pane + 1})`);
+  return (
+    section?.querySelector<HTMLElement>(".cm-content") ??
+    section?.querySelector<HTMLElement>("[role='tabpanel'], a[href], button:not([disabled]), [tabindex='0']") ??
+    document.getElementById("workbench")
   );
 }
