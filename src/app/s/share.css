@@ -1,4 +1,199 @@
-/* Public share page (src/app/s/[token]). Tokens come from globals.css. */
+/*
+ * Public share page (src/app/s/[token]): one note as a reading page (docs/design/landing-direction.md).
+ * Page tokens (--lp-*) come from src/components/landing/tokens.css and follow the system theme here;
+ * the note body keeps the app's .reading styles from globals.css.
+ */
+
+html:has(.sh),
+body:has(.sh) {
+  background: var(--sh-ground, #02070a);
+}
+@media (prefers-color-scheme: light) {
+  html:not([data-theme="dark"]):has(.sh),
+  html:not([data-theme="dark"]):has(.sh) body {
+    background: #ffffff;
+  }
+}
+html[data-theme="light"]:has(.sh),
+html[data-theme="light"]:has(.sh) body {
+  background: #ffffff;
+}
+
+.sh {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--lp-canvas);
+  color: var(--lp-ink);
+  font-family: var(--lp-sans);
+  -webkit-font-smoothing: antialiased;
+  --sh-gut: max(16px, env(safe-area-inset-left));
+}
+@media (min-width: 768px) {
+  .sh {
+    --sh-gut: 40px;
+  }
+}
+
+.sh-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  padding: 0 var(--sh-gut);
+  border-bottom: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
+  font-size: 14px;
+}
+.sh-home {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--lp-ink);
+  text-decoration: none;
+}
+.sh-wordmark {
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.sh-home .sh-wordmark {
+  font-size: 18px;
+}
+.sh-wordmark span {
+  color: var(--lp-blue);
+  font-weight: 400;
+}
+/* Light theme: blue on white is 3.3:1, so the brackets take the accent ink (>= 4.5:1). */
+@media (prefers-color-scheme: light) {
+  html:not([data-theme="dark"]) .sh-wordmark span {
+    color: var(--lp-blue-ink);
+  }
+}
+html[data-theme="light"] .sh-wordmark span {
+  color: var(--lp-blue-ink);
+}
+.sh-kind {
+  padding: 2px 8px;
+  border: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
+  border-radius: var(--lp-r-tag);
+  color: var(--lp-slate);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sh-main {
+  flex: 1;
+  width: 100%;
+  max-width: calc(68ch + 2 * var(--sh-gut));
+  margin: 0 auto;
+  padding: clamp(48px, 9vw, 120px) var(--sh-gut) clamp(64px, 8vw, 120px);
+  box-sizing: border-box;
+  font-family: var(--lp-serif);
+  font-size: 19px;
+}
+.sh-note {
+  width: 100%;
+}
+.sh-head {
+  margin-bottom: clamp(32px, 4vw, 48px);
+  padding-bottom: clamp(24px, 3vw, 32px);
+  border-bottom: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
+}
+.sh-title {
+  margin: 0;
+  font-family: var(--lp-serif);
+  font-size: clamp(36px, 5.2vw, 60px);
+  font-optical-sizing: auto;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.sh-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 20px 0 0;
+  color: var(--lp-slate);
+  font-family: var(--lp-sans);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.sh-meta-sep {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--lp-faint);
+}
+.sh-lead {
+  margin: 20px 0 0;
+  color: var(--lp-slate);
+  font-family: var(--lp-sans);
+  font-size: 18px;
+  line-height: 1.5;
+}
+.sh-body {
+  font-size: 19px;
+  line-height: 1.7;
+}
+
+.sh-skel {
+  display: grid;
+  gap: 16px;
+}
+.sh-skel span {
+  display: block;
+  height: 14px;
+  border-radius: var(--lp-r-tag);
+  background: var(--lp-panel);
+}
+
+/* The close: a quiet band one tone up, signed with the product name. */
+.sh-foot {
+  background: var(--lp-panel);
+  border-top: 1px solid var(--lp-hairline); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
+}
+.sh-foot-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 40px;
+  max-width: calc(68ch + 2 * var(--sh-gut));
+  margin: 0 auto;
+  padding: 40px var(--sh-gut) max(40px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  font-family: var(--lp-serif);
+  font-size: 19px;
+}
+.sh-foot-note {
+  max-width: 40ch;
+  margin: 0;
+  color: var(--lp-slate);
+  font-family: var(--lp-sans);
+  font-size: 15px;
+}
+.sh-made {
+  display: inline-flex;
+  flex-direction: column;
+  min-height: 44px;
+  color: var(--lp-ink);
+  font-family: var(--lp-sans);
+  text-decoration: none;
+}
+.sh-made-k {
+  color: var(--lp-slate);
+  font-size: 14px;
+}
+.sh-made .sh-wordmark {
+  font-size: 32px;
+  line-height: 1.1;
+}
+.sh-made:hover .sh-made-k {
+  color: var(--lp-ink);
+}
 
 /* [[Links]] to other notes: plain text, since nothing else in the vault is reachable from here. */
 .reading .share-link {
@@ -6,9 +201,9 @@
 }
 /* #tags: the app's orange tag chip, without a link. */
 .reading .share-tag {
-  color: var(--mark-ink);
-  background: var(--mark-soft);
-  border-radius: 4px;
+  color: var(--lp-orange-ink);
+  background: var(--lp-orange-soft);
+  border-radius: var(--lp-r-tag);
   padding: 0 4px;
   font-family: var(--font-ui);
   font-size: 0.82em;
@@ -17,11 +212,12 @@
 .reading .share-embed {
   margin: 1.25em 0;
   padding: 10px 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  font-family: var(--font-ui);
+  border-left: 1px solid var(--lp-edge); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
+  background: var(--lp-panel);
+  border-radius: 0 var(--lp-r) var(--lp-r) 0;
+  font-family: var(--lp-sans);
   font-size: 14px;
-  color: var(--muted);
+  color: var(--lp-slate);
 }
 /* Task boxes are read-only here. The browser's disabled box is too faint to read its state, so
    draw it: a --control edge (>= 3:1) when open, a blue fill with a white tick when done. */
@@ -34,14 +230,14 @@
   display: inline-block;
   width: 15px;
   height: 15px;
-  border: 1px solid var(--control);
+  border: 1px solid var(--lp-edge); /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
   border-radius: 3px;
-  background: var(--sheet) no-repeat center / 11px 11px;
+  background: var(--lp-canvas) no-repeat center / 11px 11px;
   opacity: 1;
   cursor: default;
 }
 .reading input[type="checkbox"]:disabled:checked {
-  border-color: var(--accent);
-  background-color: var(--accent);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  border-color: var(--lp-blue);
+  background-color: var(--lp-blue);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='%2302070a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
