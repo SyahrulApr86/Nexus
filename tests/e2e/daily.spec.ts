@@ -62,6 +62,44 @@ test("focus mode hides the workspace chrome until Escape", async ({ page, accoun
   await expect(page.locator("#left-sidebar")).toBeVisible();
   await expect(exit).toHaveCount(0);
 
+  // The exit control hands keyboard focus to the note, not to the page body.
+  await openVault(page);
+  await pressUntilVisible(page, "ControlOrMeta+Shift+Enter", exit);
+  await exit.focus();
+  await page.keyboard.press("Enter");
+  await expect(exit).toHaveCount(0);
+  await expect(page.locator("#left-sidebar")).toBeVisible();
+  expect(await page.evaluate(() => document.activeElement !== document.body && !!document.activeElement?.closest("#workbench"))).toBe(true);
+
   await runCommand(page, "Turn on typewriter mode");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("nexus-focus"))).toContain('"typewriter":true');
+});
+
+test("offline, a daily note opens even when its template is not on this device", async ({ page, api, context }) => {
+  await api.createNote("Templates/Daily", "## Plan for {{title}}\n");
+  await openVault(page);
+  const registered = await page.evaluate(async () => {
+    if (!("serviceWorker" in navigator)) return false;
+    return Promise.race([navigator.serviceWorker.ready.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 15_000))]);
+  });
+  test.skip(!registered, "The service worker did not register under this harness (it needs the production build).");
+  await page.evaluate(() => localStorage.setItem("nexus-templates", JSON.stringify({ dailyTemplate: "Templates/Daily" })));
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  // A day in the month the calendar shows: yesterday, or tomorrow on the 1st.
+  const offset = (await page.evaluate(() => new Date().getDate())) === 1 ? 1 : -1;
+  const other = String(await page.evaluate(isoDay(offset)));
+  await runCommand(page, "Show calendar");
+  const day = page.getByRole("grid").locator(`[data-day="${other}"]`);
+  await expect(day).toBeVisible();
+
+  await context.setOffline(true);
+  try {
+    await day.click();
+    // The template was never opened here: the note opens empty and says why.
+    await expect(page).toHaveTitle(new RegExp(`^${other}`));
+    await expect(page.getByText("Daily note template is not available offline")).toBeVisible();
+  } finally {
+    await context.setOffline(false);
+  }
 });
