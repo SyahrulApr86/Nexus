@@ -2194,3 +2194,55 @@
   }
 }
 /* ---- end query-block ---- */
+
+/* --- calendar/focus: focus mode (src/components/workspace/focus). Unlayered, so it wins over the
+   utilities that show these parts at each breakpoint. Only the focused pane's note stays. --- */
+[data-focus-mode] > header,
+[data-focus-mode] > nav,
+[data-focus-mode] nav[aria-label="Ribbon"],
+[data-focus-mode] #left-sidebar,
+[data-focus-mode] #right-sidebar,
+[data-focus-mode] footer[aria-label="Status bar"],
+[data-focus-mode] #workbench > section > :first-child,
+[data-focus-mode] #workbench [role="tabpanel"] > :first-child:not([data-scroll-root]) {
+  display: none !important;
+}
+/* The inset sheet becomes the whole window: no frame, no edge. */
+[data-focus-mode] div:has(> div > #workbench) {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+/* The way out: a hot corner at the top right. The button shows on hover near it, on keyboard
+   focus, for a moment after entering, and always where there is no hover. */
+.focus-exit {
+  position: fixed;
+  top: env(safe-area-inset-top);
+  right: env(safe-area-inset-right);
+  z-index: 30;
+  padding: 12px 16px 28px 56px;
+}
+.focus-exit > button {
+  opacity: 0;
+  transition:
+    opacity 160ms var(--ease-out-quint),
+    color 150ms,
+    border-color 150ms;
+}
+.focus-exit:hover > button,
+.focus-exit > button:focus-visible,
+.focus-exit[data-intro] > button {
+  opacity: 1;
+}
+@media (hover: none), (pointer: coarse) {
+  .focus-exit > button {
+    opacity: 1;
+  }
+}
+/* On a phone the button sits over the top of the note: keep the title clear of it. */
+@media (max-width: 767px) {
+  [data-focus-mode] #workbench [data-scroll-root] {
+    padding-top: 52px;
+  }
+}
+/* --- end calendar/focus --- */

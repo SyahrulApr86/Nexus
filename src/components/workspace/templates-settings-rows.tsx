@@ -3,7 +3,7 @@
 /** Settings rows for templates and properties, rendered inside the settings dialog. */
 
 import { useId, useMemo, type ReactNode } from "react";
-import { findByPath, formatDate, normalizeFolder, templatesIn } from "@/lib/templates";
+import { formatDate, normalizeFolder, templatesIn } from "@/lib/templates";
 import { shallowEqual, useWorkspaceSelector } from "./store";
 import { setTemplatePrefs, useTemplatePrefs, type ShowProperties } from "./templates-settings";
 
@@ -15,10 +15,10 @@ const SHOW: { id: ShowProperties; label: string; hint: string }[] = [
   { id: "source", label: "Source", hint: "Raw YAML in the editor" },
 ];
 
-const FIELD =
+export const FIELD =
   "h-9 w-full rounded-lg border border-control bg-sheet px-3 text-[16px] placeholder:text-faint md:text-[14px] sm:w-60 pointer-coarse:h-11";
 
-function Field({
+export function Field({
   label,
   value,
   onChange,
@@ -67,12 +67,9 @@ export function TemplateSettings({ Row }: { Row: RowComponent }) {
   const prefs = useTemplatePrefs();
   const { folders, notes } = useWorkspaceSelector((s) => ({ folders: s.tree.folders, notes: s.tree.notes }), shallowEqual);
   const foldersId = useId();
-  const templatesId = useId();
   const folder = normalizeFolder(prefs.folder);
   const templates = useMemo(() => templatesIn(notes, folder), [notes, folder]);
   const folderKnown = !folder || templates.length > 0 || folders.some((f) => f.toLowerCase() === folder.toLowerCase());
-  const daily = prefs.dailyTemplate.trim();
-  const dailyKnown = !daily || !!findByPath(notes, daily);
   // Fixed sample date, so the preview reads the same on every render.
   const sample = useMemo(() => new Date(2026, 0, 5, 14, 30), []);
 
@@ -113,21 +110,7 @@ export function TemplateSettings({ Row }: { Row: RowComponent }) {
           />
         </div>
       </Row>
-      <Row title="Daily note template" description="New daily notes start from this note. Leave it empty to start with a blank page.">
-        <Field
-          label="Template path"
-          value={prefs.dailyTemplate}
-          onChange={(v) => setTemplatePrefs({ dailyTemplate: v })}
-          placeholder={templates[0]?.path ?? "Templates/Daily"}
-          list={templatesId}
-          problem={dailyKnown ? null : `There is no note at “${daily}”.`}
-        />
-        <datalist id={templatesId}>
-          {templates.map((t) => (
-            <option key={t.id} value={t.path} />
-          ))}
-        </datalist>
-      </Row>
+      {/* daily: the daily note template lives with the other daily note settings (calendar/daily-settings.tsx) */}
       <Row title="Properties in notes" description="Frontmatter at the top of a note can show as an editable form, stay hidden, or show as YAML source.">
         <fieldset>
           <legend className="sr-only">Show properties</legend>

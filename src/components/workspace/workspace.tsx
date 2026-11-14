@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -62,6 +62,16 @@ import { useCollab } from "./collab/use-collab";
 import { PhonePresence } from "./collab/presence";
 /* end phone presence */
 
+/* daily */
+import { CalendarView } from "./right-views";
+import { adjacentDaily, dailyDate, startOfDay } from "./calendar/daily-dates";
+import { dailyConfig } from "./calendar/daily-prefs";
+/* end daily */
+/* focus */
+import { FOCUS_SHORTCUT, FocusModeHost } from "./focus/focus-mode";
+import { toggleFocusMode, toggleTypewriter, useFocusPrefs } from "./focus/focus-prefs";
+/* end focus */
+
 
 export function Workspace({ user, initialPrefs }: { user: User; initialPrefs?: InitialPrefs }) {
   return (
@@ -121,9 +131,11 @@ function Ribbon({ inert }: { inert: boolean }) {
         <RailButton on={graph} label="Open graph view" shortcut="Mod+G" onClick={() => a.openView({ type: "graph" }, "tab")}>
           <GitFork />
         </RailButton>
-        <RailButton label="Open today’s daily note" shortcut="Mod+D" onClick={() => a.dailyNote()}>
+        {/* daily */}
+        <RailButton label="Open today’s daily note" shortcut="Mod+Shift+D" onClick={() => a.dailyNote()}>
           <CalendarDays />
         </RailButton>
+        {/* end daily */}
         <RailButton label="Open command palette" shortcut="Mod+P" onClick={() => a.setPalette("commands")}>
           <SquareTerminal />
         </RailButton>
@@ -304,6 +316,7 @@ const RIGHT_VIEWS: { id: RightView; label: string; Icon: typeof Link2 }[] = [
   { id: "outgoing", label: "Outgoing links", Icon: Waypoints },
   { id: "tags", label: "Tags", Icon: Hash },
   { id: "outline", label: "Outline", Icon: ListTree },
+  { id: "calendar", label: "Calendar", Icon: CalendarDays }, // daily
 ];
 
 /** The focused note's name. The tree knows it before the note body loads, so a heading does not change mid-load. */
@@ -320,7 +333,8 @@ function RightSidebar() {
   );
   const open = drawer === "right";
   const current = RIGHT_VIEWS.find((v) => v.id === view)!;
-  const heading = view !== "tags" && noteName ? `${current.label} for ${noteName}` : current.label;
+  const aboutNote = view !== "tags" && view !== "calendar"; // daily: the calendar is about the vault, not the note
+  const heading = aboutNote && noteName ? `${current.label} for ${noteName}` : current.label;
   return (
     <aside
       id="right-sidebar"
@@ -347,7 +361,7 @@ function RightSidebar() {
         {/* The view's name, then the note it is about; a long name wraps once, then ends with an ellipsis. */}
         <h2 className="px-2 pb-1 pt-4" title={heading}>
           <span className="block text-[15px] font-semibold leading-5 tracking-[-0.01em] text-fg">{current.label}</span>
-          {view !== "tags" && noteName && (
+          {aboutNote && noteName && (
             <span className="mt-0.5 line-clamp-2 block text-[12px] font-normal leading-4 text-faint [overflow-wrap:anywhere]">
               <span className="sr-only">for </span>
               <span translate="no">{noteName}</span>
@@ -358,6 +372,7 @@ function RightSidebar() {
         {view === "outgoing" && <OutgoingView />}
         {view === "tags" && <TagsView />}
         {view === "outline" && <OutlineView />}
+        {view === "calendar" && <CalendarView />}
       </div>
     </aside>
   );
@@ -629,13 +644,42 @@ function Shell() {
   );
   const note = useWorkspaceSelector((s) => s.activeNote, sameNoteMeta);
   const phone = usePhone();
+  /* focus */
+  const { focus: focusOn, typewriter: typewriterOn } = useFocusPrefs();
+  /* end focus */
+  /* daily: the daily note before or after the open one (or today, when none is open) */
+  // The tree can change while the same note stays open (a sync, a rename): read the newest one when run.
+  const treeNotesRef = useRef(w.treeNotes);
+  useLayoutEffect(() => {
+    treeNotesRef.current = w.treeNotes;
+  });
+  const stepDaily = useCallback(
+    (dir: -1 | 1) => {
+      const c = dailyConfig();
+      const from = (note && dailyDate(note.path, c)) || startOfDay(new Date());
+      const hit = adjacentDaily(treeNotesRef.current, c, from, dir);
+      if (hit) a.open(hit.note.id, "current", "edit", { focus: "editor" });
+      else a.notify(dir < 0 ? "No earlier daily note" : "No later daily note");
+    },
+    [a, note],
+  );
+  /* end daily */
 
   const commands: Command[] = useMemo(
     () => [
       { id: "new", label: "Create new note", shortcut: "Alt+N", run: () => a.newNote("") },
       { id: "new-canvas", label: "Create new canvas", run: () => void newCanvas(a, "") }, // canvas track
       { id: "open", label: "Open quick switcher", shortcut: "Mod+O", run: () => a.setPalette("notes") },
-      { id: "daily", label: "Open today’s daily note", shortcut: "Mod+D", run: a.dailyNote },
+      /* daily */
+      { id: "daily", label: "Open today’s daily note", shortcut: "Mod+Shift+D", run: () => a.dailyNote() },
+      { id: "daily-prev", label: "Open previous daily note", run: () => stepDaily(-1) },
+      { id: "daily-next", label: "Open next daily note", run: () => stepDaily(1) },
+      { id: "calendar", label: "Show calendar", run: () => a.showRight("calendar") },
+      /* end daily */
+      /* focus */
+      { id: "focus", label: focusOn ? "Exit focus mode" : "Enter focus mode", shortcut: FOCUS_SHORTCUT, run: toggleFocusMode },
+      { id: "typewriter", label: typewriterOn ? "Turn off typewriter mode" : "Turn on typewriter mode", run: toggleTypewriter },
+      /* end focus */
       { id: "search", label: "Search in all notes", shortcut: "Mod+Shift+F", run: () => a.showLeft("search") },
       { id: "graph", label: "Open graph view", shortcut: "Mod+G", run: () => a.openView({ type: "graph" }, "tab") },
       // One pane on a phone: no "to the right".
@@ -675,7 +719,7 @@ function Shell() {
       { id: "mcp-tokens", label: "Connect an AI assistant (MCP)", run: () => a.setSettingsOpen("integrations") },
       { id: "logout", label: "Sign out", run: a.logout },
     ],
-    [a, note, phone, w.layout.focus, w.focusGroup],
+    [a, note, phone, w.layout.focus, w.focusGroup, focusOn, typewriterOn, stepDaily],
   );
 
   // The hotkey handler reads the latest view through a ref, so it is registered once.
@@ -712,13 +756,21 @@ function Shell() {
       // Ctrl+Alt+G and friends stay with the editor.
       if (!mod || e.altKey) return;
       if (k === "f" && e.shiftKey) return run(() => a.showLeft("search"));
+      /* daily */
+      if (k === "d" && e.shiftKey) return run(() => a.dailyNote());
+      // Mod+D outside the editor still opens today's note; in the editor it selects the next match.
+      if (k === "d" && (e.target as Element | null)?.closest?.(".cm-editor")) return;
+      /* end daily */
+      /* focus */
+      if (e.key === "Enter" && e.shiftKey) return run(toggleFocusMode);
+      /* end focus */
       if (e.shiftKey) return;
       if (k === "o") run(() => a.setPalette("notes"));
       else if (k === "p") run(() => a.setPalette("commands"));
       else if (k === "n") run(() => a.newNote(""));
       else if (k === "e") run(() => a.setMode());
       else if (k === "g") run(() => a.openView({ type: "graph" }, "tab"));
-      else if (k === "d") run(a.dailyNote);
+      else if (k === "d") run(() => a.dailyNote()); // daily
       else if (k === "s") run(() => now.current.view.type === "note" && a.flush(now.current.view.id));
       else if (k === ",") run(() => a.setSettingsOpen("general"));
     };
@@ -773,6 +825,7 @@ function Shell() {
 
   return (
     <div
+      data-focus-mode={focusOn || undefined} /* focus */
       className="flex h-dvh flex-col overflow-hidden bg-frame text-fg"
       style={{ paddingLeft: "env(safe-area-inset-left)", paddingRight: "env(safe-area-inset-right)" }}
     >
@@ -837,6 +890,9 @@ function Shell() {
       {/* templates-properties */}
       <TemplatePickerHost />
       {/* end templates-properties */}
+      {/* focus */}
+      <FocusModeHost />
+      {/* end focus */}
       <Toasts toasts={w.toasts} dismiss={a.dismissToast} />
     </div>
   );

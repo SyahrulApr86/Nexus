@@ -11,6 +11,10 @@ import { TemplateSettings } from "./templates-settings-rows";
 import { AttachmentSettingsRows } from "./attachments/settings-rows";
 import { McpTokensSection } from "@/components/mcp/mcp-tokens";
 /* end attachments-ui */
+/* daily */
+import { DailySettings } from "./calendar/daily-settings";
+import { FocusSettings } from "./focus/focus-settings";
+/* end daily */
 
 /** Label, keys, and the Mac keys when they differ by more than Mod. */
 const HOTKEYS: [string, string, string?][] = [
@@ -20,7 +24,11 @@ const HOTKEYS: [string, string, string?][] = [
   ["Toggle reading and editing view", "Mod+E"],
   ["Search in all notes", "Mod+Shift+F"],
   ["Open graph view", "Mod+G"],
-  ["Open today’s daily note", "Mod+D"],
+  /* daily */
+  ["Open today’s daily note", "Mod+Shift+D"],
+  ["Enter or exit focus mode", "Mod+Shift+Enter"],
+  ["Select the next match in the editor", "Mod+D"],
+  /* end daily */
   ["New tab", "Alt+T"],
   ["Close tab", "Alt+W"],
   ["Next tab", "Alt+]"],
@@ -210,6 +218,10 @@ export function SettingsDialog({ section = "general" }: { section?: SettingsSect
             {/* templates-properties */}
             {current === "editor" && <TemplateSettings Row={Row} />}
             {/* end templates-properties */}
+            {/* daily */}
+            {current === "editor" && <DailySettings Row={Row} />}
+            {current === "editor" && <FocusSettings Row={Row} />}
+            {/* end daily */}
             {/* attachments-ui */}
             {current === "files" && <AttachmentSettingsRows Row={Row} />}
             {/* end attachments-ui */}
