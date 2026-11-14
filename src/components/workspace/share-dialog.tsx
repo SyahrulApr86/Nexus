@@ -137,7 +137,7 @@ function ShareDialog({ note, onClose }: { note: ShareTarget; onClose: () => void
 
   return (
     <Modal label={`Share “${note.name}”`} describedBy={descId} onClose={onClose} className="max-w-lg" placement="top">
-      <div className="rounded-xl border border-border bg-sheet p-5 shadow-[var(--shadow-float)]">
+      <div className="float-panel p-6">
         <h2 id={titleId} className="text-[16px] font-medium leading-6 text-balance [overflow-wrap:anywhere]">
           Share “<span translate="no">{note.name}</span>”
         </h2>
@@ -210,7 +210,7 @@ function ShareDialog({ note, onClose }: { note: ShareTarget; onClose: () => void
               <button
                 type="button"
                 onClick={() => void copy()}
-                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-control px-3 text-[14px] font-medium transition-colors hover:bg-sheet-hover [&_svg]:size-4 [&_svg]:stroke-[1.5]"
+                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-control px-3 text-[14px] font-medium transition-colors hover:bg-hover [&_svg]:size-4 [&_svg]:stroke-[1.5]"
               >
                 <Copy aria-hidden="true" />
                 {copied === "copied" ? "Copied" : "Copy"}
@@ -260,7 +260,7 @@ function ShareDialog({ note, onClose }: { note: ShareTarget; onClose: () => void
                     aria-label={`Revoke link created ${formatDate(l.createdAt)}`}
                     aria-disabled={revoking === l.id || undefined}
                     onClick={() => void revoke(l)}
-                    className="h-8 shrink-0 rounded-lg border border-control px-3 text-[13px] font-medium text-negative transition-colors hover:bg-sheet-hover pointer-coarse:h-11"
+                    className="h-8 shrink-0 rounded-lg border border-control px-3 text-[13px] font-medium text-negative transition-colors hover:bg-hover pointer-coarse:h-11"
                   >
                     {revoking === l.id ? "Revoking…" : "Revoke"}
                   </button>
@@ -278,7 +278,7 @@ function ShareDialog({ note, onClose }: { note: ShareTarget; onClose: () => void
           <button
             type="button"
             onClick={onClose}
-            className="h-9 rounded-lg border border-control px-4 text-[14px] font-medium transition-colors hover:bg-sheet-hover"
+            className="h-9 rounded-lg border border-control px-4 text-[14px] font-medium transition-colors hover:bg-hover"
           >
             Done
           </button>

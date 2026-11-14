@@ -8,6 +8,8 @@ test("import an Obsidian vault .zip, confirming the note it replaces", async ({ 
   await api.createNote("Welcome", "My own welcome text.");
   await openVault(page);
   const settings = await openSettings(page);
+  // Import lives in its own settings area.
+  await settings.getByRole("tab", { name: "Import and export" }).click();
 
   const chooser = page.waitForEvent("filechooser");
   await settings.getByRole("button", { name: "Choose files…" }).click();
@@ -39,6 +41,8 @@ test("cancelling the import confirmation changes nothing", async ({ page, api })
   await api.createNote("Welcome", "My own welcome text.");
   await openVault(page);
   const settings = await openSettings(page);
+  // Import lives in its own settings area.
+  await settings.getByRole("tab", { name: "Import and export" }).click();
   const chooser = page.waitForEvent("filechooser");
   await settings.getByRole("button", { name: "Choose files…" }).click();
   await (await chooser).setFiles({

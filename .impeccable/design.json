@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-14T00:00:00+07:00",
+  "generatedAt": "2026-11-14T13:00:00+07:00",
   "title": "Design System: Nexus",
   "extensions": {
     "colorMeta": {
@@ -67,7 +67,7 @@
       "tag-orange-ink": {
         "role": "secondary",
         "displayName": "Tag Orange Ink",
-        "canonical": "#b42a03",
+        "canonical": "#b02a04",
         "tonalRamp": [
           "#2e0c02",
           "#521402",
@@ -82,7 +82,7 @@
       "highlight-peach": {
         "role": "secondary",
         "displayName": "Highlight Peach",
-        "canonical": "#ffd9cc",
+        "canonical": "#ffd6c7",
         "tonalRamp": [
           "#413734",
           "#73625c",
@@ -96,8 +96,8 @@
       },
       "frame-mist": {
         "role": "neutral",
-        "displayName": "Frame Mist",
-        "canonical": "#f1f4f7",
+        "displayName": "Frame (light)",
+        "canonical": "#eef1f5",
         "tonalRamp": [
           "#3d3e3f",
           "#6d6e70",
@@ -127,7 +127,7 @@
       "control-slate": {
         "role": "neutral",
         "displayName": "Control Slate",
-        "canonical": "#7d8c99",
+        "canonical": "#7a8494",
         "tonalRamp": [
           "#202427",
           "#394045",
@@ -168,6 +168,27 @@
           "#b2d0c1",
           "#e4efea"
         ]
+      },
+      "frame-navy": {
+        "role": "neutral",
+        "displayName": "Frame Navy",
+        "canonical": "#02070a"
+      },
+      "sheet-dark": {
+        "role": "neutral",
+        "displayName": "Sheet (dark)",
+        "canonical": "#070f15"
+      },
+      "raised-dark": {
+        "role": "neutral",
+        "displayName": "Raised (dark)",
+        "canonical": "#0c161e"
+      },
+      "accent-line": {
+        "role": "primary",
+        "displayName": "Selection line",
+        "canonical": "#0297de",
+        "note": "#01669a on light"
       }
     },
     "typographyMeta": {
@@ -199,12 +220,12 @@
     "shadows": [
       {
         "name": "float",
-        "value": "0 12px 32px rgb(2 7 10 / 0.14), 0 2px 6px rgb(2 7 10 / 0.08)",
-        "purpose": "Menus, palette, dialogs, toasts, drag ghost (light)."
+        "value": "0 6px 24px rgb(2 7 10 / 0.1), 0 1px 3px rgb(2 7 10 / 0.08)",
+        "purpose": "Menus, palette, dialogs, toasts, canvas toolbar (light). Nothing at rest casts a shadow."
       },
       {
         "name": "float-dark",
-        "value": "0 16px 40px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.4)",
+        "value": "0 16px 40px -12px rgb(0 0 0 / 0.42), 0 1px 3px rgb(0 0 0 / 0.3)",
         "purpose": "Same, dark theme."
       }
     ],
@@ -297,8 +318,8 @@
     }
   ],
   "narrative": {
-    "northStar": "The Note Is the Sheet",
-    "overview": "Nexus is a working notebook, not a dashboard. Every screen is built around one white sheet (navy in dark mode) where a note is read and written, set inside a quiet blue-grey frame that Obsidian users already know: ribbon, file explorer, tab bar and right sidebar on the frame, the note on the sheet. The frame is tinted from the navy's own hue and stays low in chroma, so it recedes. The sheet is where the contrast, the serif and the colour live.\n\nDensity is that of a desktop tool: 28px tree rows, 14px interface text, hairline borders, no shadows at rest. Brand shows only in precise details: the double-bracket mark set in type, blue that always means \"this moves you\" and orange that always means \"this is marked\". The interface refuses the look of a generated dashboard: no coloured nav pills, tinted icon tiles, gradient chrome, glows, glass or the old purple accent.\n\nOn a phone the same vault becomes one sheet with drawers. Phones are first-class devices, not degraded desktops: touch targets grow and safe areas are respected, but the hierarchy stays the same.",
+    "northStar": "Dark, precise, the note is the sheet",
+    "overview": "Nexus is a notebook worked in for hours: dark first (navy #02070A frame, the work on one inset sheet a tone step up), crisp hairlines, flat surfaces, Hanken Grotesk display type set large and tight, Literata for notes, JetBrains Mono for code only. One selection mark everywhere: a 1px blue line as wide as the selected label. Blue #0297DE for links, the active item, focus and the primary action; orange #FC734D for tags, highlights and search hits. Light follows the same structure on a blue-grey frame. See DESIGN.md for tokens and components.",
     "keyCharacteristics": [
       "An L-shaped tinted frame around an inset white sheet with 14px corners.",
       "Two colour meanings and nothing else: blue moves, orange marks.",

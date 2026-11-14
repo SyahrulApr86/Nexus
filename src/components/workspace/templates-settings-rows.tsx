@@ -133,7 +133,7 @@ export function TemplateSettings({ Row }: { Row: RowComponent }) {
           <legend className="sr-only">Show properties</legend>
           <div className="flex flex-col gap-1">
             {SHOW.map((o) => (
-              <label key={o.id} className="flex cursor-pointer items-start gap-3 rounded-lg px-2 py-1.5 hover:bg-sheet-hover">
+              <label key={o.id} className="flex cursor-pointer items-start gap-3 rounded-lg px-2 py-1.5 hover:bg-hover">
                 <input
                   type="radio"
                   name="show-properties"

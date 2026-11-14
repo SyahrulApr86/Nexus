@@ -1,39 +1,52 @@
 @import "tailwindcss" source("../");
 
 /*
- * Nexus tokens. Brand palette (owner-set): navy #02070A, blue #0297DE, orange #FC734D.
- * Blue moves you (links, active item, focus, primary action). Orange marks things
- * (tags, ==highlights==, search hits). Every text pair below was checked at >= 4.5:1,
- * control edges and focus rings at >= 3:1.
+ * Nexus tokens. Dark first: a deep navy frame (#02070A) with the work on panels one small tone step
+ * up, crisp hairlines, flat surfaces, radii 8 and 2, a 4px grid. Blue #0297DE is the one accent:
+ * links, the active item (a 1px line on the nearest edge), focus and the primary action. Orange
+ * #FC734D marks things: tags, ==highlights==, search hits. Light follows the same structure: white
+ * sheets on a blue-grey frame. Every text pair below is >= 4.5:1 on every ground it sits on (frame,
+ * sheet, raised, hover, active); control edges, focus rings and --accent-line are >= 3:1.
+ *
+ * Roles: --frame (the window: rail, sidebar), --sheet (the inset work panel and the note), --raised
+ * (menus, dialogs, the palette), --hover / --active (row states), --border (hairline structure),
+ * --rule (row rules), --mist (line-art, overlay edges), --control (input and button edges).
+ * Shared with the public pages: --canvas, --panel, --ink, --slate, --hairline are aliases below,
+ * and --sheet, --frame, --fg, --muted, --border keep their names.
  */
 :root {
   color-scheme: light;
-  --frame: #f1f4f7; /* ribbon, sidebars, tab bar: navy hue, low chroma */
-  --sheet: #ffffff; /* where notes live */
-  --hover: #e9eef2;
-  --active: #e4eaef;
-  --sheet-hover: #f3f6f8;
-  --border: #dce3e9; /* sheet edge, 1.3:1 */
-  --rule: #ebeff3;
-  --control: #7d8c99; /* input and button edges, 3.4:1 */
+  --frame: #eef1f5;
+  --sheet: #ffffff;
+  --raised: #ffffff;
+  --hover: #e5eaf0;
+  --active: #dde4eb;
+  --sheet-hover: #f3f5f8;
+  --border: #d9dfe6;
+  --rule: #e8ecf0;
+  --mist: #b1b7c3;
+  --control: #7a8494;
   --fg: #02070a;
-  --muted: #36424c; /* a clear step above --faint */
-  --faint: #566470;
-  --accent: #0297de; /* fills and non-text marks */
-  --accent-ink: #01669a; /* blue as text on light grounds */
-  --accent-soft: #e1f3fb;
+  --muted: #47505d;
+  --faint: #59636f;
+  --accent: #0297de;
+  --accent-ink: #01669a;
+  --accent-line: #01669a; /* the selection line: #0297DE is 2.9:1 on the light frame */
+  --accent-soft: #e0f2fb;
+  --on-accent: #02070a; /* label on a blue fill, 6.3:1 */
   --mark: #fc734d;
-  --mark-ink: #b42a03;
-  --mark-soft: #ffe8e0;
-  --hl: #ffd9cc;
+  --mark-ink: #b02a04;
+  --mark-soft: #ffe8df;
+  --hl: #ffd6c7;
   --focus: #01669a;
   --negative: #c4242a;
-  --negative-hover: #a91f24; /* white label 7.2:1 */
+  --negative-hover: #a91f24;
   --positive: #247b50;
   --selection: rgb(2 151 222 / 0.22);
-  --code-bg: #eef2f5;
-  --scrim: rgb(2 7 10 / 0.45);
-  --shadow-float: 0 12px 32px rgb(2 7 10 / 0.14), 0 2px 6px rgb(2 7 10 / 0.08);
+  --code-bg: #f3f5f8;
+  --scrim: rgb(2 7 10 / 0.42);
+  /* Only what floats (menus, dialogs, the palette, toasts) casts a shadow; nothing at rest does. */
+  --shadow-float: 0 6px 24px rgb(2 7 10 / 0.1), 0 1px 3px rgb(2 7 10 / 0.08);
   --toast-bg: #02070a;
   --toast-fg: #ffffff;
   --toast-link: #7fd0f6;
@@ -41,73 +54,102 @@
 }
 
 :root[data-theme="dark"] {
-  color-scheme: dark;
-  --frame: #02070a;
-  --sheet: #0a1219;
-  --hover: #111c25;
-  --active: #16232e;
-  --sheet-hover: #0f1922;
-  --border: #1a2731;
-  --rule: #13202a;
-  --control: #5d7182;
-  --fg: #e6edf2;
-  --muted: #a6b4bf;
-  --faint: #8494a1;
-  --accent: #0297de;
-  --accent-ink: #36aeeb;
-  --accent-soft: #092a3c;
-  --mark: #fc734d;
-  --mark-ink: #ff8a66;
-  --mark-soft: #312221;
-  --hl: #57312a;
-  --focus: #0297de;
-  --negative: #ef6a73;
-  --negative-hover: #f4868d;
-  --positive: #3fc07a;
-  --selection: rgb(2 151 222 / 0.35);
-  --code-bg: #111c25;
-  --scrim: rgb(0 0 0 / 0.6);
-  --shadow-float: 0 16px 40px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.4);
-  --toast-bg: #16232e;
-  --toast-fg: #e6edf2;
-  --toast-link: #36aeeb;
-  --on-negative: #02070a;
+    color-scheme: dark;
+    --frame: #02070a;
+    --sheet: #070f15;
+    --raised: #0c161e;
+    --hover: #101c26;
+    --active: #15232e;
+    --sheet-hover: #0c161e;
+    --border: #18252f;
+    --rule: #111c25;
+    --mist: #2c3c49;
+    --control: #55697b;
+    --fg: #e9eef2;
+    --muted: #a2b0bc;
+    --faint: #8796a3;
+    --accent: #0297de;
+    --accent-ink: #3fb2ee;
+    --accent-line: #0297de;
+    --accent-soft: #0a2537;
+    --on-accent: #02070a;
+    --mark: #fc734d;
+    --mark-ink: #ff8f6e;
+    --mark-soft: #2b1913;
+    --hl: #55291b;
+    --focus: #0297de;
+    --negative: #f0707a;
+    --negative-hover: #f48b93;
+    --positive: #3fc07a;
+    --selection: rgb(2 151 222 / 0.32);
+    --code-bg: #0c161e;
+    --scrim: rgb(1 4 6 / 0.72);
+    --shadow-float: 0 16px 40px -12px rgb(0 0 0 / 0.42), 0 1px 3px rgb(0 0 0 / 0.3);
+    --toast-bg: #15232e;
+    --toast-fg: #e9eef2;
+    --toast-link: #3fb2ee;
+    --on-negative: #02070a;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --frame: #02070a;
-    --sheet: #0a1219;
-    --hover: #111c25;
-    --active: #16232e;
-    --sheet-hover: #0f1922;
-    --border: #1a2731;
-    --rule: #13202a;
-    --control: #5d7182;
-    --fg: #e6edf2;
-    --muted: #a6b4bf;
-    --faint: #8494a1;
-    --accent: #0297de;
-    --accent-ink: #36aeeb;
-    --accent-soft: #092a3c;
-    --mark: #fc734d;
-    --mark-ink: #ff8a66;
-    --mark-soft: #312221;
-    --hl: #57312a;
-    --focus: #0297de;
-    --negative: #ef6a73;
-    --negative-hover: #f4868d;
-    --positive: #3fc07a;
-    --selection: rgb(2 151 222 / 0.35);
-    --code-bg: #111c25;
-    --scrim: rgb(0 0 0 / 0.6);
-    --shadow-float: 0 16px 40px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.4);
-    --toast-bg: #16232e;
-    --toast-fg: #e6edf2;
-    --toast-link: #36aeeb;
-    --on-negative: #02070a;
+      color-scheme: dark;
+      --frame: #02070a;
+      --sheet: #070f15;
+      --raised: #0c161e;
+      --hover: #101c26;
+      --active: #15232e;
+      --sheet-hover: #0c161e;
+      --border: #18252f;
+      --rule: #111c25;
+      --mist: #2c3c49;
+      --control: #55697b;
+      --fg: #e9eef2;
+      --muted: #a2b0bc;
+      --faint: #8796a3;
+      --accent: #0297de;
+      --accent-ink: #3fb2ee;
+      --accent-line: #0297de;
+      --accent-soft: #0a2537;
+      --on-accent: #02070a;
+      --mark: #fc734d;
+      --mark-ink: #ff8f6e;
+      --mark-soft: #2b1913;
+      --hl: #55291b;
+      --focus: #0297de;
+      --negative: #f0707a;
+      --negative-hover: #f48b93;
+      --positive: #3fc07a;
+      --selection: rgb(2 151 222 / 0.32);
+      --code-bg: #0c161e;
+      --scrim: rgb(1 4 6 / 0.72);
+      --shadow-float: 0 16px 40px -12px rgb(0 0 0 / 0.42), 0 1px 3px rgb(0 0 0 / 0.3);
+      --toast-bg: #15232e;
+      --toast-fg: #e9eef2;
+      --toast-link: #3fb2ee;
+      --on-negative: #02070a;
   }
+}
+
+/* Role names from the reference, as aliases of the tokens above. */
+:root {
+  --canvas: var(--sheet);
+  --panel: var(--frame);
+  --ink: var(--fg);
+  --slate: var(--muted);
+  --hairline: var(--border);
+}
+
+/* Radii: 8px for panels, cards, buttons, inputs, menus and dialogs; 2px for tags, chips and keys. */
+@theme {
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius: 2px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 8px;
+  --radius-3xl: 8px;
 }
 
 @theme inline {
@@ -116,6 +158,8 @@
   --color-hover: var(--hover);
   --color-active: var(--active);
   --color-sheet-hover: var(--sheet-hover);
+  --color-raised: var(--raised);
+  --color-accent-line: var(--accent-line);
   --color-border: var(--border);
   --color-rule: var(--rule);
   --color-control: var(--control);
@@ -129,6 +173,13 @@
   --color-mark-ink: var(--mark-ink);
   --color-mark-soft: var(--mark-soft);
   --color-hl: var(--hl);
+  --color-mist: var(--mist);
+  --color-on-accent: var(--on-accent);
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-ink: var(--ink);
+  --color-slate: var(--slate);
+  --color-hairline: var(--hairline);
   --color-negative: var(--negative);
   --color-negative-hover: var(--negative-hover);
   --color-positive: var(--positive);
@@ -183,7 +234,7 @@
   :focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
-    border-radius: 6px;
+    border-radius: 8px;
   }
 
   /* Scrollbars follow the frame: hidden at rest, --control (>= 3:1) on the scroller in use. */
@@ -223,17 +274,54 @@
   .kbd {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     height: 20px;
     min-width: 20px;
     padding: 0 5px;
     border-radius: 4px;
     border: 1px solid var(--border);
-    background: var(--sheet);
+    border-bottom-color: var(--mist);
+    background: var(--frame);
     color: var(--muted);
-    font-size: 12px;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 500;
     line-height: 1;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+
+  /* Whatever floats over the work (dialogs, the palette, pickers): one raised tone, a mist edge,
+     the only shadows in the app. */
+  .float-panel {
+    border: 1px solid var(--mist);
+    border-radius: 8px;
+    background: var(--raised);
+    box-shadow: var(--shadow-float);
+  }
+
+  /* The one selection mark: a 1px accent line as wide as the label, on the row's bottom edge.
+     --sel-offset puts it on that edge (the distance from the label's box to the hairline). */
+  .sel-mark {
+    position: relative;
+  }
+  [aria-selected="true"] > .sel-mark::after,
+  [aria-current="page"] > .sel-mark::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: var(--sel-offset, -10px);
+    height: 1px;
+    background: var(--accent-line);
+  }
+
+  /* Display type: the note's title and the few screen titles. Hanken Grotesk set large and tight. */
+  .display {
+    font-family: var(--font-ui);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    font-feature-settings: "ss01" 1, "cv11" 1;
   }
 
   /* ---------- CodeMirror decorations (layout lives in the editor theme) ---------- */
@@ -249,7 +337,7 @@
   .cm-tag {
     color: var(--mark-ink);
     background: var(--mark-soft);
-    border-radius: 4px;
+    border-radius: 2px;
     padding: 0 4px;
     font-family: var(--font-ui);
     font-size: 0.88em;
@@ -260,7 +348,7 @@
   }
   .cm-tooltip {
     background: var(--sheet) !important;
-    border: 1px solid var(--border) !important;
+    border: 1px solid var(--mist) !important;
     border-radius: 8px;
     overflow: hidden;
     box-shadow: var(--shadow-float);
@@ -286,27 +374,29 @@
   .reading {
     font-family: var(--font-note);
     font-size: 17px;
-    line-height: 1.65;
+    line-height: 1.7;
     overflow-wrap: anywhere;
     hanging-punctuation: first;
   }
   .reading > :first-child {
     margin-top: 0;
   }
+  /* Headings in the interface face, set tight: Literata carries the prose, Hanken the structure. */
   .reading h1,
   .reading h2,
   .reading h3,
   .reading h4,
   .reading h5,
   .reading h6 {
+    font-family: var(--font-ui);
     font-weight: 600;
     line-height: 1.25;
     text-wrap: balance;
-    margin: 1.6em 0 0.5em;
+    margin: 1.8em 0 0.5em;
   }
-  .reading h1 { font-size: 1.6em; }
-  .reading h2 { font-size: 1.35em; }
-  .reading h3 { font-size: 1.15em; }
+  .reading h1 { font-size: 1.6em; letter-spacing: -0.025em; }
+  .reading h2 { font-size: 1.32em; letter-spacing: -0.02em; }
+  .reading h3 { font-size: 1.1em; letter-spacing: -0.01em; }
   .reading h4,
   .reading h5,
   .reading h6 { font-size: 1em; }
@@ -345,7 +435,7 @@
   .reading a[href^="tag:"] {
     color: var(--mark-ink);
     background: var(--mark-soft);
-    border-radius: 4px;
+    border-radius: 2px;
     padding: 0 4px;
     font-family: var(--font-ui);
     font-size: 0.82em;
@@ -361,7 +451,7 @@
     font-family: var(--font-code);
     font-size: 0.84em;
     background: var(--code-bg);
-    border-radius: 4px;
+    border-radius: 2px;
     padding: 0.1em 0.35em;
   }
   .reading pre {
@@ -438,7 +528,7 @@
     margin: 0.25em 0;
     padding: 10px 14px;
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 8px;
     font-family: var(--font-ui);
     line-height: 20px;
     text-decoration: none;
@@ -579,28 +669,27 @@
     }
   }
 
+  /* Blueprint callouts: one flat panel step with a hairline edge for every kind; the kind's
+     colour is carried by the title alone, so colour stays rationed on the sheet. */
   .reading .callout {
-    --callout-bg: var(--accent-soft);
     --callout-ink: var(--accent-ink);
     margin: 1.25em 0;
     padding: 12px 16px;
-    border-radius: 10px;
-    background: var(--callout-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--code-bg);
   }
   .reading .callout[data-callout="question"],
   .reading .callout[data-callout="example"],
   .reading .callout[data-callout="quote"] {
-    --callout-bg: var(--sheet-hover);
-    --callout-ink: var(--muted);
+    --callout-ink: var(--fg);
   }
   .reading .callout[data-callout="tip"],
   .reading .callout[data-callout="success"] {
-    --callout-bg: var(--callout-green-bg);
     --callout-ink: var(--callout-green-ink);
   }
   /* Amber, not the brand orange: orange is reserved for tags, highlights and search hits. */
   .reading .callout[data-callout="warning"] {
-    --callout-bg: var(--callout-amber-bg);
     --callout-ink: var(--callout-amber-ink);
   }
   /* Inline code keeps its edge on any callout tint. */
@@ -610,7 +699,6 @@
   .reading .callout[data-callout="failure"],
   .reading .callout[data-callout="danger"],
   .reading .callout[data-callout="bug"] {
-    --callout-bg: var(--callout-red-bg);
     --callout-ink: var(--callout-red-ink);
   }
   .reading .callout-title {
@@ -636,7 +724,7 @@
     gap: 10px;
     cursor: pointer;
     list-style: none;
-    border-radius: 4px;
+    border-radius: 2px;
   }
   .reading details.callout > summary::-webkit-details-marker {
     display: none;
@@ -702,7 +790,7 @@
     margin: 1.25em 0;
     padding: 12px 16px 14px;
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 8px;
   }
   .reading .embed > .embed-title {
     display: inline-block;
@@ -748,10 +836,9 @@
 
 /* templates-properties: the properties block (properties.tsx). Interface face, existing tokens only. */
 @layer components {
+  /* A ruled spec table: keys in slate, values that read as text until hovered or focused. */
   .props {
-    margin: -4px 0 20px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--rule);
+    margin: -12px 0 32px;
     font-family: var(--font-ui);
     font-size: 14px;
     line-height: 20px;
@@ -763,7 +850,7 @@
     height: 28px;
     margin-left: -4px;
     padding: 0 8px 0 4px;
-    border-radius: 6px;
+    border-radius: 8px;
     color: var(--muted);
     font-size: 12px;
     font-weight: 500;
@@ -791,17 +878,18 @@
   .props-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    margin: 4px 0 0;
+    margin: 6px 0 0;
     padding: 0;
     list-style: none;
+    border-top: 1px solid var(--border);
   }
   .props-row {
     display: grid;
     grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr) 32px;
     align-items: start;
     gap: 8px;
-    padding: 2px 0;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--rule);
   }
   .props-new {
     grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr);
@@ -841,7 +929,7 @@
     height: 32px;
     padding: 0 6px;
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: 8px;
     background: transparent;
     color: var(--muted);
     font: inherit;
@@ -879,11 +967,19 @@
     width: 100%;
     height: 32px;
     padding: 0 8px;
-    border: 1px solid var(--control);
+    border: 1px solid transparent;
     border-radius: 6px;
-    background: var(--sheet);
+    background: transparent;
     color: var(--fg);
     font: inherit;
+    transition: background-color 150ms var(--ease-out-quint), border-color 150ms var(--ease-out-quint);
+  }
+  .props-input:hover {
+    background: var(--hover);
+  }
+  .props-input:focus {
+    border-color: var(--control);
+    background: var(--sheet);
   }
   .props-date {
     width: auto;
@@ -909,8 +1005,16 @@
     width: 100%;
     min-height: 32px;
     padding: 3px 4px;
-    border: 1px solid var(--control);
+    border: 1px solid transparent;
     border-radius: 6px;
+    background: transparent;
+    transition: background-color 150ms var(--ease-out-quint);
+  }
+  .props-chips:hover {
+    background: var(--hover);
+  }
+  .props-chips:focus-within {
+    border-color: var(--control);
     background: var(--sheet);
   }
   .props-chips:focus-within {
@@ -931,7 +1035,7 @@
     align-items: center;
     max-width: 100%;
     height: 24px;
-    border-radius: 4px;
+    border-radius: 2px;
     background: var(--active);
     color: var(--fg);
     font-size: 13px;
@@ -943,7 +1047,7 @@
   .props-chip-text {
     overflow: hidden;
     padding: 0 2px 0 8px;
-    border-radius: 4px;
+    border-radius: 2px;
     color: inherit;
     font: inherit;
     text-overflow: ellipsis;
@@ -959,7 +1063,7 @@
     place-items: center;
     width: 24px;
     height: 24px;
-    border-radius: 3px;
+    border-radius: 2px;
     color: inherit;
   }
   .props-chip-x:hover {
@@ -993,7 +1097,7 @@
   }
   .props-raw {
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: 2px;
     background: var(--code-bg);
     color: var(--muted);
     font-family: var(--font-code);
@@ -1021,7 +1125,7 @@
     height: 32px;
     margin-top: 4px;
     padding: 0 10px 0 8px;
-    border-radius: 6px;
+    border-radius: 8px;
     color: var(--muted);
     transition: background-color 150ms var(--ease-out-quint), color 150ms var(--ease-out-quint);
   }
@@ -1083,9 +1187,6 @@
         "value value";
       gap: 2px 8px;
       padding: 6px 0;
-    }
-    .props-row + .props-row {
-      border-top: 1px solid var(--rule);
     }
     .props-key-cell {
       grid-area: key;
@@ -1187,7 +1288,7 @@
   @media (min-width: 768px) {
     /* Follow the sheet's rounded bottom corners. */
     .canvas-root:focus-visible {
-      border-radius: 0 0 15px 15px;
+      border-radius: 0 0 7px 7px;
     }
   }
   .canvas-dot {
@@ -1198,22 +1299,23 @@
   .canvas-node {
     box-sizing: border-box;
   }
+  /* An uncoloured card or group is drawn with the line-art hairline; a coloured one keeps its edge. */
   .canvas-card {
     background: var(--cv-wash, var(--sheet));
-    border: calc(1px / var(--canvas-zoom)) solid var(--cv-edge, var(--control));
-    border-radius: 12px;
+    border: calc(1px / var(--canvas-zoom)) solid var(--cv-edge, var(--mist));
+    border-radius: 8px;
     color: var(--fg);
   }
   .canvas-card-body {
     position: absolute;
     inset: 0;
     overflow: hidden;
-    border-radius: 11px;
+    border-radius: 7px;
   }
   .canvas-group {
     background: var(--cv-wash, color-mix(in srgb, var(--hover) 55%, transparent));
-    border: calc(1px / var(--canvas-zoom)) solid var(--cv-edge, var(--control));
-    border-radius: 14px;
+    border: calc(1px / var(--canvas-zoom)) solid var(--cv-edge, var(--mist));
+    border-radius: 8px;
   }
   .canvas-node[data-selected] {
     border-color: var(--accent);
@@ -1223,10 +1325,10 @@
   .canvas-node:focus-visible {
     outline: calc(2px / var(--canvas-zoom)) solid var(--focus);
     outline-offset: calc(3px / var(--canvas-zoom));
-    border-radius: 12px;
+    border-radius: 8px;
   }
   .canvas-group:focus-visible {
-    border-radius: 14px;
+    border-radius: 8px;
   }
   .canvas-card.is-editing {
     user-select: text;
@@ -1271,7 +1373,7 @@
     min-width: 12ch;
     padding: 2px 8px;
     border: 1px solid var(--control);
-    border-radius: 6px;
+    border-radius: 8px;
     background: var(--sheet);
     color: var(--fg);
     user-select: text;
@@ -1326,7 +1428,7 @@
     height: calc(14px / var(--canvas-zoom));
     border-right: calc(2px / var(--canvas-zoom)) solid var(--accent);
     border-bottom: calc(2px / var(--canvas-zoom)) solid var(--accent);
-    border-bottom-right-radius: 10px;
+    border-bottom-right-radius: 7px;
     cursor: nwse-resize;
   }
   .canvas-resize::after {
@@ -1391,7 +1493,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     border: 1px solid var(--cv-edge, var(--control));
-    border-radius: 6px;
+    border-radius: 8px;
     background: var(--sheet);
     color: var(--fg);
     font-family: var(--font-ui);
@@ -1524,7 +1626,7 @@
     max-width: 100%;
     padding: 10px 14px;
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 8px;
     line-height: 20px;
     text-decoration: none;
   }
@@ -1555,7 +1657,7 @@
     font-family: var(--font-code);
     font-size: 0.92em;
     padding: 1px 4px;
-    border-radius: 4px;
+    border-radius: 2px;
     background: var(--code-bg);
     color: var(--fg);
   }
@@ -1613,10 +1715,10 @@
   .collab-avatar {
     display: inline-grid;
     place-items: center;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    font-size: 9.5px;
+    font-size: 11px;
     letter-spacing: -0.02em;
     line-height: 1;
     font-weight: 600;

@@ -1,264 +1,246 @@
 ---
 name: Nexus
-description: Connected markdown notes in the browser; an Obsidian-style workspace where the note is the sheet.
+description: Connected markdown notes in the browser; an Obsidian-class workspace, dark first, drawn with the precision of a blueprint. The note is the sheet.
 colors:
-  ink-navy: "#02070a"
-  link-blue: "#0297de"
-  link-blue-ink: "#01669a"
-  link-blue-wash: "#e1f3fb"
-  tag-orange: "#fc734d"
-  tag-orange-ink: "#b42a03"
-  tag-orange-wash: "#ffe8e0"
-  highlight-peach: "#ffd9cc"
-  frame-mist: "#f1f4f7"
-  sheet-white: "#ffffff"
-  hover-mist: "#e9eef2"
-  active-mist: "#e4eaef"
-  border-hairline: "#dce3e9"
-  rule-hairline: "#ebeff3"
-  control-slate: "#7d8c99"
-  text-muted: "#36424c"
-  text-faint: "#566470"
-  code-mist: "#eef2f5"
-  negative-red: "#c4242a"
-  positive-green: "#247b50"
-  dark-sheet: "#0a1219"
-  dark-hover: "#111c25"
-  dark-active: "#16232e"
-  dark-border: "#1a2731"
-  dark-text: "#e6edf2"
-  dark-link-ink: "#36aeeb"
-  dark-tag-ink: "#ff8a66"
+  # Dark (the showcase; the public pages use this set)
+  frame-navy: "#02070a"
+  sheet: "#070f15"
+  raised: "#0c161e"
+  hover: "#101c26"
+  active: "#15232e"
+  hairline: "#18252f"
+  rule: "#111c25"
+  mist: "#2c3c49"
+  control-edge: "#55697b"
+  text: "#e9eef2"
+  slate: "#a2b0bc"
+  fog: "#8796a3"
+  accent-blue: "#0297de"
+  accent-blue-ink: "#3fb2ee"
+  accent-line: "#0297de"
+  accent-wash: "#0a2537"
+  on-accent: "#02070a"
+  mark-orange: "#fc734d"
+  mark-orange-ink: "#ff8f6e"
+  mark-wash: "#2b1913"
+  highlight: "#55291b"
+  negative: "#f0707a"
+  positive: "#3fc07a"
+  # Light (same structure, follows the system or data-theme="light")
+  light-frame: "#eef1f5"
+  light-sheet: "#ffffff"
+  light-raised: "#ffffff"
+  light-hover: "#e5eaf0"
+  light-active: "#dde4eb"
+  light-hairline: "#d9dfe6"
+  light-rule: "#e8ecf0"
+  light-mist: "#b1b7c3"
+  light-control-edge: "#7a8494"
+  light-text: "#02070a"
+  light-slate: "#47505d"
+  light-fog: "#59636f"
+  light-accent-ink: "#01669a"
+  light-accent-line: "#01669a"
+  light-accent-wash: "#e0f2fb"
+  light-mark-ink: "#b02a04"
+  light-mark-wash: "#ffe8df"
+  light-highlight: "#ffd6c7"
+  light-negative: "#c4242a"
+  light-positive: "#247b50"
 typography:
-  note-title:
-    fontFamily: "Literata, ui-serif, Georgia, serif"
-    fontSize: "28px"
-    fontWeight: 600
+  display-title:
+    fontFamily: "Hanken Grotesk, ui-sans-serif, sans-serif"
+    fontSize: "40px"
+    fontWeight: 500
+    lineHeight: "46px"
+    letterSpacing: "-0.035em"
+  display-title-phone:
+    fontFamily: "Hanken Grotesk, ui-sans-serif, sans-serif"
+    fontSize: "30px"
+    fontWeight: 500
     lineHeight: "36px"
-    letterSpacing: "-0.01em"
+    letterSpacing: "-0.035em"
+  section-title:
+    fontFamily: "Hanken Grotesk, ui-sans-serif, sans-serif"
+    fontSize: "24px"
+    fontWeight: 500
+    lineHeight: "30px"
+    letterSpacing: "-0.035em"
+  stat-value:
+    fontFamily: "Hanken Grotesk, ui-sans-serif, sans-serif"
+    fontSize: "40px"
+    fontWeight: 400
+    lineHeight: "40px"
+    letterSpacing: "-0.035em"
   note-body:
     fontFamily: "Literata, ui-serif, Georgia, serif"
     fontSize: "17px"
     fontWeight: 400
-    lineHeight: 1.65
-  ui-body:
+    lineHeight: 1.7
+  note-heading:
+    fontFamily: "Hanken Grotesk, ui-sans-serif, sans-serif"
+    fontWeight: 600
+    note: "h1 1.6em/-0.025em, h2 1.32em/-0.02em, h3 1.1em/-0.01em"
+  palette-input:
+    fontFamily: "Hanken Grotesk, ui-sans-serif, sans-serif"
+    fontSize: "17px"
+    letterSpacing: "-0.01em"
+  ui:
+    fontFamily: "Hanken Grotesk, ui-sans-serif, sans-serif"
+    fontSize: "13px"
+    lineHeight: "20px"
+  ui-dialog:
     fontFamily: "Hanken Grotesk, ui-sans-serif, sans-serif"
     fontSize: "14px"
-    fontWeight: 400
     lineHeight: "20px"
-  ui-label:
+  meta:
     fontFamily: "Hanken Grotesk, ui-sans-serif, sans-serif"
     fontSize: "12px"
-    fontWeight: 500
     lineHeight: "16px"
-  dialog-title:
-    fontFamily: "Hanken Grotesk, ui-sans-serif, sans-serif"
-    fontSize: "22px"
-    fontWeight: 600
-    lineHeight: "28px"
   code:
     fontFamily: "JetBrains Mono, ui-monospace, monospace"
-    fontSize: "13px"
-    fontWeight: 400
-    lineHeight: 1.6
+    fontSize: "0.84em"
 rounded:
-  hairline: "2px"
-  chip: "4px"
+  tag: "2px"
+  key: "4px"
   control: "6px"
-  block: "8px"
-  card: "12px"
-  sheet: "14px"
+  panel: "8px"
 spacing:
-  ribbon: "44px"
-  tab-bar: "40px"
-  row: "28px"
+  base: "4px"
+  rail: "52px"
+  sidebar-left: "264px"
+  sidebar-right: "288px"
   sheet-inset: "8px"
-  left-sidebar: "260px"
-  right-sidebar: "280px"
-  measure: "700px"
-components:
-  button-primary:
-    backgroundColor: "{colors.link-blue}"
-    textColor: "{colors.ink-navy}"
-    rounded: "{rounded.block}"
-    height: "44px"
-    padding: "0 16px"
-  button-danger:
-    backgroundColor: "{colors.negative-red}"
-    textColor: "{colors.sheet-white}"
-    rounded: "{rounded.block}"
-    height: "40px"
-    padding: "0 16px"
-  icon-button:
-    textColor: "{colors.text-faint}"
-    rounded: "{rounded.control}"
-    size: "28px"
-  input-field:
-    backgroundColor: "{colors.sheet-white}"
-    textColor: "{colors.ink-navy}"
-    rounded: "{rounded.block}"
-    height: "44px"
-    padding: "0 12px"
-  tree-row:
-    textColor: "{colors.text-muted}"
-    rounded: "{rounded.control}"
-    height: "{spacing.row}"
-  tree-row-active:
-    backgroundColor: "{colors.active-mist}"
-    textColor: "{colors.ink-navy}"
-  tag-chip:
-    backgroundColor: "{colors.tag-orange-wash}"
-    textColor: "{colors.tag-orange-ink}"
-    rounded: "{rounded.chip}"
-  note-sheet:
-    backgroundColor: "{colors.sheet-white}"
-    textColor: "{colors.ink-navy}"
-    rounded: "{rounded.sheet}"
-  toast:
-    backgroundColor: "{colors.ink-navy}"
-    textColor: "{colors.sheet-white}"
-    rounded: "{rounded.block}"
+  tab-strip: "40px"
+  view-header: "44px"
+  status-bar: "28px"
+  tree-row: "28px"
+  note-measure: "46rem"
 ---
 
 # Design System: Nexus
 
-> Classification: INTERNAL
-
 ## Overview
 
-**Creative North Star: "The Note Is the Sheet"**
+Nexus is a notebook you work in for hours, so the design is built like an instrument: dark first,
+precise, quiet chrome, and the note as the one bright, generous thing on screen. The direction is
+"dark, luxurious, bold" in the Linear and Raycast sense: luxury is precision (one rhythm, crisp
+hairlines, tight display type, tabular figures), not effects. The structural language comes from
+the owner's blueprint reference (huge tight display type, hairline structure, flat surfaces, 8px and
+2px radii, a 4px grid, one rationed accent, schematic line-art, no shadows at rest), rendered on the
+brand navy.
 
-Nexus is a working notebook, not a dashboard. Every screen is built around one white sheet (navy in dark mode) where a note is read and written, set inside a quiet blue-grey frame that Obsidian users already know: ribbon, file explorer, tab bar and right sidebar on the frame, the note on the sheet. The frame is tinted from the navy's own hue and stays low in chroma, so it recedes. The sheet is where the contrast, the serif and the colour live.
+The app style was dealt with the taste skill (`draw.mjs --app --kind workspace --keep palette,type`,
+style `data-terminal`, seed 1915448899): an icon rail shell, and one selection mark used everywhere,
+a 1px accent line as wide as the selected label on the nearest edge. Where the dealt sheet and the
+owner's reference disagree on look, the reference wins (navy instead of neutral black, Hanken as the
+display face).
 
-Density is that of a desktop tool: 28px tree rows, 14px interface text, hairline borders, no shadows at rest. Brand shows only in precise details: the double-bracket mark set in type, blue that always means "this moves you" and orange that always means "this is marked". The interface refuses the look of a generated dashboard: no coloured nav pills, tinted icon tiles, gradient chrome, glows, glass or the old purple accent.
+Signature element: the vault drawn as schematic line-art. On the home view, the vault plan is one
+hairline bar per note grouped by folder, the newest edit marked by the one blue dot; in the graph,
+slate nodes on hairline edges over a 24px survey grid, the open note ringed in blue, tags in orange.
 
-On a phone the same vault becomes one sheet with drawers. Phones are first-class devices, not degraded desktops: touch targets grow and safe areas are respected, but the hierarchy stays the same.
+## Shell (structure)
 
-**Key Characteristics:**
-- An L-shaped tinted frame around an inset white sheet with 14px corners.
-- Two colour meanings and nothing else: blue moves, orange marks.
-- Serif for the person's writing, grotesque for the interface, mono for code.
-- Flat at rest; a shadow appears only on things that float (menus, dialogs, toasts).
-- Light and dark follow the system; dark is navy, never grey-black.
+- **Rail, 52px** on the frame: Nexus's own mark (a wikilink's `[[ ]]` holding one node) at the top;
+  five destinations; utilities (shortcuts, settings, the account initial) at the foot behind a short
+  hairline. The active destination is marked by a 1px accent line on the rail's right edge.
+- **Left sidebar, 264px** on the frame: the scope first (vault switcher with the vault's initial in a
+  ruled tile), then a "Find a note" field that opens the quick switcher, then text tabs "Files" and
+  "Search" with the 1px accent line under the selected label, then the tree. The tree's header row
+  states what it holds ("8 notes · 3 folders") with the tools at its right.
+- **The sheet**: everything you work on sits on one inset panel, 8px from the window's top, right and
+  bottom edges, radius 8, a hairline edge, no shadow. Inside it: panes split by hairlines, the right
+  sidebar behind a hairline, and the status bar along the bottom.
+- **Tab strip, 40px**: a ruled strip, tabs split by vertical hairlines; the selected tab is ink with
+  the accent line under its label (grey line when its pane is not focused). No rounded browser tabs.
+- **View header, 44px**: back, forward, a left-aligned breadcrumb (folders in fog, the current note in
+  ink, chevrons between), presence, mode toggle, more.
+- **Status bar, 28px**: a save dot and label on the left (blue at rest, red on failure), counts on the
+  right split by hairline ticks, tabular figures.
+- **Phone**: a 48px top bar (menu, title, mode, links), the sheet full width, a 5-item bottom bar with
+  labels; both sidebars become drawers on the raised tone.
 
 ## Colors
 
-A navy-anchored neutral ramp with exactly two accents, each with a single job.
+Dark is the showcase: `#02070a` frame, the sheet one small step up (`#070f15`), overlays one more
+(`#0c161e`), row states at `#101c26` and `#15232e`. Hairlines are `#18252f` (structure) and
+`#111c25` (row rules); `#2c3c49` draws line-art and the edges of what floats; `#55697b` is the edge of
+any control (>= 3:1). Text is `#e9eef2`, slate `#a2b0bc`, fog `#8796a3`: every one of them >= 4.5:1
+on every ground including the active row (fog on active 5.28:1).
 
-### Primary
-- **Link Blue** (#0297de): fills and non-text marks — the primary button, the active tab underline, the caret, the graph's active node. Never used as small text on white (it fails contrast there).
-- **Link Blue Ink** (#01669a; dark #36aeeb): blue as text — wikilinks, links, the active item label, the focus ring in light mode.
-- **Link Blue Wash** (#e1f3fb): the faint ground under a selected or matched link row.
+Blue `#0297de` is rationed: links (as `--accent-ink`, `#3fb2ee` dark / `#01669a` light), the
+selection line (`--accent-line`, `#01669a` on light because `#0297de` is 2.9:1 on the light frame),
+focus rings, the one primary button (navy label on blue, 6.3:1) and data points. Orange `#fc734d` only
+marks things: tags, `==highlights==`, search hits (the palette colours the matched letters in
+`--mark-ink`). Status red and green appear only for failure and for positive callouts.
 
-### Secondary
-- **Tag Orange** (#fc734d): marks, never actions — tag dots, search-hit underlines, the highlight family.
-- **Tag Orange Ink** (#b42a03; dark #ff8a66): #tags as text.
-- **Highlight Peach** (#ffd9cc; dark #57312a): ==highlight== and search-match backgrounds.
-
-### Neutral
-- **Ink Navy** (#02070a): body text in light mode, the whole frame in dark mode, toast ground, the primary button's label.
-- **Frame Mist** (#f1f4f7): ribbon, sidebars, tab bar in light mode.
-- **Sheet White** (#ffffff; dark #0a1219): where notes live.
-- **Hover / Active Mist** (#e9eef2 / #e4eaef; dark #111c25 / #16232e): row and button states on the frame.
-- **Border Hairline** (#dce3e9; dark #1a2731): the sheet edge and card edges (decorative, 1.3:1).
-- **Rule Hairline** (#ebeff3): dividers inside a surface.
-- **Control Slate** (#7d8c99; dark #5d7182): input and button edges, scrollbars in use (≥ 3:1).
-- **Text Muted** (#36424c) and **Text Faint** (#566470): secondary and tertiary text, each ≥ 4.5:1 on both frame and sheet.
-- **Negative Red** (#c4242a) and **Positive Green** (#247b50): destructive actions and errors; success states.
-
-### Named Rules
-**The Two Meanings Rule.** Blue moves you (links, active item, focus, primary action). Orange marks things (#tags, ==highlights==, search hits). Neither colour is ever used for decoration, and they never swap jobs.
-
-**The Checked Pair Rule.** Every text/ground pair is ≥ 4.5:1 and every control edge and focus ring is ≥ 3:1, in both themes. New tokens are added to `src/app/globals.css` with their ratio, never as raw hex in a component.
+Light follows the same structure: blue-grey frame `#eef1f5`, white sheet, the same roles.
 
 ## Typography
 
-**Note Font:** Literata (with ui-serif, Georgia)
-**Interface Font:** Hanken Grotesk (with ui-sans-serif)
-**Code Font:** JetBrains Mono (with ui-monospace)
-
-**Character:** A warm text serif with a long reading measure carries the person's own writing; a plain, slightly humanist grotesque runs the tool around it and stays out of the way. Mono appears only for code, never for labels or data.
-
-### Hierarchy
-- **Note title** (600, 28px / 36px, -0.01em; 24px / 32px on phones): the inline title at the top of the sheet; it is the note's h1.
-- **Note headings** (600, 1.6em / 1.35em / 1.15em, 1.25): h1–h3 inside a note; h4–h6 step down to 1em.
-- **Note body** (400, 17px, 1.65): reading and Live Preview text on a 700px measure (about 70 characters).
-- **Dialog title** (600, 22px, 28px): auth card and modal headings.
-- **Interface body** (400, 14px, 20px): menus, tree rows, settings, sidebars.
-- **Label** (500, 12px, 16px): status bar, section captions, metadata. Sentence case, never tracked-out capitals.
-- **Code** (400, 13px, 1.6): fenced blocks; inline code at 0.88em of its context.
-
-### Named Rules
-**The Writing Wears Serif Rule.** Only text the person wrote is set in Literata. Anything the product says is Hanken Grotesk.
+Three faces, each with one job (owner-fixed): **Hanken Grotesk** for all interface text and for
+display (note titles 40px/46 at -0.035em weight 500; screen titles 40px; settings section titles
+24px; stat figures 40px at weight 400, tabular); **Literata** for note text (17px/1.7) with note
+headings set in Hanken 600 with tight tracking, so prose and structure read apart; **JetBrains Mono**
+only for real code, code blocks and YAML. Keycaps use Hanken at 11px/500. Interface body is 13px in
+chrome, 14px in dialogs, meta 12px; nothing under 11px. Sentence case everywhere, no eyebrows.
 
 ## Layout
 
-Desktop is an Obsidian-style frame: a 44px ribbon on the left edge, a 260px file explorer, a 40px tab bar over each tab group, the active note as a sheet inset 8px from the frame, a 280px right sidebar (backlinks, outgoing links, outline, tags, bookmarks) and a status bar along the bottom. Tab groups split side by side. Sidebars are resizable and collapsible; the right sidebar hides below 1024px.
+4px grid. Note column max 46rem (about 70 characters of Literata at 17px), 48px top padding on
+desktop, the title then one meta line ("Created Nov 14, 2026"; on phones the folder too), 32px to the
+text. Home view: a two-column header (title left, guidance right), a three-cell figure strip in one
+ruled container, then "Start" (ruled rows with keycaps) beside the vault plan, using container
+queries so it holds in a narrow pane. Settings: a 212px area list on the frame beside the area's own
+view (one view per area: Appearance, Editor, Files and links, Import and export, Account, Hotkeys).
 
-Below 768px the layout becomes one sheet: a 48px top bar, the left and right sidebars as drawers, a bottom bar, and "open to the right" turns into "open in a new tab". Safe-area insets pad every edge. On coarse pointers touch targets grow to at least 44px.
+## Elevation
 
-Spacing follows a 4px grid. Tree rows are 28px; sheet content has 40px side padding on desktop and 20px on phones; the note column is centred at 700px.
-
-## Elevation & Depth
-
-Flat by default: depth comes from tone (frame vs sheet) and 1px hairlines, not shadows. A shadow appears only on surfaces that float above the workspace.
-
-### Shadow Vocabulary
-- **Float** (`box-shadow: 0 12px 32px rgb(2 7 10 / 0.14), 0 2px 6px rgb(2 7 10 / 0.08)`; dark `0 16px 40px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.4)`): menus, the command palette, dialogs, toasts, the drag ghost.
-- **Scrim** (`rgb(2 7 10 / 0.45)`; dark `rgb(0 0 0 / 0.6)`): behind modal dialogs and phone drawers.
-
-### Named Rules
-**The Flat Sheet Rule.** Nothing that sits in the layout casts a shadow. Only things that float above it do.
+Flat. Nothing at rest casts a shadow; separation is a tone step or a hairline. Only what floats
+(menus, dialogs, the palette, toasts, the canvas toolbar, drawers) uses `.float-panel`: the raised
+tone, a mist edge, `--shadow-float` (dark `0 16px 40px -12px rgb(0 0 0 / .42)`, light
+`0 6px 24px rgb(2 7 10 / .1)`), and the scrim behind modals.
 
 ## Shapes
 
-Gently rounded, by size: 2px for inline marks, 4px for chips and inline code, 6px for icon buttons, rows and focus rings, 8px for buttons, inputs, code blocks and callouts, 10–12px for menus and cards, 14px for the note sheet. Borders are 1px hairlines; no coloured side borders thicker than 1px. The brand mark is two double brackets set in type around the word Nexus, never a drawn logo.
+Radius 8 for panels, the sheet, dialogs, menus and buttons; 6 for small controls and rows; 4 for
+keycaps; 2 for tags and chips. Icons are Lucide outline at 1.5px, 17px in chrome.
 
 ## Components
 
-### Buttons
-- **Shape:** rounded (8px).
-- **Primary:** Link Blue fill with an Ink Navy label, 44px tall in forms. Hover dims slightly (brightness 95%); a busy primary keeps its width and shows the in-progress label ("Signing in…").
-- **Danger:** Negative Red fill with a white label, used only for confirmations of destructive actions.
-- **Icon button:** 28px square, Text Faint icon at 16px with a 1.5 stroke (Lucide), Hover Mist ground on hover, an accessible label and a tooltip with its shortcut.
-
-### Tree rows (file explorer)
-- 28px tall, 6px corners, Text Muted label. Hover shows Hover Mist; the active note gets Active Mist and Ink Navy text. It is an APG tree: arrow keys move, Enter opens, F2 renames, and it supports drag and drop between folders.
-
-### Inputs / Fields
-- **Style:** Sheet ground, 1px Control Slate edge, 8px corners, 16px text on phones (prevents zoom) and 14px on desktop.
-- **Focus:** 2px focus ring offset 2px (Link Blue Ink in light, Link Blue in dark).
-- **Error:** Negative Red edge plus a message below the field, linked with aria-describedby; focus moves to the first field with an error.
-
-### Tags and highlights
-- **Tag chip:** Tag Orange Ink text on Tag Orange Wash, 4px corners, set in the note's font size.
-- **Highlight:** Highlight Peach behind the text, 2px corners. Search hits use the same treatment.
-
-### Navigation
-- **Ribbon:** a column of icon buttons on Frame Mist; the mark at the top, settings and help at the bottom.
-- **Tabs:** 40px bar on the frame; the active tab joins the sheet (sheet ground, no bottom border); there are close and new-tab buttons. Alt+T / Alt+W / Alt+[ ] handle tabs.
-- **Phone:** top bar with drawers and a bottom bar for search, new note and the quick switcher.
-
-### Note sheet (signature)
-- Sheet ground, 14px corners, 1px Border Hairline, inset 8px from the frame. The view header holds back, forward, a breadcrumb, the reading/editing toggle and a more menu. Then the inline title, then the note on a 700px measure. In dark mode the sheet is #0a1219 on an #02070a frame.
-
-### Toasts
-- Ink Navy ground (dark: Active Mist), white text, a Link Blue action label kept on one line, a dismiss button, the Float shadow. Error toasts persist; the others time out but pause on hover and focus.
+- **Command palette (hero)**: 640px, top of screen, 56px input row (icon, 17px input, the mode named
+  at the right), a caption row ("Recently edited", "4 matches", "25 commands"), 40px result rows
+  (icon, name with the matched letters in orange ink, folder in fog, a relative date or the keycaps
+  right-aligned); the active row is the active tone with the 1px accent line on its left edge; a
+  40px hint bar on the frame tone.
+- **Properties**: a ruled spec table under the title; keys in slate with a type icon, values read as
+  text and show a control edge on focus (hover fills the row tone); tags as 2px orange chips.
+- **Menus**: raised panel, 32px rows (44px on touch), the focused row with the accent line on its
+  left edge, separators as full-width hairlines, danger items in red.
+- **Buttons**: primary = blue fill, navy label, 8px radius, one per dialog; secondary = 1px control
+  edge, transparent, ink label, hover fills; text actions in blue ink.
+- **Right sidebar**: icon tabs with the accent line under the selected icon; a two-line heading (view
+  name 15px/600, the note's name in fog); backlinks as ruled rows (name 13/500 ink, context in slate,
+  the linked words in blue); tags with a 2px usage track (slate share of the most used tag).
+- **Toasts**: raised tone (navy on light), mist edge, a 6px blue dot, 13px text, Dismiss.
+- **Theme setting**: three drawn previews of the frame and sheet in each theme, as radio cards.
+- **Canvas**: dot-grid board, cards with hairline edges (coloured cards keep their preset edge and
+  wash), the toolbar floats on the raised tone.
 
 ## Do's and Don'ts
 
-### Do:
-- **Do** use blue only for movement (links, active item, focus, primary action) and orange only for marks (tags, highlights, search hits).
-- **Do** add every new colour as a token in `src/app/globals.css`, for both themes, with its contrast ratio checked (≥ 4.5:1 text, ≥ 3:1 edges and rings).
-- **Do** keep the note on the sheet: Literata at 17px on a 700px measure, with the inline title as the h1.
-- **Do** follow Obsidian's conventions (ribbon, explorer, tabs, backlinks, command palette, hotkeys) when a choice is open; users arrive with Obsidian habits.
-- **Do** use motion only as feedback (view transitions on note change, 150–200ms quint ease) and honour `prefers-reduced-motion`.
-- **Do** write interface copy in English, sentence case, naming the action ("Create vault", "Replace notes").
+Do: keep the note the brightest, roomiest thing on screen; mark every selection with the one 1px
+accent line; let hairlines and tone steps carry structure; set figures tabular; keep orange for tags,
+highlights and search hits.
 
-### Don't:
-- **Don't** use gradients, glows, glass or coloured nav pills, or put icons in tinted tiles.
-- **Don't** add shadows to anything that sits in the layout; only floating surfaces get the Float shadow.
-- **Don't** use tracked-out capital labels or a monospace face for non-code labels.
-- **Don't** put coloured side borders thicker than 1px on callouts, cards or rows.
-- **Don't** use emoji in interface copy, or bring back the old purple accent.
-- **Don't** set small text in Link Blue (#0297de) on white; use Link Blue Ink.
+Don't: gradients, glows, glass or blur; emoji; eyebrow labels; monospace outside code; coloured left
+borders thicker than 1px; shadows on anything that does not float; motion that is not feedback
+(menus, dialogs and toasts rise 6px over 200ms; reduced motion turns all of it off).
+
+## Shared with the public pages
+
+The landing track uses the dark set above. Token names kept for them: `--sheet`, `--frame`, `--fg`,
+`--muted`, `--border` (and aliases `--canvas`, `--panel`, `--ink`, `--slate`, `--hairline`);
+utilities `bg-sheet`, `bg-frame`, `text-muted`, `border-border`, `font-note`, `font-ui`. New:
+`--raised` / `bg-raised`, `--accent-line` / `bg-accent-line`, `.float-panel`, `.display`.

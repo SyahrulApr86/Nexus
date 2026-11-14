@@ -224,7 +224,7 @@ function layoutReducer(state: Layout, a: Action): Layout {
 
 export type { LeftView, RightView, SortOrder } from "./prefs-cookie";
 export type SaveState = "saved" | "dirty" | "saving" | "error" | "signedOut";
-export type SettingsSection = "general" | "hotkeys";
+export type SettingsSection = "general" | "editor" | "files" | "vault" | "account" | "hotkeys";
 /** A cached note. `rev` changes only when the server text replaced what the editor showed. */
 export type CachedNote = FullNote & { rev: number };
 export type NoteError = { status: number; message: string };

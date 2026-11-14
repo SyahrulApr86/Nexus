@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FileWarning } from "lucide-react";
-import { parseCanvas } from "@/lib/canvas";
+import { canvasTitle, parseCanvas } from "@/lib/canvas";
 import { Editor } from "../editor";
 import { sameNoteMeta, shallowEqual, useWorkspaceActions, useWorkspaceSelector, type CachedNote } from "../store";
 import { Bar } from "../ui";
@@ -73,7 +73,7 @@ export function CanvasView({ id, focused, onClose }: { id: string; focused: bool
           <h1 className="min-w-0 truncate text-[16px] font-semibold" translate="no">
             {note.name}
           </h1>
-          <button type="button" onClick={() => setAsText(false)} className="rounded-md px-2 py-1 font-medium text-accent-ink hover:bg-sheet-hover">
+          <button type="button" onClick={() => setAsText(false)} className="rounded-md px-2 py-1 font-medium text-accent-ink hover:bg-hover">
             Open as canvas
           </button>
         </div>
@@ -116,6 +116,10 @@ export function CanvasView({ id, focused, onClose }: { id: string; focused: bool
 
   return (
     <div ref={host} className="flex h-full min-h-0 flex-col">
+      {/* The board is the whole view; its name is in the tab and the breadcrumb. */}
+      <h1 className="sr-only" translate="no">
+        {canvasTitle(note.name)}
+      </h1>
       <CanvasBoard
         key={`${note.id}:${note.rev}`}
         noteId={note.id}

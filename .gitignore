@@ -53,8 +53,9 @@ next-env.d.ts
 # local browser-test artifacts
 .playwright-mcp/
 
-# design-taste working output (screenshots, inspector runs); the dealt direction sheets are kept
-.taste-skill/*/inspect/
-.taste-skill/inspect/
-.taste-skill/before/
-.taste-skill/after/
+# design-taste working output (screenshots, inspector runs); only the committed
+# workspace direction contract is kept
+.taste-skill/*
+!.taste-skill/app/
+.taste-skill/app/*
+!.taste-skill/app/direction.json

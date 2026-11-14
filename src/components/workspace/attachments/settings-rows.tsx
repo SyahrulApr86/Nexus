@@ -36,7 +36,7 @@ export function AttachmentSettingsRows({ Row }: { Row: ComponentType<RowProps> }
           <legend className="sr-only">Default location for new attachments</legend>
           <div className="flex flex-col gap-1">
             {LOCATIONS.map((l) => (
-              <label key={l.id} className="flex cursor-pointer items-start gap-3 rounded-lg px-2 py-1.5 hover:bg-sheet-hover">
+              <label key={l.id} className="flex cursor-pointer items-start gap-3 rounded-lg px-2 py-1.5 hover:bg-hover">
                 <input
                   type="radio"
                   name="attachment-location"
@@ -77,7 +77,7 @@ export function AttachmentSettingsRows({ Row }: { Row: ComponentType<RowProps> }
         </fieldset>
       </Row>
       <Row title="Show attachments" description="List images, PDFs, audio and video in the file explorer next to your notes.">
-        <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-sheet-hover">
+        <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-hover">
           <input
             type="checkbox"
             checked={settings.show}
