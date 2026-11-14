@@ -1730,3 +1730,33 @@
     margin-left: -3px;
   }
 }
+
+/* render: heading and block links land on their target with a short flash (reading view and
+   editor). Blue is the app's "you are here" colour; with reduced motion the tint shows, then goes,
+   without fading. */
+@layer components {
+  @keyframes fragment-flash {
+    from {
+      background-color: var(--accent-soft);
+    }
+    to {
+      background-color: transparent;
+    }
+  }
+  .reading .fragment-flash,
+  .cm-editor .cm-line.cm-fragment-flash {
+    border-radius: 2px;
+    animation: fragment-flash 1.6s var(--ease-out-quint);
+  }
+  .reading .fragment-flash:focus {
+    outline: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reading .fragment-flash,
+    .cm-editor .cm-line.cm-fragment-flash {
+      animation: none;
+      background-color: var(--accent-soft);
+    }
+  }
+}
+/* end render */

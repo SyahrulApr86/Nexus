@@ -6,6 +6,7 @@ import { toggleTask, toggleTaskAt } from "@/lib/markdown/tasks";
 import { hydrateEmbeds, type EmbedLoader } from "@/lib/markdown/embeds-client";
 import { renderMermaid } from "@/lib/markdown/mermaid-client";
 import { renderMath } from "@/lib/markdown/math-client";
+import { findFragment, onFragment, parseFragment, queueFragment, revealElement, takeFragment, type Fragment } from "@/lib/markdown/fragment-nav";
 import { api } from "./api";
 import type { AttachmentLookup } from "@/lib/markdown/attachments";
 import { useAttachmentLookup } from "./attachments/context";
@@ -152,6 +153,18 @@ export function Reader({
     };
   }, [html, noteId]);
 
+  // A heading or block link that opened this note: scroll to its target and flash it, now or
+  // when the next such link arrives while the note is already open.
+  useEffect(() => {
+    const show = () => {
+      const f = takeFragment(noteId);
+      const el = f && ref.current ? findFragment(ref.current, f) : null;
+      if (el) revealElement(el);
+    };
+    show();
+    return onFragment(show);
+  }, [html, noteId]);
+
   // Redraw diagrams in the new theme's colours.
   useEffect(() => {
     if (!themeKey || !ref.current) return;
@@ -166,9 +179,41 @@ export function Reader({
     return <p className="font-note text-[17px] text-faint">This note is empty. Switch to editing to start writing.</p>;
   }
 
+  /** In this note: scroll to the heading or block. False when it is not here. */
+  const revealHere = (f: Fragment) => {
+    const el = ref.current ? findFragment(ref.current, f) : null;
+    if (el) revealElement(el);
+    return !!el;
+  };
+
   const openNoteLink = (href: string, newTab: boolean) => {
-    const target = decodeURIComponent(href.slice(9).split("#")[0]);
-    if (target) onOpenLink(target, newTab);
+    const [rawTarget, ...rest] = href.slice(9).split("#");
+    const decode = (s: string) => {
+      try {
+        return decodeURIComponent(s);
+      } catch {
+        return s;
+      }
+    };
+    const target = decode(rawTarget).trim();
+    const fragment = parseFragment(decode(rest.join("#")));
+    if (!fragment) {
+      if (target) onOpenLink(target, newTab);
+      return;
+    }
+    // `[[#Heading]]` and `[[#^id]]` point into this note.
+    if (!target) {
+      revealHere(fragment);
+      return;
+    }
+    void api
+      .resolve(target)
+      .then((r) => {
+        if (r.id && r.id === noteId && !newTab && revealHere(fragment)) return;
+        if (r.id) queueFragment(r.id, fragment);
+        onOpenLink(target, newTab);
+      })
+      .catch(() => onOpenLink(target, newTab));
   };
 
   return (

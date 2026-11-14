@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useSyncExternalStore } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { Compartment, EditorState, RangeSetBuilder, type Extension } from "@codemirror/state";
 import {
   Decoration,
@@ -28,6 +28,14 @@ import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { tags as t } from "@lezer/highlight";
 import { frontmatterEnd, livePreview } from "./live-preview";
 import { isMac } from "./ui";
+/* render: heading and block links (follow, autocomplete, "Copy block link") */
+import { revealFragment } from "./live-preview";
+import { Menu, type MenuAnchor, type MenuItem } from "./ui";
+import { api } from "./api";
+import { blockTargetAt, extractBlockIds, newBlockId } from "@/lib/markdown/blocks";
+import { extractHeadings } from "@/lib/markdown/parse";
+import { onFragment, parseFragment, queueFragment, takeFragment } from "@/lib/markdown/fragment-nav";
+/* end render */
 /* attachments-ui: paste and drop uploads, image previews, attachment links */
 import { useAttachments } from "./attachments/context";
 import { attachmentUploads } from "./attachments/editor-uploads";
@@ -307,6 +315,10 @@ const linkDecorations = (exists: () => (target: string) => boolean) =>
       decorate: (add, from, to, m, view) => {
         if (inCode(view, from)) return;
         const target = m[1].split("|")[0].split("#")[0].trim();
+        /* render: the "#Heading" or "#^id" part travels with the link */
+        const hashAt = m[1].split("|")[0].indexOf("#");
+        const fragment = hashAt === -1 ? "" : m[1].split("|")[0].slice(hashAt + 1).trim();
+        /* end render */
         const ok = !target || exists()(target);
         const open = m[0].startsWith("!") ? 3 : 2;
         const pipe = m[1].indexOf("|");
@@ -322,6 +334,7 @@ const linkDecorations = (exists: () => (target: string) => boolean) =>
               class: ok ? "cm-wikilink" : "cm-wikilink cm-wikilink-ghost",
               attributes: {
                 "data-target": target,
+                "data-fragment": fragment, // render
                 role: "link",
                 title: ok
                   ? `Open ${target}: ${keyLabel("Mod+Click")}, or ${keyLabel("Alt+Enter")} at the caret`
@@ -393,6 +406,80 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
   }, [att?.lookup]);
   /* end attachments-ui */
 
+  /* render: heading and block links */
+  const [blockMenu, setBlockMenu] = useState<{ anchor: MenuAnchor; items: MenuItem[] } | null>(null);
+  const lastPointer = useRef({ type: "mouse", button: 0, at: 0 });
+  /** Follow a link; a "#Heading" or "#^id" fragment scrolls the opened note (or this one) to it. */
+  const followRef = useRef<(target: string, newTab: boolean, fragment?: string) => void>(() => {});
+  /** The caret's block or heading as a link, copied; a block without an id gets one first. */
+  const copyBlockLinkRef = useRef<(view: EditorView, pos: number) => void>(() => {});
+  useEffect(() => {
+    followRef.current = (target, newTab, fragment) => {
+      const f = parseFragment(fragment);
+      const view = viewRef.current;
+      if (!f) {
+        if (target) cb.current.onOpenLink(target, newTab);
+        return;
+      }
+      if (!target) {
+        if (view) revealFragment(view, f);
+        return;
+      }
+      void api
+        .resolve(target)
+        .then((r) => {
+          if (r.id && r.id === noteId && !newTab && view && revealFragment(view, f)) return;
+          if (r.id) queueFragment(r.id, f);
+          cb.current.onOpenLink(target, newTab);
+        })
+        .catch(() => cb.current.onOpenLink(target, newTab));
+    };
+    copyBlockLinkRef.current = (view, pos) => {
+      const notify = (message: string, error?: boolean) => attRef.current.att?.notify(message, error);
+      const doc = view.state.doc.toString();
+      const t = blockTargetAt(doc, view.state.doc.lineAt(pos).number - 1);
+      if (t.kind === "none") return;
+      const name = (notePath ? notePath.slice(notePath.lastIndexOf("/") + 1) : label.replace(/, note text$/, "")).replace(/\.md$/i, "");
+      let link: string;
+      if (t.kind === "heading") link = `[[${name}#${t.text}]]`;
+      else {
+        const id = t.id ?? newBlockId(doc);
+        if (!t.id) {
+          const line = view.state.doc.line(t.line + 1);
+          view.dispatch({
+            changes: { from: line.to, insert: `${/\s$/.test(line.text) ? "" : " "}^${id}` },
+            userEvent: "input.blockid",
+          });
+        }
+        link = `[[${name}#^${id}]]`;
+      }
+      navigator.clipboard.writeText(link).then(
+        () => notify(t.kind === "heading" ? "Heading link copied" : "Block link copied"),
+        () => notify("Couldn’t copy the link. Check the browser’s clipboard permission.", true),
+      );
+    };
+  });
+  // A heading or block link that opened this note: scroll to it once the view exists. Deferred a
+  // tick, so a development double mount reveals on the view that stays.
+  useEffect(() => {
+    let timer = 0;
+    const show = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const view = viewRef.current;
+        const f = view ? takeFragment(noteId) : null;
+        if (view && f) revealFragment(view, f);
+      }, 0);
+    };
+    show();
+    const off = onFragment(show);
+    return () => {
+      off();
+      window.clearTimeout(timer);
+    };
+  }, [noteId]);
+  /* end render */
+
   useEffect(() => {
     if (!host.current) return;
 
@@ -410,6 +497,44 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
         validFor: /^[^\]\n|#]*$/,
       };
     };
+
+    /* render: `[[Note#` offers that note's headings, `[[Note#^` its block ids (`[[#` this note's) */
+    const notes = new Map<string, { at: number; text: Promise<string | null> }>();
+    const noteText = (target: string) => {
+      const key = target.toLowerCase();
+      const hit = notes.get(key);
+      if (hit && Date.now() - hit.at < 15_000) return hit.text;
+      const text = api
+        .resolve(target)
+        .then(async (r) => (r.id ? (await api.get(r.id)).content : null))
+        .catch(() => null);
+      notes.set(key, { at: Date.now(), text });
+      return text;
+    };
+    const fragmentCompletion = async (ctx: CompletionContext) => {
+      const m = ctx.matchBefore(/\[\[[^\]\n|#]*#\^?[^\]\n|#^]*/);
+      if (!m) return null;
+      const inner = m.text.slice(2);
+      const hash = inner.indexOf("#");
+      const target = inner.slice(0, hash).trim();
+      const block = inner[hash + 1] === "^";
+      const content = target ? await noteText(target) : ctx.state.doc.toString();
+      if (content === null || ctx.aborted) return null;
+      const close = ctx.state.sliceDoc(ctx.pos, ctx.pos + 2) === "]]" ? "" : "]]";
+      return {
+        from: m.from + 2 + hash + 1 + (block ? 1 : 0),
+        options: block
+          ? extractBlockIds(content).map((b) => ({ label: b.id, detail: b.text, type: "text", apply: `${b.id}${close}` }))
+          : extractHeadings(content).map((h) => ({
+              label: h.text,
+              detail: `Heading ${h.level}`,
+              type: "text",
+              apply: `${h.text}${close}`,
+            })),
+        validFor: /^[^\]\n|#^]*$/,
+      };
+    };
+    /* end render */
 
     const tagCompletion = (ctx: CompletionContext) => {
       const m = ctx.matchBefore(/(^|[\s(])#[\p{L}\p{N}_\-/]*/u);
@@ -440,13 +565,20 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
           placeholder("Start writing. Type [[ to link a note."),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
           syntaxHighlighting(highlight),
-          autocompletion({ override: [linkCompletion, tagCompletion], icons: false }),
+          autocompletion({ override: [linkCompletion, fragmentCompletion /* render */, tagCompletion], icons: false }),
           linkDecorations(() => cb.current.exists),
           tagDecorations,
           highlightDecorations,
           codeBlocks,
           frontmatterBand,
-          livePreview({ openLink: (target, newTab) => cb.current.onOpenLink(target, newTab) }),
+          /* render: links carry their fragment; rendered callouts resolve notes, tags and images */
+          livePreview({
+            openLink: (target, newTab, fragment) => followRef.current(target, newTab, fragment),
+            exists: () => cb.current.exists,
+            openTag: (tag) => cb.current.onOpenTag(tag),
+            attachments: () => attRef.current.att?.lookup,
+          }),
+          /* end render */
           /* attachments-ui */
           imageEmbeds(() => attRef.current.att?.lookup ?? (() => null)),
           attachmentUploads(() => {
@@ -467,11 +599,13 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
               if (!(e.ctrlKey || e.metaKey)) return false;
               const el = e.target as HTMLElement;
               const link = el.closest<HTMLElement>("[data-target]");
-              if (link?.dataset.target) {
+              /* render: follow with the fragment; `[[#Heading]]` has no target */
+              if (link && (link.dataset.target || link.dataset.fragment)) {
                 e.preventDefault();
-                cb.current.onOpenLink(link.dataset.target, e.shiftKey);
+                followRef.current(link.dataset.target ?? "", e.shiftKey, link.dataset.fragment || undefined);
                 return true;
               }
+              /* end render */
               const tag = el.closest<HTMLElement>("[data-tag]");
               if (tag?.dataset.tag) {
                 e.preventDefault();
@@ -481,6 +615,66 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
               return false;
             },
           }),
+          /* render: the editor's context menu (right click, the Menu key or Shift+F10). Shift+right
+             click and touch keep the browser's own menu (spelling, text selection handles). */
+          EditorView.domEventHandlers({
+            pointerdown(e) {
+              lastPointer.current = { type: e.pointerType, button: e.button, at: Date.now() };
+              return false;
+            },
+            contextmenu(e, view) {
+              const p = lastPointer.current;
+              const byPointer = Date.now() - p.at < 1000 && p.button === 2;
+              if (e.shiftKey || (Date.now() - p.at < 1000 && p.type === "touch")) return false;
+              let pos = view.state.selection.main.head;
+              if (byPointer) {
+                const at = view.posAtCoords({ x: e.clientX, y: e.clientY });
+                const sel = view.state.selection.main;
+                if (at !== null && !(at >= sel.from && at <= sel.to)) {
+                  view.dispatch({ selection: { anchor: at } });
+                  pos = at;
+                }
+              }
+              const caret = view.coordsAtPos(pos);
+              const anchor: MenuAnchor = byPointer ? { x: e.clientX, y: e.clientY } : { x: caret?.left ?? 0, y: caret?.bottom ?? 0 };
+              const sel = view.state.selection.main;
+              const selected = view.state.sliceDoc(sel.from, sel.to);
+              const target = blockTargetAt(view.state.doc.toString(), view.state.doc.lineAt(pos).number - 1);
+              const notify = (message: string, error?: boolean) => attRef.current.att?.notify(message, error);
+              const copy = (cut: boolean) =>
+                navigator.clipboard.writeText(selected).then(
+                  () => {
+                    if (cut) view.dispatch({ changes: { from: sel.from, to: sel.to }, userEvent: "delete.cut" });
+                  },
+                  () => notify(`Couldn’t ${cut ? "cut" : "copy"}. Use ${isMac() ? "⌘" : "Ctrl+"}${cut ? "X" : "C"} instead.`, true),
+                );
+              e.preventDefault();
+              setBlockMenu({
+                anchor,
+                items: [
+                  { label: "Cut", shortcut: "Mod+X", disabled: !selected, onSelect: () => void copy(true) },
+                  { label: "Copy", shortcut: "Mod+C", disabled: !selected, onSelect: () => void copy(false) },
+                  {
+                    label: "Paste",
+                    shortcut: "Mod+V",
+                    onSelect: () =>
+                      void navigator.clipboard.readText().then(
+                        (text) => view.dispatch(view.state.replaceSelection(text), { userEvent: "input.paste", scrollIntoView: true }),
+                        () => notify(`Couldn’t paste here. Use ${isMac() ? "⌘V" : "Ctrl+V"} instead.`, true),
+                      ),
+                  },
+                  "separator",
+                  {
+                    label: target.kind === "heading" ? "Copy link to heading" : "Copy block link",
+                    disabled: target.kind === "none",
+                    onSelect: () => copyBlockLinkRef.current(view, pos),
+                  },
+                ],
+              });
+              return true;
+            },
+          }),
+          /* end render */
           EditorView.contentAttributes.of({
             spellcheck: "true",
             autocapitalize: "sentences",
@@ -553,6 +747,11 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
   return (
     <>
       <div ref={host} />
+      {/* render */}
+      {blockMenu && (
+        <Menu anchor={blockMenu.anchor} items={blockMenu.items} label="Editor actions" onClose={() => setBlockMenu(null)} />
+      )}
+      {/* end render */}
       <p id={hintId} className="sr-only">
         Tab indents. To leave the editor, press Escape, then Tab. {mac ? "Shift+Option+M" : "Ctrl+M"} switches Tab to
         moving focus. {mac ? "Option+Return" : "Alt+Enter"} opens the link at the caret.
