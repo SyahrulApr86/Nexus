@@ -47,7 +47,7 @@ import { TemplatePickerHost, templateCommands } from "./templates-picker";
 import { newCanvas } from "./canvas/create"; // canvas track
 import { canvasTitle, isCanvasPath } from "@/lib/canvas"; // canvas track
 import { SettingsDialog } from "./settings";
-import { IconButton, Toasts } from "./ui";
+import { IconButton, Shortcut, Toasts } from "./ui";
 import { splitFrontmatter } from "@/lib/markdown/parse";
 /* vaults-ui */
 import { VaultSwitcher, VaultsHost, openCreateVault, openVaults } from "./vaults";
@@ -68,67 +68,79 @@ export function Workspace({ user, initialPrefs }: { user: User; initialPrefs?: I
 }
 
 /* ------------------------------------------------------------------ */
-/* Brand mark: the product name written as a wikilink                  */
+/* Brand mark: a wikilink's double brackets around one node            */
 /* ------------------------------------------------------------------ */
 
-function Wordmark() {
+/** Nexus's mark, drawn for it: [[ ]] (a wikilink) holding a single node. */
+export function BrandMark({ className = "" }: { className?: string }) {
   return (
-    <span className="select-none text-[15px] font-semibold tracking-[-0.01em]" translate="no">
-      <span aria-hidden="true" className="text-accent-ink">
-        [[
-      </span>
-      Nexus
-      <span aria-hidden="true" className="text-accent-ink">
-        ]]
-      </span>
-    </span>
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className} fill="none">
+      <path d="M7.5 4.5H4.5v15h3M10.5 7.5H8.5v9h2M16.5 4.5h3v15h-3M13.5 7.5h2v9h-2" stroke="var(--accent-line)" strokeWidth="1.6" strokeLinecap="square" />
+      <circle cx="12" cy="12" r="1.9" fill="currentColor" />
+    </svg>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Ribbon                                                              */
+/* Rail: the mark, five destinations, utilities at the foot            */
 /* ------------------------------------------------------------------ */
+
+function RailButton({ on, ...props }: { on?: boolean } & React.ComponentProps<typeof IconButton>) {
+  // The one selection mark: a 1px accent line on the rail's right edge, level with the icon.
+  return (
+    <span className="relative flex w-full justify-center">
+      <IconButton {...props} className={`size-9 ${on ? "text-fg!" : ""}`} />
+      {on && <span aria-hidden="true" className="absolute inset-y-2 right-0 w-px bg-accent-line" />}
+    </span>
+  );
+}
 
 function Ribbon({ inert }: { inert: boolean }) {
   const a = useWorkspaceActions();
-  const leftOpen = useWorkspaceSelector((w) => w.prefs.leftOpen);
+  const { leftOpen, graph, initial } = useWorkspaceSelector(
+    (w) => ({ leftOpen: w.prefs.leftOpen, graph: w.focusView.type === "graph", initial: (w.user.name.trim()[0] ?? "?").toUpperCase() }),
+    shallowEqual,
+  );
   return (
-    <nav aria-label="Ribbon" inert={inert} className="hidden w-12 shrink-0 flex-col items-center pb-2 md:flex">
-      {/* The mark stays on screen when the left sidebar (which carries the full wordmark) is hidden. */}
-      <div className="flex h-10 items-center">
-        {!leftOpen && (
-          <span translate="no" className="select-none text-[15px] font-semibold tracking-[-0.01em]">
-            <span aria-hidden="true" className="text-accent-ink">
-              [[]]
-            </span>
-            <span className="sr-only">Nexus</span>
-          </span>
-        )}
+    <nav aria-label="Ribbon" inert={inert} className="hidden w-[52px] shrink-0 flex-col items-center pb-2 md:flex">
+      <div className="flex h-12 w-full items-center justify-center">
+        <BrandMark className="size-[22px] text-fg" />
+        <span className="sr-only">Nexus</span>
       </div>
-      <div className="mt-2 flex flex-col items-center gap-1">
-        <IconButton label={leftOpen ? "Hide left sidebar" : "Show left sidebar"} onClick={() => a.showLeft()}>
+      <div className="mt-1 flex w-full flex-col items-center gap-1">
+        <RailButton on={leftOpen} label={leftOpen ? "Hide left sidebar" : "Show left sidebar"} onClick={() => a.showLeft()}>
           <PanelLeft />
-        </IconButton>
-        <IconButton label="Open quick switcher" shortcut="Mod+O" onClick={() => a.setPalette("notes")}>
+        </RailButton>
+        <RailButton label="Open quick switcher" shortcut="Mod+O" onClick={() => a.setPalette("notes")}>
           <FileSearch />
-        </IconButton>
-        <IconButton label="Open graph view" shortcut="Mod+G" onClick={() => a.openView({ type: "graph" }, "tab")}>
+        </RailButton>
+        <RailButton on={graph} label="Open graph view" shortcut="Mod+G" onClick={() => a.openView({ type: "graph" }, "tab")}>
           <GitFork />
-        </IconButton>
-        <IconButton label="Open today’s daily note" shortcut="Mod+D" onClick={() => a.dailyNote()}>
+        </RailButton>
+        <RailButton label="Open today’s daily note" shortcut="Mod+D" onClick={() => a.dailyNote()}>
           <CalendarDays />
-        </IconButton>
-        <IconButton label="Open command palette" shortcut="Mod+P" onClick={() => a.setPalette("commands")}>
+        </RailButton>
+        <RailButton label="Open command palette" shortcut="Mod+P" onClick={() => a.setPalette("commands")}>
           <SquareTerminal />
-        </IconButton>
+        </RailButton>
       </div>
-      <div className="mt-auto flex flex-col items-center gap-1 border-t border-border pt-2">
-        <IconButton label="Keyboard shortcuts" onClick={() => a.setSettingsOpen("hotkeys")}>
+      <div className="mt-auto flex w-full flex-col items-center gap-1">
+        <span aria-hidden="true" className="mb-1 h-px w-5 bg-border" />
+        <RailButton label="Keyboard shortcuts" onClick={() => a.setSettingsOpen("hotkeys")}>
           <Keyboard />
-        </IconButton>
-        <IconButton label="Settings" shortcut="Mod+," onClick={() => a.setSettingsOpen("general")}>
+        </RailButton>
+        <RailButton label="Settings" shortcut="Mod+," onClick={() => a.setSettingsOpen("general")}>
           <Settings />
-        </IconButton>
+        </RailButton>
+        <button
+          type="button"
+          aria-label="Account settings"
+          title="Account"
+          onClick={() => a.setSettingsOpen("account")}
+          className="mt-1 grid size-7 place-items-center rounded-full border border-control text-[12px] font-semibold text-fg transition-colors hover:border-fg"
+        >
+          <span aria-hidden="true">{initial}</span>
+        </button>
       </div>
     </nav>
   );
@@ -145,6 +157,7 @@ function ViewTabs<T extends string>({
   value,
   onSelect,
   manual,
+  text,
   className,
 }: {
   label: string;
@@ -154,6 +167,8 @@ function ViewTabs<T extends string>({
   onSelect: (id: T) => void;
   /** Arrow keys only move focus; Enter or Space selects (for views that take focus when shown). */
   manual?: boolean;
+  /** Words instead of icons. */
+  text?: boolean;
   className: string;
 }) {
   const onKeyDown = (e: ReactKeyboardEvent, i: number) => {
@@ -174,23 +189,42 @@ function ViewTabs<T extends string>({
   };
   return (
     <div role="tablist" aria-label={label} className={className}>
-      {views.map(({ id, label: name, Icon }, i) => (
-        // IconButton: themed tooltip on hover and keyboard focus, 44px on touch.
-        <IconButton
-          key={id}
-          id={`${prefix}-tab-${id}`}
-          role="tab"
-          aria-selected={value === id}
-          aria-controls={`${prefix}-panel`}
-          tabIndex={value === id ? 0 : -1}
-          label={name}
-          onClick={() => onSelect(id)}
-          onKeyDown={(e) => onKeyDown(e, i)}
-          className={value === id ? "bg-active text-fg!" : undefined}
-        >
-          <Icon />
-        </IconButton>
-      ))}
+      {views.map(({ id, label: name, Icon }, i) =>
+        text ? (
+          <button
+            key={id}
+            id={`${prefix}-tab-${id}`}
+            type="button"
+            role="tab"
+            aria-selected={value === id}
+            aria-controls={`${prefix}-panel`}
+            tabIndex={value === id ? 0 : -1}
+            onClick={() => onSelect(id)}
+            onKeyDown={(e) => onKeyDown(e, i)}
+            className="sel group flex h-full items-center rounded-md px-1 text-[13px] font-medium text-faint outline-offset-[-4px] transition-colors hover:text-fg aria-selected:text-fg pointer-coarse:px-2"
+          >
+            <span className="sel-mark">{name}</span>
+          </button>
+        ) : (
+          // IconButton: themed tooltip on hover and keyboard focus, 44px on touch.
+          <span key={id} className="relative flex h-full items-center">
+            <IconButton
+              id={`${prefix}-tab-${id}`}
+              role="tab"
+              aria-selected={value === id}
+              aria-controls={`${prefix}-panel`}
+              tabIndex={value === id ? 0 : -1}
+              label={name}
+              onClick={() => onSelect(id)}
+              onKeyDown={(e) => onKeyDown(e, i)}
+              className={value === id ? "text-fg!" : undefined}
+            >
+              <Icon />
+            </IconButton>
+            {value === id && <span aria-hidden="true" className="absolute inset-x-2 bottom-0 h-px bg-accent-line" />}
+          </span>
+        ),
+      )}
     </div>
   );
 }
@@ -222,28 +256,41 @@ function LeftSidebar() {
       tabIndex={-1}
       inert={!!drawer && !open}
       className={`fixed inset-y-0 left-0 z-40 flex w-[85vw] max-w-80 flex-col border-r border-mist bg-frame shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)]
-        max-md:pl-[env(safe-area-inset-left)] md:static md:z-auto md:w-[260px] md:max-w-none md:shrink-0 md:translate-x-0 md:border-r-0 md:shadow-none md:visible
+        max-md:pl-[env(safe-area-inset-left)] md:static md:z-auto md:w-[264px] md:max-w-none md:shrink-0 md:translate-x-0 md:border-r-0 md:shadow-none md:visible
         ${open ? "visible translate-x-0" : "invisible -translate-x-full"}
         ${leftOpen ? "md:flex" : "md:hidden"}`}
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="flex h-10 shrink-0 items-center justify-between pl-3 pr-1 pointer-coarse:h-12">
-        <Wordmark />
-        {/* Manual activation: the search view takes focus when it appears. */}
-        <ViewTabs
-          label="Left sidebar views"
-          prefix="left"
-          views={LEFT_VIEWS}
-          value={view}
-          onSelect={actions.setLeftView}
-          manual
-          className="flex items-center gap-0.5"
-        />
+      {/* The scope first: which vault this is, and the way to another one. */}
+      <VaultSwitcher />
+      <div className="px-3 pb-2">
+        <button
+          type="button"
+          onClick={() => actions.setPalette("notes")}
+          aria-keyshortcuts="Control+O Meta+O"
+          className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-sheet pl-2.5 pr-1.5 text-left text-[13px] text-faint transition-colors hover:border-control hover:text-muted pointer-coarse:h-11"
+        >
+          <Search aria-hidden="true" className="size-4 shrink-0 stroke-[1.5]" />
+          <span className="flex-1 truncate">Find a note</span>
+          <span className="pointer-coarse:hidden">
+            <Shortcut keys="Mod+O" />
+          </span>
+        </button>
       </div>
+      {/* Manual activation: the search view takes focus when it appears. */}
+      <ViewTabs
+        label="Left sidebar views"
+        prefix="left"
+        views={LEFT_VIEWS}
+        value={view}
+        onSelect={actions.setLeftView}
+        manual
+        text
+        className="mx-3 flex h-9 shrink-0 items-stretch gap-4 border-b border-border [--sel-offset:-11px] pointer-coarse:h-11"
+      />
       <div id="left-panel" role="tabpanel" aria-labelledby={`left-tab-${view}`} className="min-h-0 flex-1">
         {view === "files" ? <FileExplorer /> : <SearchView />}
       </div>
-      <VaultSwitcher />
     </aside>
   );
 }
@@ -278,8 +325,8 @@ function RightSidebar() {
       aria-modal={open || undefined}
       tabIndex={-1}
       inert={!!drawer && !open}
-      className={`fixed inset-y-0 right-0 z-40 flex w-[85vw] max-w-80 flex-col border-l border-mist bg-frame shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)] max-lg:pr-[env(safe-area-inset-right)]
-        lg:static lg:z-auto lg:w-[280px] lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:border-l-0 lg:shadow-none lg:visible
+      className={`fixed inset-y-0 right-0 z-40 flex w-[85vw] max-w-80 flex-col border-l border-mist bg-raised shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)] max-lg:pr-[env(safe-area-inset-right)]
+        lg:static lg:z-auto lg:w-[288px] lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:border-border lg:bg-sheet lg:shadow-none lg:visible
         ${open ? "visible translate-x-0" : "invisible translate-x-full"}
         ${rightOpen ? "lg:flex" : "lg:hidden"}`}
       style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
@@ -290,16 +337,16 @@ function RightSidebar() {
         views={RIGHT_VIEWS}
         value={view}
         onSelect={actions.setRightView}
-        className="flex h-10 shrink-0 items-center gap-0.5 px-2 pointer-coarse:h-12"
+        className="flex h-10 shrink-0 items-stretch gap-0.5 border-b border-border px-2 pointer-coarse:h-12"
       />
       <div id="right-panel" role="tabpanel" aria-labelledby={`right-tab-${view}`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-6">
-        {/* At most two lines: a long note name wraps once, then ends with an ellipsis; the full text is in the tooltip. */}
-        <h2 className="line-clamp-2 px-2 pb-0 pt-3 text-[13px] text-faint [overflow-wrap:anywhere]" title={heading}>
-          {current.label}
+        {/* The view's name, then the note it is about; a long name wraps once, then ends with an ellipsis. */}
+        <h2 className="px-2 pb-1 pt-4" title={heading}>
+          <span className="block text-[15px] font-semibold leading-5 tracking-[-0.01em] text-fg">{current.label}</span>
           {view !== "tags" && noteName && (
-            <span className="text-muted">
-              {" "}
-              for <span translate="no">{noteName}</span>
+            <span className="mt-0.5 line-clamp-2 block text-[12px] font-normal leading-4 text-faint [overflow-wrap:anywhere]">
+              <span className="sr-only">for </span>
+              <span translate="no">{noteName}</span>
             </span>
           )}
         </h2>
@@ -363,20 +410,20 @@ function NoteCounts() {
   );
   const words = useMemo(() => countWords(content), [content]);
   // A canvas is JSON: word and character counts of the raw file would mean nothing.
-  if (canvas)
-    return (
-      <button type="button" onClick={() => showRight("backlinks")} className="tabular -mx-1 rounded px-1 hover:text-fg">
-        {nf.format(backlinks)} {backlinks === 1 ? "backlink" : "backlinks"}
-      </button>
-    );
+  const link = (
+    <button type="button" onClick={() => showRight("backlinks")} className="tabular -mx-1 rounded px-1 transition-colors hover:text-fg">
+      {nf.format(backlinks)} {backlinks === 1 ? "backlink" : "backlinks"}
+    </button>
+  );
+  if (canvas) return link;
   return (
     <>
-      <button type="button" onClick={() => showRight("backlinks")} className="tabular -mx-1 rounded px-1 hover:text-fg">
-        {nf.format(backlinks)} {backlinks === 1 ? "backlink" : "backlinks"}
-      </button>
+      {link}
+      <span aria-hidden="true" className="h-3 w-px bg-border" />
       <span className="tabular">
         {nf.format(words)} {words === 1 ? "word" : "words"}
       </span>
+      <span aria-hidden="true" className="h-3 w-px bg-border" />
       <span className="tabular">
         {nf.format(content.length)} {content.length === 1 ? "character" : "characters"}
       </span>
@@ -385,18 +432,20 @@ function NoteCounts() {
 }
 
 function StatusBar({ inert }: { inert: boolean }) {
-  const { hasNote, idle } = useWorkspaceSelector((w) => ({ hasNote: !!w.activeNote, idle: w.save === "saved" }), shallowEqual);
+  const { hasNote, idle, save } = useWorkspaceSelector((w) => ({ hasNote: !!w.activeNote, idle: w.save === "saved", save: w.save }), shallowEqual);
+  const bad = save === "error" || save === "signedOut";
   return (
     <footer
       aria-label="Status bar"
       inert={inert}
-      className="box-content hidden h-7 shrink-0 items-center justify-end gap-4 px-4 text-[12px] text-faint md:flex"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      className="hidden h-7 shrink-0 items-center gap-3 border-t border-border px-3 text-[12px] text-faint md:flex"
     >
-      {/* First, so its changing width never moves the counters. Errors are announced by a toast.
+      {/* The save state on the left, a dot before it: blue at rest, red when something is wrong.
           The idle "Saved" waits for the note: while it loads there is nothing to have saved. */}
+      {(hasNote || !idle) && <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${bad ? "bg-negative" : idle ? "bg-accent" : "bg-control"}`} />}
       {/* offline track */}
       <OfflineLabel>{(hasNote || !idle) && <SaveLabel />}</OfflineLabel>
+      <span className="flex-1" />
       {hasNote && <NoteCounts />}
     </footer>
   );
@@ -431,7 +480,7 @@ function PhoneTopBar({ inert }: { inert: boolean }) {
       >
         <MenuIcon />
       </IconButton>
-      <p className="flex min-w-0 items-center justify-center gap-1.5 font-medium">
+      <p className="flex min-w-0 items-center justify-center gap-1.5 text-[15px] font-semibold tracking-[-0.01em]">
         <span className="truncate">
           {v.type === "graph"
             ? "Graph view"
@@ -486,8 +535,8 @@ function PhoneBarButton({
     <button
       type="button"
       aria-label={label}
-      className={`flex h-14 min-w-14 flex-1 flex-col items-center justify-center gap-1 rounded-md text-[12px] leading-none transition-colors active:bg-hover disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-5 [&_svg]:stroke-[1.5] ${
-        primary ? "font-medium text-accent-ink" : "text-faint"
+      className={`flex h-14 min-w-14 flex-1 flex-col items-center justify-center gap-1 rounded-md text-[12px] font-medium leading-none transition-colors active:bg-hover disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-5 [&_svg]:stroke-[1.5] ${
+        primary ? "text-accent-ink" : "text-faint"
       }`}
       {...props}
     >
@@ -592,7 +641,7 @@ function Shell() {
       { id: "tags", label: "Show tags", run: () => a.showRight("tags") },
       { id: "left", label: "Toggle left sidebar", run: () => a.showLeft() },
       { id: "right", label: "Toggle right sidebar", run: () => a.showRight() },
-      { id: "import", label: "Import notes", run: () => a.setSettingsOpen("general") },
+      { id: "import", label: "Import notes", run: () => a.setSettingsOpen("vault") },
       /* vaults-ui */
       { id: "export", label: "Export vault as .zip", run: () => void exportActiveVault(a.notify) },
       { id: "vault-switch", label: "Switch vault…", run: openVaults },
@@ -717,14 +766,24 @@ function Shell() {
       <div className="flex min-h-0 flex-1">
         <Ribbon inert={covered} />
         <LeftSidebar />
-        <main id="workbench" tabIndex={-1} inert={covered} className="flex min-w-0 flex-1 gap-2 outline-none">
-          {w.layout.groups.map((g, gi) => (
-            <TabGroup key={g.key} gi={gi} />
-          ))}
-        </main>
-        <RightSidebar />
+        {/* The work sits on one inset sheet: panes, the right sidebar and the status bar, split by hairlines. */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-sheet md:my-2 md:mr-2 md:rounded-lg md:border md:border-border">
+          <div className="flex min-h-0 flex-1">
+            <main
+              id="workbench"
+              tabIndex={-1}
+              inert={covered}
+              className="flex min-w-0 flex-1 outline-none md:[&>section+section]:border-l md:[&>section+section]:border-border"
+            >
+              {w.layout.groups.map((g, gi) => (
+                <TabGroup key={g.key} gi={gi} />
+              ))}
+            </main>
+            <RightSidebar />
+          </div>
+          <StatusBar inert={covered} />
+        </div>
       </div>
-      <StatusBar inert={covered} />
       <PhoneBottomBar inert={covered} />
 
       {/* Always mounted so it fades with the drawer instead of popping. */}

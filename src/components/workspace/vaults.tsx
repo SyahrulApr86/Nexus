@@ -118,14 +118,14 @@ export function VaultSwitcher() {
     { label: "Create vault…", onSelect: openCreateVault },
     "separator",
     { label: "Settings", shortcut: "Mod+,", onSelect: () => actions.setSettingsOpen("general") },
-    { label: "Import notes…", onSelect: () => actions.setSettingsOpen("general") },
+    { label: "Import notes…", onSelect: () => actions.setSettingsOpen("vault") },
     { label: "Export vault as .zip", onSelect: () => void exportActiveVault(actions.notify) },
     "separator",
     { label: "Sign out", onSelect: actions.logout },
   ];
 
   return (
-    <div className="shrink-0 border-t border-rule px-2 pb-2 pt-2">
+    <div className="flex h-12 shrink-0 items-center px-2 pointer-coarse:h-14">
       <button
         type="button"
         aria-haspopup="menu"
@@ -135,11 +135,18 @@ export function VaultSwitcher() {
           void reload();
           m.openBelow(e.currentTarget);
         }}
-        className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-hover pointer-coarse:h-11"
+        className="flex h-9 w-full items-center gap-2.5 rounded-md px-1.5 text-left transition-colors hover:bg-hover pointer-coarse:h-11"
       >
+        {/* The vault's initial: the scope, set apart from Nexus's own mark on the rail. */}
+        {/* Drawn from an attribute, so the letter is not read as part of the button's label. */}
+        <span
+          aria-hidden="true"
+          data-initial={name ? name.trim().charAt(0).toUpperCase() : ""}
+          className="grid size-6 shrink-0 place-items-center rounded-[4px] border border-control text-[12px] font-semibold leading-none text-fg before:content-[attr(data-initial)]"
+        />
         <span className="min-w-0 flex-1">
           {name ? (
-            <span className="block truncate font-medium" translate="no">
+            <span className="block truncate text-[14px] font-semibold tracking-[-0.01em]" translate="no">
               {name}
             </span>
           ) : (
@@ -227,7 +234,7 @@ function VaultsDialog({ onClose, onCreate }: { onClose: () => void; onCreate: ()
   return (
     <>
       <Modal label="Vaults" onClose={onClose} className="max-w-lg" placement="top">
-        <div className="rounded-lg border border-mist bg-sheet p-5 shadow-[var(--shadow-float)]">
+        <div className="float-panel p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h2 id={titleId} className="text-[16px] font-medium leading-6">
@@ -264,7 +271,7 @@ function VaultsDialog({ onClose, onCreate }: { onClose: () => void; onCreate: ()
                   const isCurrent = v.id === current?.id;
                   const only = list.length < 2;
                   return (
-                    <li key={v.id} className="group flex items-center gap-1 rounded-lg hover:bg-sheet-hover">
+                    <li key={v.id} className="group flex items-center gap-1 rounded-lg hover:bg-hover">
                       <button
                         type="button"
                         aria-current={isCurrent ? "true" : undefined}
@@ -328,7 +335,7 @@ function VaultsDialog({ onClose, onCreate }: { onClose: () => void; onCreate: ()
               type="button"
               data-autofocus
               onClick={onClose}
-              className="h-9 rounded-lg border border-control px-4 text-[14px] font-medium transition-colors hover:bg-sheet-hover"
+              className="h-9 rounded-lg border border-control px-4 text-[14px] font-medium transition-colors hover:bg-hover"
             >
               Close
             </button>
@@ -414,7 +421,7 @@ function DeleteVaultDialog({
           e.preventDefault();
           void submit();
         }}
-        className="rounded-lg border border-mist bg-sheet p-5 shadow-[var(--shadow-float)]"
+        className="float-panel p-6"
       >
         <h2 className="text-[16px] font-medium leading-6 text-balance wrap-break-word">Delete “{vault.name}”?</h2>
         <p id={bodyId} className="mt-2 text-[14px] leading-5 text-muted">
@@ -452,7 +459,7 @@ function DeleteVaultDialog({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="h-9 rounded-lg border border-control px-4 text-[14px] font-medium transition-colors hover:bg-sheet-hover disabled:opacity-60"
+            className="h-9 rounded-lg border border-control px-4 text-[14px] font-medium transition-colors hover:bg-hover disabled:opacity-60"
           >
             Cancel
           </button>
