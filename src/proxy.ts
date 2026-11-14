@@ -43,15 +43,14 @@ const GONE_HTML = `<!doctype html>
 <title>Link not available</title>
 <style>
 :root{color-scheme:dark;--bg:#02070a;--panel:#0b131a;--fg:#e8eef2;--muted:#a9b5c0;--border:#1f2b36;--blue:#0297de}
-@media (prefers-color-scheme:light){:root{color-scheme:light;--bg:#fff;--panel:#f2f4f7;--fg:#02070a;--muted:#4d5562;--border:#d3d8e0}}
 *{box-sizing:border-box}
 body{margin:0;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font-family:"Hanken Grotesk",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-header{display:flex;align-items:center;min-height:56px;padding:0 16px;border-bottom:1px solid var(--border);font-size:18px;font-weight:650;letter-spacing:-.03em}
+header{display:flex;align-items:center;min-height:56px;padding:0 16px;border-bottom:1px solid var(--border);font-size:18px;font-weight:650;letter-spacing:-.03em} /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
 header span{color:var(--blue);font-weight:400}
 main{flex:1;width:100%;max-width:calc(68ch + 32px);margin:0 auto;padding:clamp(48px,9vw,120px) 16px}
 @media (min-width:768px){header{padding:0 40px}main{max-width:calc(68ch + 80px);padding-inline:40px}}
-h1{margin:0;font-family:Literata,Georgia,serif;font-size:clamp(36px,5.2vw,60px);line-height:1.05;letter-spacing:-.025em;font-weight:600;text-wrap:balance}
-p{margin:24px 0 0;max-width:52ch;font-size:18px;line-height:1.55;color:var(--muted)}
+h1{margin:0;font-family:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:clamp(36px,5.2vw,60px);line-height:1.05;letter-spacing:-.04em;font-weight:500;text-wrap:balance}
+p{margin:24px 0 0;max-width:52ch;font-size:18px;line-height:1.55;color:var(--muted);text-wrap:pretty}
 </style>
 </head>
 <body>
