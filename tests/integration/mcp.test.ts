@@ -167,6 +167,7 @@ describeDb("MCP endpoint", () => {
       "list_notes",
       "list_tags",
       "move_note",
+      "query_notes",
       "read_note",
       "search_notes",
       "update_note",

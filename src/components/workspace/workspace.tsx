@@ -53,6 +53,7 @@ import { splitFrontmatter } from "@/lib/markdown/parse";
 import { VaultSwitcher, VaultsHost, openCreateVault, openVaults } from "./vaults";
 import { ShareHost, openShare } from "./share-dialog";
 import { HistoryHost, openHistory } from "./history/history-dialog"; // graph-history
+import { QueryBridge } from "./query/bridge"; // query
 import { exportActiveVault } from "./vaults-export";
 /* end vaults-ui */
 /* collab-editor */
@@ -887,6 +888,9 @@ function Shell() {
       {/* graph-history */}
       <HistoryHost />
       {/* end graph-history */}
+      {/* query */}
+      <QueryBridge />
+      {/* end query */}
       {/* templates-properties */}
       <TemplatePickerHost />
       {/* end templates-properties */}

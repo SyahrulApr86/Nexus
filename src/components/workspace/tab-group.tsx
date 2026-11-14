@@ -686,7 +686,7 @@ function EmptyView({ gi }: { gi: number }) {
   const rows: [string, string, () => void][] = [
     ["Create new note", "Alt+N", () => actions.newNote("")],
     ["Go to file", "Mod+O", () => actions.setPalette("notes")],
-    ["Open today’s daily note", "Mod+D", () => actions.dailyNote()],
+    ["Open today’s daily note", "Mod+Shift+D", () => actions.dailyNote()],
     ["Open graph view", "Mod+G", () => actions.openView({ type: "graph" })],
   ];
   const stats: [string, number][] = [

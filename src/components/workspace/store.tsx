@@ -229,8 +229,8 @@ function layoutReducer(state: Layout, a: Action): Layout {
 export type { LeftView, SortOrder } from "./prefs-cookie";
 /* daily: the calendar is a right sidebar view too. The layout cookie does not know it yet, so the
    server render falls back to backlinks and the saved choice takes over before paint. */
-export type RightView = CookieRightView | "calendar";
-const cookieRightView = (v: RightView): CookieRightView => (v === "calendar" ? "backlinks" : v);
+export type RightView = CookieRightView;
+const cookieRightView = (v: RightView): CookieRightView => v;
 /* end daily */
 export type SaveState = "saved" | "dirty" | "saving" | "error" | "signedOut";
 export type SettingsSection = "general" | "editor" | "files" | "vault" | "integrations" | "account" | "hotkeys";

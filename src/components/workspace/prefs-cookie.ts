@@ -9,7 +9,7 @@ export const PREFS_COOKIE = "nexus-layout-prefs";
 const MAX_LENGTH = 1024;
 
 export type LeftView = "files" | "search";
-export type RightView = "backlinks" | "outgoing" | "tags" | "outline";
+export type RightView = "backlinks" | "outgoing" | "tags" | "outline" | "calendar";
 export type SortOrder = "name-asc" | "name-desc" | "modified-desc" | "modified-asc";
 
 export type LayoutPrefs = {
@@ -21,7 +21,7 @@ export type LayoutPrefs = {
 };
 
 const LEFT_VIEWS: readonly string[] = ["files", "search"];
-const RIGHT_VIEWS: readonly string[] = ["backlinks", "outgoing", "tags", "outline"];
+const RIGHT_VIEWS: readonly string[] = ["backlinks", "outgoing", "tags", "outline", "calendar"];
 const SORTS: readonly string[] = ["name-asc", "name-desc", "modified-desc", "modified-asc"];
 
 /** Only known keys with valid values survive; anything else (or a broken cookie) is ignored. */
