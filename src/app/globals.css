@@ -1730,3 +1730,58 @@
     margin-left: -3px;
   }
 }
+
+/* --- graph-history: graph settings panel and version history (src/components/workspace/graph, history) --- */
+@layer components {
+  /* A range slider drawn from the tokens: a 2px control-edge track, the filled part in the selection
+     blue, a 14px thumb on the sheet ringed in the control edge (>= 3:1 in both themes). */
+  .graph-range {
+    height: 20px;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+  }
+  .graph-range::-webkit-slider-runnable-track {
+    height: 2px;
+    border-radius: 1px;
+    background: var(--control);
+  }
+  .graph-range::-moz-range-track {
+    height: 2px;
+    border-radius: 1px;
+    background: var(--control);
+  }
+  .graph-range::-moz-range-progress {
+    height: 2px;
+    background: var(--accent-line);
+  }
+  .graph-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: -6px;
+    border: 1px solid var(--control);
+    border-radius: 50%;
+    background: var(--fg);
+  }
+  .graph-range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--control);
+    border-radius: 50%;
+    background: var(--fg);
+  }
+  .graph-range:hover::-webkit-slider-thumb {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .graph-range:focus-visible {
+    outline-offset: 4px;
+  }
+  @media (pointer: coarse) {
+    .graph-range {
+      height: 44px;
+    }
+  }
+}
+/* --- end graph-history --- */
