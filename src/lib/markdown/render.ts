@@ -15,6 +15,10 @@ import { ATTACHMENT_NAME, attachmentMarkdown, rehypeAttachments, type Attachment
 import { rehypeReadingView } from "./reading-view";
 import { BLOCK_CLOSE, BLOCK_OPEN, rehypeBlockIds } from "./block-anchors";
 
+/* query-block */
+import { renderQueryBlocks } from "@/lib/query/markup";
+/* end query-block */
+
 const callouts = [...CALLOUT_TYPES];
 
 const schema: SanitizeSchema = {
@@ -230,7 +234,9 @@ export function renderMarkdown(md: string, exists: (target: string) => boolean, 
     // Any block marker the tree walk did not reach (e.g. inside an attribute).
     .replace(/\uE002[A-Za-z0-9-]*\uE003/g, "");
   const fm = yaml ? `<div class="frontmatter">${escapeHtml(yaml)}</div>` : "";
-  return fm + marked;
+  /* query-block: ```query code blocks become live results (src/lib/query/markup.ts) */
+  return fm + renderQueryBlocks(marked);
+  /* end query-block */
 }
 
 function escapeHtml(s: string) {

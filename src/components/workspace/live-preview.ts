@@ -46,6 +46,10 @@ import { renderMath } from "@/lib/markdown/math-client";
 import { fragmentLine, type Fragment } from "@/lib/markdown/fragment-nav";
 import type { AttachmentLookup } from "@/lib/markdown/attachments";
 
+/* query-block */
+import { queryBlockPreview } from "./query/live-preview";
+/* end query-block */
+
 export type LivePreviewHandlers = {
   /**
    * Open a [[wikilink]] target; same callback the editor's Ctrl+click uses. `fragment` is what
@@ -865,6 +869,9 @@ export function livePreview(handlers: LivePreviewHandlers): Extension {
     plugin,
     clicks,
     theme,
+    /* query-block: ```query blocks show their results (src/components/workspace/query) */
+    queryBlockPreview(handlers.openLink),
+    /* end query-block */
     Prec.high(
       keymap.of([
         { key: "Mod-l", run: toggleChecklist },

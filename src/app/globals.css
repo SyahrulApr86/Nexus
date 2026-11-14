@@ -1746,6 +1746,34 @@
     flex-shrink: 0;
     align-items: center;
     gap: 4px;
+
+/* ---- query-block: ```query results in the reading view and Live Preview (src/components/workspace/query) ---- */
+@layer components {
+  /* Framed like a note embed: a hairline panel, the caption row on top, the results in the note's own type. */
+  .query-block {
+    display: block;
+    margin: 1.25em 0;
+    padding: 8px 16px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--font-note);
+    overflow-wrap: anywhere;
+  }
+  /* Before the element runs (and on public share pages) the query reads as a plain code block. */
+  .query-block:not(:defined) {
+    padding: 0;
+    border: 0;
+  }
+  .query-block .query-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 28px;
+  }
+  .query-block .query-caption {
+    margin: 0;
+    font-family: var(--font-ui);
     font-size: 12px;
     line-height: 16px;
     font-weight: 500;
@@ -1969,3 +1997,200 @@
   }
 }
 /* end render */
+
+    font-variant-numeric: tabular-nums;
+  }
+  .query-block .query-edit {
+    flex: none;
+    min-height: 28px;
+    margin-right: -8px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    color: var(--accent-ink);
+    cursor: pointer;
+  }
+  .query-block .query-edit:hover {
+    background: var(--hover);
+  }
+  .query-block .query-body > :first-child {
+    margin-top: 4px;
+  }
+  .query-block .query-body > :last-child {
+    margin-bottom: 0;
+  }
+  .query-block a {
+    color: var(--accent-ink);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    text-decoration-color: color-mix(in srgb, var(--accent-ink) 70%, transparent);
+    cursor: pointer;
+  }
+  .query-block a:hover,
+  .query-block a:focus-visible {
+    text-decoration-color: currentColor;
+  }
+  .query-block .query-folder {
+    margin-left: 4px;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--faint);
+  }
+
+  .query-block .query-list {
+    list-style: disc;
+    margin: 0.4em 0;
+    padding-left: 1.4em;
+  }
+  .query-block .query-list li {
+    margin: 0.2em 0;
+  }
+  .query-block .query-list li::marker {
+    color: var(--faint);
+  }
+
+  .query-block .query-table {
+    margin: 4px -4px 0;
+    overflow-x: auto;
+    /* Its width comes from the note column, never from the table: a wide table scrolls here
+       instead of widening the editor line (Live Preview sits in a shrink-to-fit flex item). */
+    contain: inline-size;
+  }
+  .query-block .query-table table {
+    display: table;
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
+  }
+  .query-block .query-table :is(th, td) {
+    padding: 6px 12px 6px 4px;
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+    vertical-align: top;
+  }
+  .query-block .query-table th {
+    color: var(--muted);
+    font-weight: 500;
+    white-space: nowrap;
+    border-bottom-color: var(--border);
+  }
+  .query-block .query-table tr:last-child td {
+    border-bottom: 0;
+  }
+  .query-block .query-table .query-num {
+    text-align: right;
+  }
+  /* Cells never split a word: values stay on one line and a wide table scrolls inside its own
+     focusable region; only the Note column wraps, between words, at a readable width. */
+  .query-block .query-table :is(th, td) {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .query-block .query-table :is(th, td):not(:first-child) {
+    white-space: nowrap;
+  }
+  .query-block .query-table :is(th, td):first-child {
+    min-width: 12ch;
+    overflow-wrap: break-word;
+  }
+
+  .query-block .query-group {
+    margin: 0.9em 0 0.15em;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 600;
+  }
+  .query-block .query-tasks > .query-group:first-child {
+    margin-top: 4px;
+  }
+  .query-block .query-tasks ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .query-block .query-tasks li.task-list-item {
+    margin: 0.2em 0;
+    list-style: none;
+  }
+  .query-block .query-tasks label {
+    cursor: pointer;
+  }
+  .query-block .query-tasks input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    margin: 0 0.45em 0 0;
+    vertical-align: -2px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .query-block .query-tasks input[type="checkbox"]:disabled {
+    cursor: default;
+  }
+  .query-block .query-task-done span {
+    color: var(--muted);
+    text-decoration: line-through;
+    text-decoration-color: var(--faint);
+  }
+
+  .query-block .query-error,
+  .query-block .query-status {
+    margin: 4px 0 0;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--muted);
+  }
+  .query-block .query-error,
+  .query-block .query-status-error {
+    color: var(--negative);
+  }
+  .query-block .query-status:empty {
+    display: none;
+  }
+  .query-block .query-source {
+    margin: 8px 0 0;
+    padding: 10px 14px;
+    border-radius: 6px;
+    background: var(--code-bg);
+    overflow-x: auto;
+    font-family: var(--font-code);
+    font-size: 0.84em;
+    line-height: 1.55;
+    white-space: pre;
+  }
+  .query-block .query-source code {
+    padding: 0;
+    background: none;
+    font-size: inherit;
+  }
+  .query-block .query-error-line {
+    text-decoration: underline wavy var(--negative);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+
+  /* In Live Preview the block sits in the editor's pre-wrapped text: lay it out as reading text. */
+  .cm-query-widget.query-block {
+    margin: 0.5em 0;
+    white-space: normal;
+    cursor: default;
+  }
+  @media (max-width: 767px) {
+    .query-block {
+      padding: 8px 12px 10px;
+    }
+  }
+}
+/* ---- end query-block ---- */
