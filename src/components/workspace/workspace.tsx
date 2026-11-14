@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -130,6 +130,7 @@ function Ribbon({ inert }: { inert: boolean }) {
         <RailButton label="Open today’s daily note" shortcut="Mod+Shift+D" onClick={() => a.dailyNote()}>
           <CalendarDays />
         </RailButton>
+        {/* end daily */}
         <RailButton label="Open command palette" shortcut="Mod+P" onClick={() => a.setPalette("commands")}>
           <SquareTerminal />
         </RailButton>
@@ -627,13 +628,21 @@ function Shell() {
   const { focus: focusOn, typewriter: typewriterOn } = useFocusPrefs();
   /* end focus */
   /* daily: the daily note before or after the open one (or today, when none is open) */
-  const stepDaily = (dir: -1 | 1) => {
-    const c = dailyConfig();
-    const from = (note && dailyDate(note.path, c)) || startOfDay(new Date());
-    const hit = adjacentDaily(w.treeNotes, c, from, dir);
-    if (hit) a.open(hit.note.id, "current", "edit", { focus: "editor" });
-    else a.notify(dir < 0 ? "No earlier daily note" : "No later daily note");
-  };
+  // The tree can change while the same note stays open (a sync, a rename): read the newest one when run.
+  const treeNotesRef = useRef(w.treeNotes);
+  useLayoutEffect(() => {
+    treeNotesRef.current = w.treeNotes;
+  });
+  const stepDaily = useCallback(
+    (dir: -1 | 1) => {
+      const c = dailyConfig();
+      const from = (note && dailyDate(note.path, c)) || startOfDay(new Date());
+      const hit = adjacentDaily(treeNotesRef.current, c, from, dir);
+      if (hit) a.open(hit.note.id, "current", "edit", { focus: "editor" });
+      else a.notify(dir < 0 ? "No earlier daily note" : "No later daily note");
+    },
+    [a, note],
+  );
   /* end daily */
 
   const commands: Command[] = useMemo(
@@ -689,8 +698,7 @@ function Shell() {
       { id: "mcp-tokens", label: "Connect an AI assistant (MCP)", run: () => a.setSettingsOpen("integrations") },
       { id: "logout", label: "Sign out", run: a.logout },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- stepDaily reads the latest note and tree when run
-    [a, note, phone, w.layout.focus, w.focusGroup, focusOn, typewriterOn],
+    [a, note, phone, w.layout.focus, w.focusGroup, focusOn, typewriterOn, stepDaily],
   );
 
   // The hotkey handler reads the latest view through a ref, so it is registered once.
