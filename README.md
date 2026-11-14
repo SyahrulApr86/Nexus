@@ -72,6 +72,42 @@ Kotak Search memakai operator ala Obsidian. Huruf besar/kecil tidak dibedakan, t
 - `line:` dijalankan di SQL, bukan dengan regex atau filter di TypeScript: konten dipecah per baris dengan `string_to_table`, lalu tiap baris diuji dengan `to_tsvector('simple', baris) @@ to_tsquery(...)`. Aturan katanya sama dengan pencarian biasa (awalan, frasa, negasi), tidak ada regex yang dibangun dari input user, dan isi catatan tidak perlu dikirim ke aplikasi. Kandidat dipersempit dulu oleh indeks GIN sebelum baris dipecah.
 - Implementasi: `src/lib/search.ts` (`parseQuery` mengubah query menjadi AST, lalu AST diterjemahkan ke SQL).
 
+<!-- query-block -->
+### Blok query
+
+Blok kode ```` ```query ```` menampilkan hasil yang hidup, di mode baca dan di Live Preview (kursor masuk ke blok, atau tombol **Edit query**, menampilkan sumbernya; panah atas/bawah juga masuk ke blok). Bahasanya kecil dan terdokumentasi di sini, terinspirasi Dataview, bukan Dataview lengkap.
+
+````
+```query
+TABLE status, due AS "Tenggat", file.mtime
+FROM #project and not "Archive"
+WHERE status != done and due < today + 14d
+SORT due asc
+LIMIT 20
+```
+````
+
+| Bagian | Arti |
+|---|---|
+| `LIST` | Daftar catatan (link), folder ditampilkan pudar |
+| `TABLE a, b AS "Label"` | Tabel: kolom pertama catatan, lalu field yang diminta (maksimal 12) |
+| `TASK` | Task (`- [ ]`) dari catatan yang cocok, dikelompokkan per catatan. Mencentang di sini mengubah catatan asalnya |
+| `FROM #tag` / `FROM "Folder"` | Tag (termasuk turunan `tag/…`) atau folder (termasuk subfolder); gabungkan dengan `and`, `or`, `not` / `-`, dan `( )` |
+| `WHERE field op nilai` | Operator `=`, `!=`, `<`, `>`, `<=`, `>=`, `contains`, dan `field exists`; gabungkan dengan `and`, `or`, `not` / `!`, `( )`. `and` mengikat lebih kuat dari `or` |
+| `SORT field asc\|desc, …` | Urutan, maksimal 4 field. Tanpa `SORT`: nama catatan |
+| `LIMIT n` | Maksimal 200 catatan (`LIST`/`TABLE`) atau 500 task |
+
+- **Field**: nama properti frontmatter apa pun, `file.name`, `file.path`, `file.folder`, `file.mtime` (terakhir diubah), `file.ctime` (dibuat), `file.tags`. Di `TASK` juga `completed` (`= true`/`= false`) dan `text` (teks task); keduanya hanya boleh digabung dengan field catatan lewat `and` di tingkat teratas.
+- **Nilai**: `"teks"` atau `'teks'` (kata tanpa spasi boleh tanpa kutip), angka, `true`/`false`, tanggal `2026-01-31` atau `2026-01-31T09:30`, `today`, `now`, dan geser waktu `today - 7d`, `now + 12h` (`d`, `w`, `h`). Semua waktu UTC.
+- **Tipe ikut nilai di kanan**: angka membandingkan sebagai angka, tanggal sebagai tanggal (tanggal tanpa jam dibandingkan per hari), selain itu teks tanpa membedakan huruf besar/kecil. Properti yang nilainya bukan angka/tanggal yang sah dianggap tidak cocok, bukan error. Properti list (`tags: [a, b]`) cocok dengan `=`/`contains` kalau salah satu itemnya sama. Properti yang tidak ada tidak cocok, jadi `not status = done` ikut menampilkan catatan tanpa `status`.
+- **Error** tampil di dalam blok dengan baris dan kolomnya (`Line 2, column 7: …`), dan baris sumbernya diberi garis bawah.
+- **Dijalankan di server**: `POST /api/query { source, since? }` dengan penjaga yang sama seperti route lain (sesi, `Origin` sama, hanya `application/json`, body maksimal 16 KiB, 240 query per menit per user), selalu dibatasi `vault_id` vault aktif. Query diterjemahkan ke SQL lewat template `sql` Drizzle: setiap nilai, termasuk nama properti (`->> $n::text`), adalah parameter; wildcard `LIKE` di-escape; angka dan tanggal di-cast dengan penjaga `pg_input_is_valid`. Batas waktu 3 detik (`statement_timeout`, dijawab `503`), `TASK` membaca maksimal 500 catatan dan 4 juta karakter teks. Error sintaks dijawab `200` dengan `{ ok: false, error: { message, line, column } }`.
+- **Cache dan refresh**: server menyimpan hasil per vault dengan cap vault (jumlah catatan, waktu ubah terbaru, panjang path) dan tanggal hari ini; klien mengirim cap terakhir dan mendapat `{ unchanged: true }` kalau tidak ada yang berubah. Blok mengecek ulang saat tampil, saat jendela kembali fokus, setiap 30 detik selama terlihat, setelah mencentang task, dan (dengan `QueryBridge` terpasang di workspace) setiap kali workspace menyimpan, membuat, mengganti nama, atau menghapus catatan.
+- Di halaman tautan publik blok query tetap tampil sebagai kode: hasil tidak pernah dirender di server.
+- MCP: tool `query_notes` (scope read) menjalankan bahasa yang sama dan menjawab dengan daftar, tabel markdown, atau task.
+- Implementasi: `src/lib/query/` (parser, eksekutor SQL), `src/app/api/query/route.ts`, `src/components/workspace/query/` (elemen `<nexus-query>`, widget Live Preview, `QueryBridge`).
+<!-- end query-block -->
+
 ## Desain
 
 - Palet pemilik: navy `#02070A`, biru `#0297DE` (link, item aktif, fokus), oranye `#FC734D` (tag, highlight, hasil cari). Semua pasangan teks ≥ 4.5:1.
@@ -404,6 +440,7 @@ Claude Desktop: file `claude_desktop_config.json` menjalankan server lokal (stdi
 | `get_backlinks` | read | Backlink (dengan baris yang menautkan) dan tautan keluar yang di-resolve seperti di app |
 | `list_tags` | read | Tag dengan jumlah, atau catatan untuk satu tag (termasuk tag bertingkat) |
 | `get_recent_notes` | read | Catatan yang terakhir diubah |
+| `query_notes` | read | Bahasa [blok query](#blok-query) (`LIST`, `TABLE`, `TASK`, `FROM`, `WHERE`, `SORT`, `LIMIT`); error sintaks menyebut baris dan kolom |
 | `create_note` | write | Catatan baru, opsional dari template (`{{title}}`, `{{date}}`, `{{time}}`). Gagal kalau path sudah dipakai |
 | `update_note` | write | Ganti isi penuh dengan `baseUpdatedAt` wajib. Versi beda dijawab error `conflict` dengan `currentUpdatedAt` (isi catatan tidak ikut). Teks lama masuk riwayat |
 | `append_to_note` | write | Tambah di akhir, di baris baru |
