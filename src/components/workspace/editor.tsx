@@ -325,8 +325,13 @@ const linkDecorations = (exists: () => (target: string) => boolean) =>
         /* render: the "#Heading" or "#^id" part travels with the link */
         const hashAt = m[1].split("|")[0].indexOf("#");
         const fragment = hashAt === -1 ? "" : m[1].split("|")[0].slice(hashAt + 1).trim();
-        // `[[#Rollback]]` goes to "#Rollback" here; `[[Spec#^fields]]` opens "Spec › ^fields".
-        const shown = !target ? `#${fragment}` : fragment ? `${target} \u203a ${fragment}` : target;
+        // `[[#Rollback]]` is "Go to heading Rollback", `[[#^verify]]` "Go to block ^verify";
+        // `[[Spec#^fields]]` opens "Spec › ^fields".
+        const shown = !target
+          ? `${fragment.startsWith("^") ? "block" : "heading"} ${fragment}`
+          : fragment
+            ? `${target} \u203a ${fragment}`
+            : target;
         /* end render */
         const ok = !target || exists()(target);
         const open = m[0].startsWith("!") ? 3 : 2;
