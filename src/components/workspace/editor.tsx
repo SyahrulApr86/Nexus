@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useRef, useSyncExternalStore } from "react";
 import { Compartment, EditorState, RangeSetBuilder, type Extension } from "@codemirror/state";
 import {
   Decoration,
@@ -29,6 +29,7 @@ import { tags as t } from "@lezer/highlight";
 import { frontmatterEnd, livePreview } from "./live-preview";
 import { isMac } from "./ui";
 /* render: heading and block links (follow, autocomplete, "Copy block link") */
+import { useState } from "react";
 import { revealFragment } from "./live-preview";
 import { Menu, type MenuAnchor, type MenuItem } from "./ui";
 import { api } from "./api";
@@ -55,6 +56,9 @@ export type EditorHandle = {
   /** Replace a range as one undoable edit, past any edit filters; `select` puts the caret there (new text offsets). */
   apply: (change: { from: number; to: number; insert: string }, select?: number) => void;
   /* end templates-properties */
+  /* render: "Copy block link" (or "Copy link to heading") for the caret's line, for a palette command */
+  copyBlockLink: () => void;
+  /* end render */
 };
 
 type Props = {
@@ -318,6 +322,8 @@ const linkDecorations = (exists: () => (target: string) => boolean) =>
         /* render: the "#Heading" or "#^id" part travels with the link */
         const hashAt = m[1].split("|")[0].indexOf("#");
         const fragment = hashAt === -1 ? "" : m[1].split("|")[0].slice(hashAt + 1).trim();
+        // `[[#Rollback]]` goes to "#Rollback" here; `[[Spec#^fields]]` opens "Spec › ^fields".
+        const shown = !target ? `#${fragment}` : fragment ? `${target} \u203a ${fragment}` : target;
         /* end render */
         const ok = !target || exists()(target);
         const open = m[0].startsWith("!") ? 3 : 2;
@@ -337,7 +343,7 @@ const linkDecorations = (exists: () => (target: string) => boolean) =>
                 "data-fragment": fragment, // render
                 role: "link",
                 title: ok
-                  ? `Open ${target}: ${keyLabel("Mod+Click")}, or ${keyLabel("Alt+Enter")} at the caret`
+                  ? `${target ? "Open" : "Go to"} ${shown}: ${keyLabel("Mod+Click")}, or ${keyLabel("Alt+Enter")} at the caret` // render
                   : `${target} is not created yet. ${keyLabel("Mod+Click")}, or ${keyLabel("Alt+Enter")} at the caret, creates it`,
               },
             }),
@@ -615,8 +621,10 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
               return false;
             },
           }),
-          /* render: the editor's context menu (right click, the Menu key or Shift+F10). Shift+right
-             click and touch keep the browser's own menu (spelling, text selection handles). */
+          /* render: the editor's context menu (right click, the Menu key, Shift+F10 or a long press).
+             Shift+right click keeps the browser's own menu (spelling); so does a long press that
+             selected text, for the selection handles. A long press with nothing selected opens this
+             menu, so a phone without a keyboard can still copy a block link. */
           EditorView.domEventHandlers({
             pointerdown(e) {
               lastPointer.current = { type: e.pointerType, button: e.button, at: Date.now() };
@@ -624,8 +632,15 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
             },
             contextmenu(e, view) {
               const p = lastPointer.current;
-              const byPointer = Date.now() - p.at < 1000 && p.button === 2;
-              if (e.shiftKey || (Date.now() - p.at < 1000 && p.type === "touch")) return false;
+              const recent = Date.now() - p.at < 1000;
+              const byTouch = recent && (p.type === "touch" || p.type === "pen");
+              if (e.shiftKey) return false;
+              if (byTouch) {
+                const dom = document.getSelection();
+                const domSelected = !!dom && !dom.isCollapsed && view.contentDOM.contains(dom.anchorNode);
+                if (domSelected || !view.state.selection.main.empty) return false;
+              }
+              const byPointer = recent && (p.button === 2 || byTouch);
               let pos = view.state.selection.main.head;
               if (byPointer) {
                 const at = view.posAtCoords({ x: e.clientX, y: e.clientY });
@@ -636,7 +651,26 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
                 }
               }
               const caret = view.coordsAtPos(pos);
-              const anchor: MenuAnchor = byPointer ? { x: e.clientX, y: e.clientY } : { x: caret?.left ?? 0, y: caret?.bottom ?? 0 };
+              // A long press opens the menu below the line, clear of the finger.
+              const anchor: MenuAnchor = byTouch
+                ? { x: e.clientX, y: (caret?.bottom ?? e.clientY) + 8 }
+                : byPointer
+                  ? { x: e.clientX, y: e.clientY }
+                  : { x: caret?.left ?? 0, y: caret?.bottom ?? 0 };
+              if (byTouch) {
+                // The finger lifting must not move focus out of the menu or pick an item: drop the
+                // mouse events a browser may still send for that touch.
+                const until = Date.now() + 700;
+                const drop = (ev: MouseEvent) => {
+                  if (Date.now() > until) return;
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                };
+                for (const type of ["mousedown", "mouseup", "click"]) document.addEventListener(type, drop as EventListener, true);
+                window.setTimeout(() => {
+                  for (const type of ["mousedown", "mouseup", "click"]) document.removeEventListener(type, drop as EventListener, true);
+                }, 700);
+              }
               const sel = view.state.selection.main;
               const selected = view.state.sliceDoc(sel.from, sel.to);
               const target = blockTargetAt(view.state.doc.toString(), view.state.doc.lineAt(pos).number - 1);
@@ -737,6 +771,12 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
         });
       },
       /* end templates-properties */
+      /* render */
+      copyBlockLink: () => {
+        const view = viewRef.current;
+        if (view) copyBlockLinkRef.current(view, view.state.selection.main.head);
+      },
+      /* end render */
     };
     handleRef.current = handle;
     return () => {
