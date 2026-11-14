@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { CornerDownLeft, FileText, Plus, SquareTerminal } from "lucide-react";
+import { CornerDownLeft, FileText, Plus, Search, SquareTerminal } from "lucide-react";
 import type { TreeNote } from "./api";
 import { Modal, Shortcut } from "./ui";
 
@@ -23,6 +23,30 @@ function fuzzy(query: string, text: string): number | null {
     ti = found + 1;
   }
   return 100 + gaps;
+}
+
+/** The query's first direct occurrence in the name, set in the search-hit colour. */
+function Hit({ text, q }: { text: string; q: string }) {
+  const t = q.trim();
+  const at = t ? text.toLowerCase().indexOf(t.toLowerCase()) : -1;
+  if (at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <span className="text-mark-ink">{text.slice(at, at + t.length)}</span>
+      {text.slice(at + t.length)}
+    </>
+  );
+}
+
+const ago = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+/** "Today", "Yesterday", "3 days ago", then the date. */
+function when(iso: string) {
+  const d = new Date(iso);
+  const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 864e5);
+  if (Number.isNaN(days)) return "";
+  if (days < 7) return ago.format(-days, "day").replace(/^./, (c) => c.toUpperCase());
+  return new Intl.DateTimeFormat("en", { day: "numeric", month: "short" }).format(d);
 }
 
 type Item =
@@ -81,40 +105,61 @@ export function Palette({
 
   const active = items[Math.min(sel, items.length - 1)];
 
+  const notesShown = items.filter((x) => x.kind === "note").length;
+  const caption =
+    mode === "commands"
+      ? `${items.length} ${items.length === 1 ? "command" : "commands"}`
+      : q.trim()
+        ? `${notesShown} ${notesShown === 1 ? "match" : "matches"}`
+        : "Recently edited";
+
   return (
-    <Modal label={mode === "notes" ? "Quick switcher" : "Command palette"} onClose={onClose} className="max-w-xl" placement="top">
-      <div className="overflow-hidden rounded-lg border border-mist bg-sheet shadow-[var(--shadow-float)]">
-        <input
-          data-autofocus
-          role="combobox"
-          aria-expanded="true"
-          aria-controls={listId}
-          aria-activedescendant={active?.id}
-          aria-autocomplete="list"
-          aria-label={mode === "notes" ? "Find or create a note" : "Search commands"}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setSel(0);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              setSel((s) => Math.min(s + 1, items.length - 1));
-            } else if (e.key === "ArrowUp") {
-              e.preventDefault();
-              setSel((s) => Math.max(s - 1, 0));
-            } else if (e.key === "Enter") {
-              e.preventDefault();
-              choose(active, e.ctrlKey || e.metaKey);
-            }
-          }}
-          placeholder={mode === "notes" ? "Find or create a note…" : "Type a command…"}
-          autoComplete="off"
-          spellCheck={false}
-          className="h-12 w-full border-b border-rule bg-transparent px-4 text-[16px] outline-none placeholder:text-faint"
-        />
-        <ul id={listId} role="listbox" aria-label="Results" className="max-h-[min(50vh,420px)] overflow-y-auto p-1.5">
+    <Modal label={mode === "notes" ? "Quick switcher" : "Command palette"} onClose={onClose} className="max-w-[640px]" placement="top">
+      <div className="float-panel overflow-hidden">
+        <div className="flex h-14 items-center gap-3 border-b border-border px-4">
+          {mode === "notes" ? (
+            <Search aria-hidden="true" className="size-[18px] shrink-0 stroke-[1.5] text-faint" />
+          ) : (
+            <SquareTerminal aria-hidden="true" className="size-[18px] shrink-0 stroke-[1.5] text-faint" />
+          )}
+          <input
+            data-autofocus
+            role="combobox"
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-activedescendant={active?.id}
+            aria-autocomplete="list"
+            aria-label={mode === "notes" ? "Find or create a note" : "Search commands"}
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setSel(0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setSel((s) => Math.min(s + 1, items.length - 1));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setSel((s) => Math.max(s - 1, 0));
+              } else if (e.key === "Enter") {
+                e.preventDefault();
+                choose(active, e.ctrlKey || e.metaKey);
+              }
+            }}
+            placeholder={mode === "notes" ? "Find or create a note…" : "Type a command…"}
+            autoComplete="off"
+            spellCheck={false}
+            className="h-full min-w-0 flex-1 bg-transparent text-[17px] tracking-[-0.01em] text-fg outline-none placeholder:text-faint"
+          />
+          <span className="shrink-0 text-[12px] font-medium text-faint">{mode === "notes" ? "Notes" : "Commands"}</span>
+        </div>
+        {items.length > 0 && (
+          <p aria-hidden="true" className="flex h-8 items-end px-4 pb-1 text-[12px] font-medium text-faint">
+            {caption}
+          </p>
+        )}
+        <ul id={listId} role="listbox" aria-label="Results" className="max-h-[min(52vh,440px)] overflow-y-auto px-1.5 pb-1.5">
           {items.map((item, i) => (
             <li
               key={item.id}
@@ -123,21 +168,26 @@ export function Palette({
               aria-selected={item === active}
               onPointerMove={() => setSel(i)}
               onClick={(e) => choose(item, e.ctrlKey || e.metaKey)}
-              className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ${item === active ? "bg-active outline-2 outline-offset-[-2px] outline-[var(--focus)]" : ""}`}
+              className={`flex h-10 cursor-pointer items-center gap-3 rounded-md px-3 text-[14px] pointer-coarse:h-12 ${
+                item === active ? "bg-active text-fg shadow-[inset_1px_0_0_var(--accent-line)]" : "text-muted"
+              }`}
             >
               {item.kind === "note" && (
                 <>
-                  <FileText aria-hidden="true" className="size-4 shrink-0 stroke-[1.5] text-faint" />
-                  <span className="truncate">{item.note.name}</span>
+                  <FileText aria-hidden="true" className={`size-4 shrink-0 stroke-[1.5] ${item === active ? "text-accent-ink" : "text-faint"}`} />
+                  <span className={`truncate ${item === active ? "font-medium" : "text-fg"}`}>
+                    <Hit text={item.note.name} q={q} />
+                  </span>
                   {item.note.path !== item.note.name && (
-                    <span className="ml-auto max-w-[45%] truncate text-[12px] text-faint">{item.note.path.slice(0, item.note.path.lastIndexOf("/"))}</span>
+                    <span className="min-w-0 max-w-[40%] truncate text-[12px] text-faint">{item.note.path.slice(0, item.note.path.lastIndexOf("/"))}</span>
                   )}
+                  <span className="tabular ml-auto shrink-0 pl-2 text-[12px] text-faint">{when(item.note.updatedAt)}</span>
                 </>
               )}
               {item.kind === "create" && (
                 <>
                   <Plus aria-hidden="true" className="size-4 shrink-0 stroke-[1.5] text-accent-ink" />
-                  <span className="truncate">
+                  <span className="truncate text-fg">
                     Create “<span className="font-medium">{item.name}</span>”
                   </span>
                   <CornerDownLeft aria-hidden="true" className="ml-auto size-3.5 stroke-[1.5] text-faint" />
@@ -145,8 +195,10 @@ export function Palette({
               )}
               {item.kind === "cmd" && (
                 <>
-                  <SquareTerminal aria-hidden="true" className="size-4 shrink-0 stroke-[1.5] text-faint" />
-                  <span className="truncate">{item.cmd.label}</span>
+                  <SquareTerminal aria-hidden="true" className={`size-4 shrink-0 stroke-[1.5] ${item === active ? "text-accent-ink" : "text-faint"}`} />
+                  <span className={`truncate ${item === active ? "font-medium" : "text-fg"}`}>
+                    <Hit text={item.cmd.label} q={q} />
+                  </span>
                   {item.cmd.shortcut && (
                     <span className="ml-auto">
                       <Shortcut keys={item.cmd.shortcut} />
@@ -158,7 +210,7 @@ export function Palette({
           ))}
         </ul>
         {items.length === 0 && (
-          <p role="status" className="px-4 pb-3 pt-1.5 text-muted">
+          <p role="status" className="px-4 py-5 text-[14px] text-muted">
             {mode === "commands"
               ? "No matching commands"
               : notes.length === 0
@@ -166,7 +218,7 @@ export function Palette({
                 : "No matching notes"}
           </p>
         )}
-        <div className="flex items-center gap-4 border-t border-rule px-4 py-2 text-[12px] text-faint">
+        <div className="flex h-10 items-center gap-5 border-t border-border bg-frame px-4 text-[12px] text-faint">
           <span className="inline-flex items-center gap-1.5">
             <Shortcut keys="↑" /> <Shortcut keys="↓" /> to move
           </span>
@@ -175,7 +227,7 @@ export function Palette({
           </span>
           {mode === "notes" && (
             <span className="hidden items-center gap-1.5 sm:inline-flex">
-              <Shortcut keys="Mod+↵" /> to open in a new tab
+              <Shortcut keys="Mod+↵" /> in a new tab
             </span>
           )}
           <span className="ml-auto inline-flex items-center gap-1.5">

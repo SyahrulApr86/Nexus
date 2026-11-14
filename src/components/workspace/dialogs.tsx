@@ -103,7 +103,7 @@ function DialogView({ req, close }: { req: Req; close: () => void }) {
           e.preventDefault();
           void ok();
         }}
-        className="rounded-lg border border-mist bg-sheet p-5 shadow-[var(--shadow-float)]"
+        className="float-panel p-6"
       >
         <h2 className="text-[16px] font-medium leading-6 text-balance wrap-break-word">{req.title}</h2>
         {req.kind === "confirm" ? (
@@ -153,7 +153,7 @@ function DialogView({ req, close }: { req: Req; close: () => void }) {
             type="button"
             onClick={cancel}
             disabled={busy}
-            className="h-9 rounded-lg border border-control px-4 text-[14px] font-medium transition-colors hover:bg-sheet-hover disabled:opacity-60"
+            className="h-9 rounded-lg border border-control px-4 text-[14px] font-medium transition-colors hover:bg-hover disabled:opacity-60"
           >
             Cancel
           </button>

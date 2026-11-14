@@ -130,7 +130,7 @@ function TemplatePicker() {
 
   return (
     <Modal label="Insert template" describedBy={hintId} onClose={close} className="max-w-xl" placement="top">
-      <div className="overflow-hidden rounded-lg border border-mist bg-sheet shadow-[var(--shadow-float)]">
+      <div className="float-panel overflow-hidden">
         <input
           data-autofocus
           role="combobox"
@@ -194,7 +194,7 @@ function TemplatePicker() {
                   className="font-medium text-accent-ink hover:underline"
                   onClick={() => {
                     close();
-                    actions.setSettingsOpen("general");
+                    actions.setSettingsOpen("editor");
                   }}
                 >
                   Settings

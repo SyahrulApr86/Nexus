@@ -147,7 +147,7 @@ export function Properties({ id, gi, mode }: { id: string; gi: number; mode: Not
     setTemplatePrefs({ showProperties: "source" });
     actions.focusGroup(gi);
     actions.setMode("edit");
-    actions.notify("Frontmatter now shows as YAML in the editor.", { label: "Settings", run: () => actions.setSettingsOpen("general") });
+    actions.notify("Frontmatter now shows as YAML in the editor.", { label: "Settings", run: () => actions.setSettingsOpen("editor") });
   };
 
   const readOnly = properties.some((p) => !p.editable);
