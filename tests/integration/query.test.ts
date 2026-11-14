@@ -1,10 +1,10 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterEach, beforeAll, beforeEach, expect, it } from "vitest";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { db } from "@/db";
 import { note } from "@/db/schema";
 import { createToken } from "@/lib/api-tokens";
-import { createNote, updateContent } from "@/lib/notes";
+import { createNote, renameNote, updateContent } from "@/lib/notes";
 import { toggleTaskAt } from "@/lib/markdown/tasks";
 import { clearQueryCache, runQuery } from "@/lib/query/run";
 import type { QueryResponse, QueryResult } from "@/lib/query/types";
@@ -145,6 +145,20 @@ describeDb("query blocks", () => {
     await createNote(v.a, "New one", "");
     const again = await runQuery(v.a, "LIST", stamp, NOW);
     expect(again.ok && "result" in again && again.result.kind === "list" && again.result.rows).toHaveLength(6);
+  });
+
+  it("re-runs a cached query after a note moves to a same-length folder (renames keep updatedAt)", async () => {
+    const src = 'LIST FROM "Projects"';
+    const first = await runQuery(v.a, src, undefined, NOW);
+    if (!first.ok || !("result" in first)) throw new Error("expected a result");
+    const [atlas] = await db.select({ id: note.id, at: note.updatedAt }).from(note).where(and(eq(note.vaultId, v.a), eq(note.path, "Projects/Atlas")));
+    // "Projects" and "Personal" have the same length, so the old sum-of-lengths stamp missed this.
+    await renameNote(v.a, atlas.id, "Personal/Atlas");
+    const [moved] = await db.select({ at: note.updatedAt }).from(note).where(eq(note.id, atlas.id));
+    expect(moved.at.getTime()).toBe(atlas.at.getTime());
+    const again = await runQuery(v.a, src, first.stamp, NOW);
+    expect(again.ok && again.stamp).not.toBe(first.stamp);
+    expect(again.ok && "result" in again && again.result.kind !== "task" && again.result.rows.map((n) => n.name)).toEqual(["Legacy", "Roadmap"]);
   });
 });
 

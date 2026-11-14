@@ -299,11 +299,13 @@ async function vaultStamp(vaultId: string): Promise<string> {
     .select({
       n: sql<number>`count(*)`.mapWith(Number),
       at: sql<string | null>`max(${note.updatedAt})::text`,
-      len: sql<number>`coalesce(sum(length(${note.path})), 0)`.mapWith(Number),
+      // Renames and moves keep updatedAt on purpose (src/lib/notes.ts), so fingerprint every
+      // note's path: a move to a same-length folder must still change the stamp.
+      paths: sql<string>`md5(coalesce(string_agg(${note.id}::text || ':' || ${note.path}, '/' order by ${note.id}), ''))`,
     })
     .from(note)
     .where(eq(note.vaultId, vaultId));
-  return `${row?.n ?? 0}.${row?.len ?? 0}.${row?.at ?? ""}`;
+  return `${row?.n ?? 0}.${row?.paths ?? ""}.${row?.at ?? ""}`;
 }
 
 const CACHE_SIZE = 300;
