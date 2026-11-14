@@ -1746,34 +1746,6 @@
     flex-shrink: 0;
     align-items: center;
     gap: 4px;
-
-/* ---- query-block: ```query results in the reading view and Live Preview (src/components/workspace/query) ---- */
-@layer components {
-  /* Framed like a note embed: a hairline panel, the caption row on top, the results in the note's own type. */
-  .query-block {
-    display: block;
-    margin: 1.25em 0;
-    padding: 8px 16px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-family: var(--font-note);
-    overflow-wrap: anywhere;
-  }
-  /* Before the element runs (and on public share pages) the query reads as a plain code block. */
-  .query-block:not(:defined) {
-    padding: 0;
-    border: 0;
-  }
-  .query-block .query-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 28px;
-  }
-  .query-block .query-caption {
-    margin: 0;
-    font-family: var(--font-ui);
     font-size: 12px;
     line-height: 16px;
     font-weight: 500;
@@ -1998,6 +1970,37 @@
 }
 /* end render */
 
+/* ---- query-block: ```query results in the reading view and Live Preview (src/components/workspace/query) ---- */
+@layer components {
+  /* Framed like a note embed: a hairline panel, the caption row on top, the results in the note's own type. */
+  .query-block {
+    display: block;
+    margin: 1.25em 0;
+    padding: 8px 16px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--font-note);
+    overflow-wrap: anywhere;
+  }
+  /* Before the element runs (and on public share pages) the query reads as a plain code block. */
+  .query-block:not(:defined) {
+    padding: 0;
+    border: 0;
+  }
+  .query-block .query-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 28px;
+  }
+  .query-block .query-caption {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
   .query-block .query-edit {

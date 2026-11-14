@@ -59,6 +59,8 @@ export type EditorHandle = {
   /* end templates-properties */
   /* render: "Copy block link" (or "Copy link to heading") for the caret's line, for a palette command */
   copyBlockLink: () => void;
+  /** What the caret's line links as: its heading, its block, or nothing (a blank line, frontmatter). */
+  blockLinkKind: () => "heading" | "block" | "none";
   /* end render */
 };
 
@@ -323,8 +325,13 @@ const linkDecorations = (exists: () => (target: string) => boolean) =>
         /* render: the "#Heading" or "#^id" part travels with the link */
         const hashAt = m[1].split("|")[0].indexOf("#");
         const fragment = hashAt === -1 ? "" : m[1].split("|")[0].slice(hashAt + 1).trim();
-        // `[[#Rollback]]` goes to "#Rollback" here; `[[Spec#^fields]]` opens "Spec › ^fields".
-        const shown = !target ? `#${fragment}` : fragment ? `${target} \u203a ${fragment}` : target;
+        // `[[#Rollback]]` is "Go to heading Rollback", `[[#^verify]]` "Go to block ^verify";
+        // `[[Spec#^fields]]` opens "Spec › ^fields".
+        const shown = !target
+          ? `${fragment.startsWith("^") ? "block" : "heading"} ${fragment}`
+          : fragment
+            ? `${target} \u203a ${fragment}`
+            : target;
         /* end render */
         const ok = !target || exists()(target);
         const open = m[0].startsWith("!") ? 3 : 2;
@@ -777,6 +784,11 @@ export function Editor({ initial, label, onChange, noteNames, tagNames, exists, 
       copyBlockLink: () => {
         const view = viewRef.current;
         if (view) copyBlockLinkRef.current(view, view.state.selection.main.head);
+      },
+      blockLinkKind: () => {
+        const view = viewRef.current;
+        if (!view) return "none";
+        return blockTargetAt(view.state.doc.toString(), view.state.doc.lineAt(view.state.selection.main.head).number - 1).kind;
       },
       /* end render */
     };

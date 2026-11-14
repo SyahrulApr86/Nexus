@@ -60,3 +60,24 @@ test("query block: Live Preview shows results, and the source when the caret ent
   await widget.getByRole("button", { name: "Edit query" }).click();
   await expect(widget).toHaveCount(0);
 });
+
+test("query block: a task toggled in Live Preview from its own note's query updates the editor and the next edit keeps it", async ({ page, api }) => {
+  const self = await api.createNote("Self", "- [ ] Self task\n\n```query\nTASK WHERE file.name = \"Self\"\n```\n\nEnd");
+  await openVault(page);
+  await openNote(page, "Self");
+  const pane = page.getByRole("tabpanel", { name: "Self" });
+  await pane.locator(".cm-line", { hasText: "End" }).click();
+  const fromQuery = pane.locator(".cm-query-widget").getByRole("checkbox", { name: "Self task" });
+  await fromQuery.click();
+  await expect.poll(async () => (await api.getNote(self.id)).content).toMatch(/^- \[x\] Self task/);
+  // The editor's own box follows: the editor holds its own copy of the text.
+  await expect(pane.locator(".cm-content input[type=checkbox]").first()).toBeChecked();
+
+  // The next keystroke saves on top of the toggle: no conflict, and the box stays ticked.
+  await pane.locator(".cm-line", { hasText: "End" }).click();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.type(" more");
+  await expect.poll(async () => (await api.getNote(self.id)).content).toContain("End more");
+  expect((await api.getNote(self.id)).content).toMatch(/^- \[x\] Self task/);
+  await expect(page.getByText(/conflict|Couldn.t save/i)).toHaveCount(0);
+});
