@@ -7,7 +7,7 @@
  * queued, and it is tried again on the next reconnect.
  */
 import { ApiError, type NoteRef } from "../api";
-import type { CreateOp, OutboxOp, SaveOp } from "./outbox";
+import type { CreateOp, FolderOp, OutboxOp, SaveOp } from "./outbox";
 
 /** What became of a replayed save: on the server, held as a conflict for the user, or to try later. */
 export type SaveOutcome = "done" | "conflict" | "retry";
@@ -16,6 +16,11 @@ export type ReplayDeps = {
   create: (path: string, content: string) => Promise<NoteRef>;
   rename: (id: string, path: string) => Promise<unknown>;
   remove: (id: string) => Promise<unknown>;
+  /**
+   * A folder created, renamed or deleted offline, checked against the server's tree first
+   * (./folders.ts). "conflict": it changed elsewhere and only the safe part was applied.
+   */
+  folder: (op: FolderOp) => Promise<"done" | "conflict">;
   /** Saves go through the workspace, which owns the conflict flow (409 -> "Keep mine" / "Load theirs"). */
   save: (op: SaveOp) => Promise<SaveOutcome>;
   /** The oldest queued entry. */
@@ -82,6 +87,15 @@ export async function replay(deps: ReplayDeps): Promise<ReplayResult> {
         }
         case "rename":
           await deps.rename(op.id, op.path);
+          break;
+        case "mkdir":
+        case "mvdir":
+        case "rmdir":
+          if ((await deps.folder(op)) === "conflict") {
+            result.conflicts++;
+            await deps.finish(op.seq);
+            continue;
+          }
           break;
         case "delete":
           try {

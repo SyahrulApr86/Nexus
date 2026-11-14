@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
 import WebSocket from "ws";
 import * as Y from "yjs";
+import * as decoding from "lib0/decoding";
 import { WebsocketProvider } from "y-websocket";
 import { db } from "@/db";
 import { noteYdoc, session, user, vault } from "@/db/schema";
@@ -257,6 +258,48 @@ describeDb("collab server", () => {
       a.provider.shouldConnect = false;
       await deleteNote(alice.vaultId, n.id);
       expect(await closed).toBe(4404);
+    } finally {
+      for (const p of providers.splice(0)) p.destroy();
+      await slow.close();
+    }
+  });
+
+  it("acknowledges an edit as persisted only after the database write, and only to clients that ask", async () => {
+    const slow = await startCollabServer(config({ persistDebounceMs: 400, persistMaxWaitMs: 400 }));
+    try {
+      const n = await createNote(alice.vaultId, "Collab/Ack", "one\n");
+      const a = client(slow, n.id, alice.cookie);
+      const old = client(slow, n.id, alice.cookie);
+      const got: number[] = [];
+      let rowAtAck: string | null = null;
+      a.provider.messageHandlers[7] = (_e, decoder) => {
+        const v = decoding.readVarUint(decoder);
+        got.push(v);
+        if (v === 1) void noteRow(alice.vaultId, n.id).then((r) => (rowAtAck = r.content));
+      };
+      // A client that never asks must never see the new message type (y-websocket would log an error).
+      let oldSaw = 0;
+      old.provider.messageHandlers[7] = () => void oldSaw++;
+      await Promise.all([synced(a.provider), synced(old.provider)]);
+      a.provider.ws!.send(new Uint8Array([7]));
+      await until(() => expect(got).toEqual([0]));
+
+      a.text.insert(a.text.length, "two\n");
+      a.provider.awareness.setLocalStateField("ack", 1);
+      // Received at once, but not written yet: no acknowledgement during the debounce.
+      await new Promise((r) => setTimeout(r, 150));
+      expect(got).toEqual([0]);
+      await until(() => expect(got).toEqual([0, 1]));
+      await until(() => expect(rowAtAck).toBe("one\ntwo\n"));
+
+      // Asking again with nothing new to write is answered straight away.
+      a.provider.awareness.setLocalStateField("ack", 2);
+      await until(() => expect(got).toEqual([0, 1, 2]));
+      old.text.insert(0, "zero\n");
+      old.provider.awareness.setLocalStateField("ack", 1);
+      await until(async () => expect((await noteRow(alice.vaultId, n.id)).content).toBe("zero\none\ntwo\n"));
+      await new Promise((r) => setTimeout(r, 100));
+      expect(oldSaw).toBe(0);
     } finally {
       for (const p of providers.splice(0)) p.destroy();
       await slow.close();

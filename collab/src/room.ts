@@ -15,6 +15,14 @@ import { readNote, readState, writeState, type NoteRow } from "./store";
 
 export const MESSAGE_SYNC = 0;
 export const MESSAGE_AWARENESS = 1;
+/**
+ * Persistence acknowledgement (collab/README.md, "Kontrak untuk editor"). A client that understands
+ * it says so by sending `[7]` once; the service answers `[7, n]` at once and again each time its
+ * edits are written to the database, where `n` is the newest `ack` number from that client's
+ * awareness state the write covers. y-websocket logs an error for a message type it does not know,
+ * so a client that never sent `[7]` never gets one: older clients and older services both carry on.
+ */
+export const MESSAGE_PERSISTED = 7;
 
 /** Close codes the client can act on (4000-4999 are free for applications). */
 export const CLOSE = {
@@ -39,6 +47,12 @@ export type Peer = {
   name: string;
   /** Awareness client ids this socket controls, removed when it closes. */
   clients: Set<number>;
+  /** Sent MESSAGE_PERSISTED: it gets persistence acknowledgements. */
+  persisted?: boolean;
+  /** Newest `ack` number seen in this socket's awareness: every update it sent before is in the document. */
+  ackSeen?: number;
+  /** Newest acknowledgement number already reported as persisted. */
+  ackSent?: number;
 };
 
 export type RoomOptions = { persistDebounceMs: number; persistMaxWaitMs: number };
@@ -176,6 +190,15 @@ export class Room {
     } else if (type === MESSAGE_AWARENESS) {
       const update = decoding.readVarUint8Array(decoder);
       awarenessProtocol.applyAwarenessUpdate(this.awareness, this.withPeerName(update, peer.name), ws);
+      this.readAck(peer);
+    } else if (type === MESSAGE_PERSISTED) {
+      if (!peer.persisted) {
+        peer.persisted = true;
+        peer.ackSent ??= 0;
+        this.sendPersisted(peer, peer.ackSent, true);
+        // Anything it already asked about and that is stored by now is confirmed straight away.
+        this.confirmWhenClean(peer);
+      }
     }
     // Other message types (auth, query-awareness) are ignored, as y-websocket's server does.
   }
@@ -183,6 +206,38 @@ export class Room {
   /** Closes every socket, e.g. when the note was deleted or the server shuts down. */
   closeAll(code: number, reason: string) {
     for (const ws of this.peers.keys()) ws.close(code, reason);
+  }
+
+  /** The newest `ack` this socket's awareness carries; a new one is confirmed once it is stored. */
+  private readAck(peer: Peer) {
+    let newest = peer.ackSeen ?? 0;
+    for (const id of peer.clients) {
+      const ack = (this.awareness.getStates().get(id) as { ack?: unknown } | undefined)?.ack;
+      if (typeof ack === "number" && Number.isSafeInteger(ack) && ack > newest) newest = ack;
+    }
+    if (newest === (peer.ackSeen ?? 0)) return;
+    peer.ackSeen = newest;
+    this.confirmWhenClean(peer);
+  }
+
+  /**
+   * After the saves already queued: when nothing is waiting to be written, everything this socket
+   * sent up to its newest `ack` is in the database. Otherwise the next save reports it.
+   */
+  private confirmWhenClean(peer: Peer) {
+    if (!peer.persisted) return;
+    void this.enqueue(async () => {
+      if (!this.dirty && !this.dead && this.peers.get(peer.ws) === peer) this.sendPersisted(peer, peer.ackSeen ?? 0);
+    });
+  }
+
+  private sendPersisted(peer: Peer, n: number, always = false) {
+    if (!peer.persisted || (!always && n <= (peer.ackSent ?? 0))) return;
+    peer.ackSent = Math.max(n, peer.ackSent ?? 0);
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, MESSAGE_PERSISTED);
+    encoding.writeVarUint(encoder, n);
+    send(peer.ws, encoding.toUint8Array(encoder));
   }
 
   private broadcast(message: Uint8Array, except?: WebSocket) {
@@ -258,9 +313,11 @@ export class Room {
     return this.enqueue(() => this.persist());
   }
 
-  private async persist(attempt = 0): Promise<void> {
+  private async persist(attempt = 0, covered?: Map<Peer, number>): Promise<void> {
     if (!this.dirty || this.dead) return;
     this.dirty = false;
+    // Taken with the text: each socket's newest `ack` stands for updates that are all in it.
+    covered ??= new Map([...this.peers.values()].map((p) => [p, p.ackSeen ?? 0]));
     const content = this.text.toString();
     if (content !== this.base) {
       try {
@@ -274,7 +331,7 @@ export class Room {
           const current = (err.body?.note ?? null) as NoteRow | null;
           if (current) this.mergeDatabase(current);
           this.dirty = true;
-          return this.persist(attempt + 1);
+          return this.persist(attempt + 1, covered);
         }
         if (err instanceof HttpError && err.status === 404) return this.gone();
         // Quota and other refusals keep the edits in memory and retry on the next change.
@@ -283,6 +340,8 @@ export class Room {
       }
     }
     await writeState(this.noteId, Y.encodeStateAsUpdate(this.doc));
+    // Stored: note.content and the Yjs state. Only now is an edit acknowledged as persisted.
+    for (const [peer, n] of covered) if (this.peers.get(peer.ws) === peer) this.sendPersisted(peer, n);
   }
 
   /** Brings a database write into the live text (see mergeIncoming). */

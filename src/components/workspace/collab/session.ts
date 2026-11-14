@@ -11,8 +11,10 @@
  */
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
+import { hasQueuedEdits } from "../offline/offline-api";
 import type { Awareness } from "y-protocols/awareness";
 import * as decoding from "lib0/decoding";
+import * as encoding from "lib0/encoding";
 import {
   backoff,
   closeAction,
@@ -28,7 +30,14 @@ import {
 
 export type CollabState = "off" | "connecting" | "live";
 export type Peer = { clientId: number; name: string; color: string; self: boolean };
-export type CollabSnapshot = { state: CollabState; peers: readonly Peer[] };
+/**
+ * Where this device's edits of a live note are:
+ * - "saved": the service wrote every one of them to the database (it said so, after the write);
+ * - "synced": the service has every one of them, but does not report saves (an older service);
+ * - "syncing": some are still on their way, or not written yet.
+ */
+export type CollabSync = "saved" | "synced" | "syncing";
+export type CollabSnapshot = { state: CollabState; peers: readonly Peer[]; sync: CollabSync };
 
 /** Why a note left live mode: "graceful" means this device closed a healthy socket itself. */
 export type LeaveReason = "graceful" | "dropped" | Exclude<CloseAction, "reconnect">;
@@ -53,7 +62,7 @@ export type Binder = {
   unbind: () => void;
 };
 
-const OFF: CollabSnapshot = Object.freeze({ state: "off" as const, peers: Object.freeze([]) as readonly Peer[] });
+const OFF: CollabSnapshot = Object.freeze({ state: "off" as const, peers: Object.freeze([]) as readonly Peer[], sync: "saved" as const });
 const ORIGIN_SEED = "nexus:seed";
 const ORIGIN_STORE = "nexus:store";
 const SYNC_TIMEOUT = 10_000;
@@ -63,6 +72,10 @@ const ACK_DELAY = 200;
 /** Unanswered acknowledgement requests kept; older ones are forgotten (a stalled socket). */
 const ACK_KEEP = 64;
 const MESSAGE_AWARENESS = 1;
+/** Persistence acknowledgements (collab/src/room.ts): `[7]` asks for them, `[7, n]` reports one. */
+const MESSAGE_PERSISTED = 7;
+/** Acknowledgement numbers remembered until the service reports them persisted. */
+const PERSIST_KEEP = 256;
 /** Without NEXT_PUBLIC_COLLAB_URL the same origin is only probed: no answer there means no service. */
 const PROBE_PAUSE = 5 * 60_000;
 
@@ -85,7 +98,7 @@ function emit(noteId: string) {
 }
 
 class Session {
-  snapshot: CollabSnapshot = { state: "connecting", peers: [] };
+  snapshot: CollabSnapshot = { state: "connecting", peers: [], sync: "saved" };
   private binders = new Set<Binder>();
   private bound = new Set<Binder>();
   private doc: Y.Doc | null = null;
@@ -105,6 +118,11 @@ class Session {
   /** Text and local-edit count at each acknowledgement request still waiting for its echo. */
   private sent = new Map<number, { text: string; epoch: number }>();
   private ackTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The service reports database writes (it answered `[7]`). */
+  private persistReports = false;
+  /** Local edits the service has written to the database, and the edit count at each request. */
+  private persistedEpoch = 0;
+  private persistAt = new Map<number, number>();
   private failures = 0;
   private stopped = false; // 4404 or 4413: this note does not go live again on this page
   private retry: ReturnType<typeof setTimeout> | undefined;
@@ -117,10 +135,20 @@ class Session {
     return this.doc?.getText("content") ?? null;
   }
 
-  private set(state: CollabState, peers: readonly Peer[] = this.snapshot.peers) {
-    if (state === this.snapshot.state && peers === this.snapshot.peers) return;
-    this.snapshot = { state, peers };
+  private set(state: CollabState, peers: readonly Peer[] = this.snapshot.peers, sync: CollabSync = this.syncState()) {
+    if (state === this.snapshot.state && peers === this.snapshot.peers && sync === this.snapshot.sync) return;
+    this.snapshot = { state, peers, sync };
     emit(this.noteId);
+  }
+
+  private syncState(): CollabSync {
+    if (this.persistReports) return this.persistedEpoch >= this.epoch ? "saved" : "syncing";
+    return this.ackedEpoch >= this.epoch ? "synced" : "syncing";
+  }
+
+  /** Re-read where the edits are; emits only when the label would change. */
+  private resync() {
+    this.set(this.snapshot.state);
   }
 
   add(binder: Binder) {
@@ -183,12 +211,16 @@ class Session {
     this.confirmed = undefined;
     this.epoch = this.ackedEpoch = this.seq = 0;
     this.sent.clear();
+    this.persistReports = false;
+    this.persistedEpoch = 0;
+    this.persistAt.clear();
     doc.on("update", (_: unknown, origin: unknown) => {
       if (provider !== this.provider) return;
       if (origin !== provider) {
         // Typed here (or seeded, or written by the store): not confirmed until the service says so.
         this.epoch++;
         this.requestAck(provider);
+        this.resync();
       } else if (this.epoch === this.ackedEpoch && this.confirmed !== undefined) {
         // From the service, with nothing of ours outstanding: the service holds all of this text.
         this.confirmed = doc.getText("content").toString();
@@ -202,8 +234,20 @@ class Session {
       applyAwareness(encoder, decoder, p, emitSynced, type);
       if (ack !== null && provider === this.provider) this.acknowledged(ack);
     };
+    // The service reports when our edits are in the database: read `[7, n]`, and ask for it once
+    // the socket opens (an older service ignores the request and never sends one).
+    provider.messageHandlers[MESSAGE_PERSISTED] = (_encoder, decoder) => {
+      const n = decoding.readVarUint(decoder);
+      if (provider === this.provider) this.persisted(n);
+    };
     provider.on("status", ({ status }: { status: string }) => {
-      if (status === "connected") everOpened = true;
+      if (status !== "connected") return;
+      everOpened = true;
+      const hello = encoding.createEncoder();
+      encoding.writeVarUint(hello, MESSAGE_PERSISTED);
+      try {
+        provider.ws?.send(encoding.toUint8Array(hello));
+      } catch {}
     });
     provider.on("sync", (synced: boolean) => {
       if (synced && provider === this.provider) void this.goLive(provider);
@@ -221,6 +265,15 @@ class Session {
     clearTimeout(this.syncTimer);
     const h = host;
     if (!h) return;
+    if (hasQueuedEdits(this.noteId)) {
+      // Edits made offline wait in the outbox. The store counts them as saved (their text is its save
+      // base), so seeding the shared document from them would see nothing new and drop them. They go
+      // through REST first, the service merges that write, and the note goes live on the next try.
+      this.teardown();
+      this.set("off", []);
+      this.schedule();
+      return;
+    }
     const start = await h.enter(this.noteId);
     const text = this.text;
     if (provider !== this.provider || !text || !this.doc) {
@@ -272,6 +325,8 @@ class Session {
       const n = ++this.seq;
       this.sent.set(n, { text: text.toString(), epoch: this.epoch });
       if (this.sent.size > ACK_KEEP) this.sent.delete(this.sent.keys().next().value!);
+      this.persistAt.set(n, this.epoch);
+      if (this.persistAt.size > PERSIST_KEEP) this.persistAt.delete(this.persistAt.keys().next().value!);
       provider.awareness.setLocalStateField("ack", n);
     }, ACK_DELAY);
   }
@@ -284,6 +339,20 @@ class Session {
     this.ackedEpoch = at.epoch;
     // No local edit since: whatever else arrived meanwhile came from the service too.
     this.confirmed = this.epoch === at.epoch ? (this.text?.toString() ?? at.text) : at.text;
+    this.resync();
+  }
+
+  /** The service wrote this device's edits up to acknowledgement `n` to the database (0: it reports writes). */
+  private persisted(n: number) {
+    this.persistReports = true;
+    let epoch = this.persistedEpoch;
+    for (const [k, e] of this.persistAt) {
+      if (k > n) continue;
+      epoch = Math.max(epoch, e);
+      this.persistAt.delete(k);
+    }
+    this.persistedEpoch = epoch;
+    this.resync();
   }
 
   private readPeers() {
@@ -345,6 +414,7 @@ class Session {
     clearTimeout(this.ackTimer);
     this.ackTimer = undefined;
     this.sent.clear();
+    this.persistAt.clear();
     for (const b of this.bound) b.unbind();
     this.bound.clear();
     this.live = false;

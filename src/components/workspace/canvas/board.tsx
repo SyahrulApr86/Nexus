@@ -18,7 +18,10 @@ import {
   bestSides,
   boundsOf,
   canvasTitle,
+  BACKGROUND_STYLES,
+  backgroundCss,
   colorVars,
+  groupBackground,
   intersects,
   isCanvasPath,
   nearestSide,
@@ -42,6 +45,7 @@ import { Menu, type MenuAnchor, type MenuItem } from "../ui";
 import { FileCardBody, LinkCardBody, TextCardBody, fileLabel, safeUrl } from "./cards";
 import { fileFor } from "./create";
 import { EdgeKnob, EdgeLines, placeEdges } from "./edges";
+import { ImagePicker } from "./image-picker";
 import { CanvasOutline } from "./outline";
 import { CanvasToolbar } from "./toolbar";
 
@@ -152,6 +156,8 @@ export function CanvasBoard({
   const [menu, setMenu] = useState<MenuState>(null);
   const [outline, setOutline] = useState(false);
   const [picker, setPicker] = useState<Point | null>(null);
+  /** The group whose background image is being picked. */
+  const [bgPicker, setBgPicker] = useState<string | null>(null);
   const [marquee, setMarquee] = useState<Rect | null>(null);
   const [draft, setDraft] = useState<{ from: Point; side: Side; to: Point } | null>(null);
   const [message, setMessage] = useState("");
@@ -501,7 +507,39 @@ export function CanvasBoard({
       const others = readingOrder(s.doc.nodes).filter((m) => m.id !== id);
       const items: MenuItem[] = [];
       if (n.type === "text") items.push({ label: "Edit text", shortcut: "Enter", onSelect: () => setEditing({ kind: "node", id }) });
-      if (n.type === "group") items.push({ label: "Rename group", shortcut: "Enter", onSelect: () => setEditing({ kind: "node", id }) });
+      if (n.type === "group") {
+        items.push({ label: "Rename group", shortcut: "Enter", onSelect: () => setEditing({ kind: "node", id }) });
+        // JSON Canvas `background` / `backgroundStyle`: an image from the vault behind the group's cards.
+        const bg = groupBackground(n);
+        items.push({ label: n.background ? "Change background image…" : "Background image…", onSelect: () => setBgPicker(id) });
+        if (n.background) {
+          const style = bg?.style ?? "cover";
+          items.push(
+            {
+              label: "Background layout…",
+              onSelect: () =>
+                again(
+                  "Background layout",
+                  BACKGROUND_STYLES.map((b) => ({
+                    label: b.name,
+                    checked: style === b.id,
+                    onSelect: () => {
+                      dispatch({ type: "updateNode", id, patch: { backgroundStyle: b.id === "cover" ? undefined : b.id } });
+                      announce(`Background layout: ${b.name.toLowerCase()}`);
+                    },
+                  })),
+                ),
+            },
+            {
+              label: "Remove background image",
+              onSelect: () => {
+                dispatch({ type: "updateNode", id, patch: { background: undefined, backgroundStyle: undefined } });
+                announce("Background image removed");
+              },
+            },
+          );
+        }
+      }
       if (n.type === "file") {
         items.push({ label: "Open note", shortcut: "Enter", onSelect: () => openFile(n.file, false) });
         items.push({ label: "Open in new tab", onSelect: () => openFile(n.file, true) });
@@ -1162,6 +1200,25 @@ export function CanvasBoard({
       </div>
 
       {menu && <Menu anchor={menu.anchor} label={menu.label} items={menu.items} onClose={() => setMenu(null)} />}
+      {bgPicker && (
+        <ImagePicker
+          title="Background image"
+          current={(() => {
+            const g = state.doc.nodes.find((n) => n.id === bgPicker);
+            return g?.type === "group" ? g.background : undefined;
+          })()}
+          onPick={(path) => {
+            dispatch({ type: "updateNode", id: bgPicker, patch: { background: path } });
+            announce(`Background image set to ${basename(path)}`);
+          }}
+          onClose={() => {
+            const id = bgPicker;
+            setBgPicker(null);
+            // Back to the group the menu was opened on, so the keyboard carries on from there.
+            requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(id)}"]`)?.focus());
+          }}
+        />
+      )}
       {picker && (
         <Palette
           mode="notes"
@@ -1228,6 +1285,7 @@ function CanvasCard({
       className={`canvas-node absolute ${group ? "canvas-group" : "canvas-card"} ${editing ? "is-editing" : ""}`}
       style={{ left: node.x, top: node.y, width: node.width, height: node.height, zIndex: z, ...colorVars(node.color) }}
     >
+      {group && <GroupBackdrop node={node} />}
       {group ? (
         <GroupLabel label={node.label ?? ""} editing={editing} onCommit={(v) => dispatch({ type: "updateNode", id: node.id, patch: { label: v || undefined } })} onDone={onDone} />
       ) : (
@@ -1242,6 +1300,13 @@ function CanvasCard({
       {single && !editing && <span aria-hidden="true" data-resize="" className="canvas-resize" />}
     </div>
   );
+}
+
+/** A group's background image, under its label and cards; drawn by CSS, so a missing file shows nothing. */
+function GroupBackdrop({ node }: { node: CanvasNode }) {
+  const bg = node.type === "group" ? groupBackground(node) : null;
+  if (!bg) return null;
+  return <span aria-hidden="true" data-bg-style={bg.style} className="canvas-group-bg" style={backgroundCss(bg)} />;
 }
 
 function GroupLabel({

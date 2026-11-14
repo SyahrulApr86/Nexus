@@ -22,6 +22,10 @@ function setup(ops: NewOp[], server: { fail?: (call: string) => unknown; save?: 
     },
     rename: (id, path) => call(`rename ${id} ${path}`),
     remove: (id) => call(`delete ${id}`),
+    folder: async (op) => {
+      await call(op.kind === "mvdir" ? `mvdir ${op.from} ${op.to}` : `${op.kind} ${op.path}`);
+      return "done";
+    },
     save: async (op) => {
       await call(`save ${op.id} ${op.content}`);
       return server.save?.(op) ?? "done";

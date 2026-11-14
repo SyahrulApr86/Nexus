@@ -57,6 +57,9 @@ import { exportActiveVault } from "./vaults-export";
 /* collab-editor */
 import { useCollab } from "./collab/use-collab";
 /* end collab-editor */
+/* phone presence */
+import { PhonePresence } from "./collab/presence";
+/* end phone presence */
 
 
 export function Workspace({ user, initialPrefs }: { user: User; initialPrefs?: InitialPrefs }) {
@@ -385,13 +388,24 @@ const SAVE_TEXT = {
   signedOut: "Signed out, not saved",
 } as const;
 
+/* collab-editor: save label */
+const COLLAB_TEXT = { saved: "Saved", synced: "Synced", syncing: "Syncing…" } as const;
+/** The status bar dot is blue only while nothing waits: a live note still syncing counts as busy. */
+function useLiveIdle(idle: boolean) {
+  const noteId = useWorkspaceSelector((w) => w.activeNote?.id);
+  const collab = useCollab(noteId);
+  return collab.state === "live" && collab.sync === "syncing" ? false : idle;
+}
+/* end collab-editor */
+
 /** Text only, in the bar's own grey; colour only when something is wrong. */
 function SaveLabel() {
   const save = useWorkspaceSelector((w) => w.save);
-  /* collab-editor: a live note is saved by the collab service, which sends no save receipts: "Synced" */
+  /* collab-editor: save label. A live note is written by the collab service: "Saved" once it reports
+     the database write, "Syncing…" until then ("Synced" from an older service that only reports receipt). */
   const noteId = useWorkspaceSelector((w) => w.activeNote?.id);
-  const live = useCollab(noteId).state === "live";
-  if (live && save === "saved") return <span>Synced</span>;
+  const collab = useCollab(noteId);
+  if (collab.state === "live" && (save === "saved" || save === "dirty")) return <span>{COLLAB_TEXT[collab.sync]}</span>;
   /* end collab-editor */
   const bad = save === "error" || save === "signedOut";
   return <span className={bad ? "text-negative" : undefined}>{SAVE_TEXT[save]}</span>;
@@ -432,7 +446,8 @@ function NoteCounts() {
 }
 
 function StatusBar({ inert }: { inert: boolean }) {
-  const { hasNote, idle, save } = useWorkspaceSelector((w) => ({ hasNote: !!w.activeNote, idle: w.save === "saved", save: w.save }), shallowEqual);
+  const { hasNote, idle: restIdle, save } = useWorkspaceSelector((w) => ({ hasNote: !!w.activeNote, idle: w.save === "saved", save: w.save }), shallowEqual);
+  /* collab-editor: save label */ const idle = useLiveIdle(restIdle);
   const bad = save === "error" || save === "signedOut";
   return (
     <footer
@@ -492,6 +507,9 @@ function PhoneTopBar({ inert }: { inert: boolean }) {
         </span>
         {/* offline track */}
         <OfflineMark />
+        {/* phone presence */}
+        {v.type === "note" && !canvas && <PhonePresence noteId={v.id} />}
+        {/* end phone presence */}
         {bad && (
           <span className="shrink-0" title={SAVE_TEXT[save]}>
             <span aria-hidden="true" className="block size-1.5 rounded-full bg-negative" />
