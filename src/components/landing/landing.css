@@ -682,7 +682,6 @@
     animation-play-state: running;
   }
   .fx-caret,
-  .fx-phone-type,
   .fx-cursor::before {
     animation: lp-blink 1100ms steps(1) infinite;
   }

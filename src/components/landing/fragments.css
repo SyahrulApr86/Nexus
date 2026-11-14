@@ -331,106 +331,26 @@
   }
 }
 
-/* phone */
-[data-ui].fx-phone {
-  max-width: 300px;
+/* real captures (./shots.tsx) */
+[data-ui].fx-shot picture,
+[data-ui] .fx-shot-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+[data-ui].fx-phone-shot {
+  max-width: 280px;
   margin-inline: auto;
-  border-radius: 28px;
-  border-color: var(--lp-mist);
-  background: var(--lp-canvas);
   padding: 6px;
-}
-.lp-band [data-ui].fx-phone {
+  border-color: var(--lp-mist);
+  border-radius: 28px;
   background: var(--lp-canvas);
 }
-[data-ui].fx-phone > * {
-  background: var(--lp-panel);
-}
-[data-ui] .fx-phone-bar {
-  display: flex;
-  justify-content: space-between;
-  padding: 10px 18px 6px;
-  border-radius: 22px 22px 0 0;
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-[data-ui] .fx-phone-off {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--lp-slate);
-  font-weight: 500;
-}
-[data-ui] .fx-phone-head {
-  display: grid;
-  padding: 8px 18px 12px;
-  border-bottom: 1px solid var(--lp-hairline);
-}
-[data-ui] .fx-phone-crumb {
-  color: var(--lp-faint);
-  font-size: 12px;
-}
-[data-ui] .fx-phone-title {
-  font-size: 17px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-}
-[data-ui] .fx-phone-body {
-  display: grid;
-  gap: 10px;
-  padding: 16px 18px 20px;
-  font-family: var(--lp-serif);
-  font-size: 15px;
-  line-height: 1.5;
-}
-[data-ui] .fx-phone-task {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-[data-ui] .fx-box {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 16px;
-  height: 16px;
-  border: 1.5px solid var(--lp-edge);
-  border-radius: 4px;
-  color: var(--lp-on-blue);
-}
-[data-ui] .fx-phone-done .fx-box {
-  border-color: var(--lp-blue);
-  background: var(--lp-blue);
-}
-[data-ui] .fx-phone-done {
-  color: var(--lp-slate);
-}
-[data-ui] .fx-phone-type {
-  display: inline-block;
-  width: 2px;
-  height: 1.1em;
-  margin-left: 2px;
-  background: var(--lp-blue);
-  vertical-align: -0.2em;
-}
-[data-ui] .fx-phone-outbox {
-  padding: 10px 18px;
-  border-top: 1px solid var(--lp-hairline);
-  color: var(--lp-slate);
-  font-size: 12px;
-}
-[data-ui] .fx-phone-nav {
-  display: flex;
-  justify-content: space-around;
-  padding: 12px 8px 16px;
-  border-top: 1px solid var(--lp-hairline);
-  border-radius: 0 0 22px 22px;
-  color: var(--lp-faint);
-}
-[data-ui] .fx-phone-nav-on {
-  color: var(--lp-blue);
+[data-ui].fx-phone-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 22px;
 }
 
 /* collaboration */

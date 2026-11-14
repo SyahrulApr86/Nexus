@@ -198,3 +198,14 @@ export async function getRevision(vaultId: string, noteId: string, revisionId: s
   if (!r) throw new HttpError(404, "Revision not found");
   return r;
 }
+
+/** The note's content and version stamp, for restoring single changes against what is there now. */
+export async function currentOf(vaultId: string, noteId: string) {
+  const [n] = await db
+    .select({ id: note.id, content: note.content, updatedAt: note.updatedAt })
+    .from(note)
+    .where(and(eq(note.vaultId, vaultId), eq(note.id, noteId)))
+    .limit(1);
+  if (!n) throw new HttpError(404, "Note not found");
+  return n;
+}
