@@ -13,6 +13,9 @@ import { CALLOUT_TYPES, remarkCallouts } from "./callouts";
 import { embedLinkMarkdown, isBlockEmbed, rehypeEmbeds } from "./embeds";
 import { ATTACHMENT_NAME, attachmentMarkdown, rehypeAttachments, type AttachmentLookup } from "./attachments";
 import { rehypeReadingView } from "./reading-view";
+/* query-block */
+import { renderQueryBlocks } from "@/lib/query/markup";
+/* end query-block */
 
 const callouts = [...CALLOUT_TYPES];
 
@@ -219,7 +222,9 @@ export function renderMarkdown(md: string, exists: (target: string) => boolean, 
     .replace(/([^]*)/g, "<mark>$1</mark>")
     .replace(/[]/g, "");
   const fm = yaml ? `<div class="frontmatter">${escapeHtml(yaml)}</div>` : "";
-  return fm + marked;
+  /* query-block: ```query code blocks become live results (src/lib/query/markup.ts) */
+  return fm + renderQueryBlocks(marked);
+  /* end query-block */
 }
 
 function escapeHtml(s: string) {
