@@ -81,6 +81,19 @@ type TipHandlers = Pick<ComponentProps<"button">, "onPointerEnter" | "onPointerL
  * It stays while the pointer is over it and closes on Escape (WCAG 1.4.13). The control keeps its
  * own accessible name, so the tooltip is hidden from assistive tech.
  */
+/*
+ * Focus shows a tooltip only when the person moved focus with the keyboard (Tab, arrows, Home, End).
+ * Focus placed by code, such as the first tab of a drawer that just opened, stays quiet so the tip
+ * cannot cover the content that appeared with it.
+ */
+const NAV_KEYS = new Set(["Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]);
+let lastNavKeyAt = 0;
+if (typeof window !== "undefined") {
+  window.addEventListener("keydown", (e) => (lastNavKeyAt = NAV_KEYS.has(e.key) ? performance.now() : 0), true);
+  window.addEventListener("pointerdown", () => (lastNavKeyAt = 0), true);
+}
+const focusFromKeyboardNav = () => lastNavKeyAt > 0 && performance.now() - lastNavKeyAt < 500;
+
 function useTooltip(anchor: React.RefObject<HTMLElement | null>) {
   const [pos, setPos] = useState<{ left: number; top: number; host: Element } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -144,7 +157,7 @@ function useTooltip(anchor: React.RefObject<HTMLElement | null>) {
       },
       onFocus: (e) => {
         own.onFocus?.(e);
-        if (e.currentTarget.matches(":focus-visible")) show();
+        if (e.currentTarget.matches(":focus-visible") && focusFromKeyboardNav()) show();
       },
       onBlur: (e) => {
         own.onBlur?.(e);
@@ -324,7 +337,7 @@ export function Menu({
                 onClose();
                 it.onSelect();
               }}
-              className={`flex h-8 w-full items-center gap-3 rounded-md px-2.5 text-left outline-none hover:bg-hover focus-visible:bg-active focus-visible:shadow-[inset_1px_0_0_var(--accent-line)] aria-disabled:opacity-50 pointer-coarse:h-11 ${
+              className={`flex h-8 w-full items-center gap-3 rounded-md px-2.5 text-left hover:bg-hover focus-visible:bg-active focus-visible:shadow-[inset_1px_0_0_var(--accent-line)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--focus)] aria-disabled:opacity-50 pointer-coarse:h-11 ${
                 it.danger ? "text-negative" : "text-fg"
               }`}
             >
