@@ -1823,6 +1823,9 @@
   .query-block .query-table {
     margin: 4px -4px 0;
     overflow-x: auto;
+    /* Its width comes from the note column, never from the table: a wide table scrolls here
+       instead of widening the editor line (Live Preview sits in a shrink-to-fit flex item). */
+    contain: inline-size;
   }
   .query-block .query-table table {
     display: table;
@@ -1851,6 +1854,19 @@
   }
   .query-block .query-table .query-num {
     text-align: right;
+  }
+  /* Cells never split a word: values stay on one line and a wide table scrolls inside its own
+     focusable region; only the Note column wraps, between words, at a readable width. */
+  .query-block .query-table :is(th, td) {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .query-block .query-table :is(th, td):not(:first-child) {
+    white-space: nowrap;
+  }
+  .query-block .query-table :is(th, td):first-child {
+    min-width: 12ch;
+    overflow-wrap: break-word;
   }
 
   .query-block .query-group {
