@@ -652,6 +652,7 @@ function Shell() {
       { id: "theme-dark", label: "Theme: dark", run: () => a.setTheme("dark") },
       { id: "settings", label: "Open settings", shortcut: "Mod+,", run: () => a.setSettingsOpen("general") },
       { id: "hotkeys", label: "Show keyboard shortcuts", run: () => a.setSettingsOpen("hotkeys") },
+      { id: "mcp-tokens", label: "Connect an AI assistant (MCP)", run: () => a.setSettingsOpen("integrations") },
       { id: "logout", label: "Sign out", run: a.logout },
     ],
     [a, note, phone, w.layout.focus, w.focusGroup],

@@ -9,6 +9,7 @@ import { TemplateSettings } from "./templates-settings-rows";
 /* end templates-properties */
 /* attachments-ui */
 import { AttachmentSettingsRows } from "./attachments/settings-rows";
+import { McpTokensSection } from "@/components/mcp/mcp-tokens";
 /* end attachments-ui */
 
 /** Label, keys, and the Mac keys when they differ by more than Mod. */
@@ -93,6 +94,7 @@ const SECTIONS: { id: SettingsSection; label: string; description: string }[] = 
   { id: "editor", label: "Editor", description: "Templates, daily notes and how properties show." },
   { id: "files", label: "Files and links", description: "Where attachments go and what the file explorer lists." },
   { id: "vault", label: "Import and export", description: "Bring notes in, take them all out. Everything stays plain markdown." },
+  { id: "integrations", label: "AI assistants", description: "Let Claude and other MCP clients read and write this vault with a token." },
   { id: "account", label: "Account", description: "Who is signed in on this device." },
   { id: "hotkeys", label: "Hotkeys", description: "Every shortcut in the workspace." },
 ];
@@ -236,6 +238,7 @@ export function SettingsDialog({ section = "general" }: { section?: SettingsSect
                 </Row>
               </>
             )}
+            {current === "integrations" && <McpTokensSection />}
             {current === "account" && (
               <Row title={w.user.name} description={`Signed in as ${w.user.email}. Signing out keeps your notes; they are on the server.`}>
                 <button type="button" onClick={w.actions.logout} className={BUTTON}>
