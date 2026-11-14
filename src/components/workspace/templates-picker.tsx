@@ -130,7 +130,7 @@ function TemplatePicker() {
 
   return (
     <Modal label="Insert template" describedBy={hintId} onClose={close} className="max-w-xl" placement="top">
-      <div className="overflow-hidden rounded-xl border border-border bg-sheet shadow-[var(--shadow-float)]">
+      <div className="overflow-hidden rounded-lg border border-mist bg-sheet shadow-[var(--shadow-float)]">
         <input
           data-autofocus
           role="combobox"

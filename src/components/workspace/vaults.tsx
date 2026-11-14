@@ -227,7 +227,7 @@ function VaultsDialog({ onClose, onCreate }: { onClose: () => void; onCreate: ()
   return (
     <>
       <Modal label="Vaults" onClose={onClose} className="max-w-lg" placement="top">
-        <div className="rounded-xl border border-border bg-sheet p-5 shadow-[var(--shadow-float)]">
+        <div className="rounded-lg border border-mist bg-sheet p-5 shadow-[var(--shadow-float)]">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h2 id={titleId} className="text-[16px] font-medium leading-6">
@@ -414,7 +414,7 @@ function DeleteVaultDialog({
           e.preventDefault();
           void submit();
         }}
-        className="rounded-xl border border-border bg-sheet p-5 shadow-[var(--shadow-float)]"
+        className="rounded-lg border border-mist bg-sheet p-5 shadow-[var(--shadow-float)]"
       >
         <h2 className="text-[16px] font-medium leading-6 text-balance wrap-break-word">Delete “{vault.name}”?</h2>
         <p id={bodyId} className="mt-2 text-[14px] leading-5 text-muted">

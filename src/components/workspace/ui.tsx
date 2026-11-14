@@ -306,7 +306,7 @@ export function Menu({
             fn();
           }
         }}
-        className="absolute max-h-[calc(100dvh-16px)] min-w-52 overflow-y-auto overscroll-contain rounded-lg border border-border bg-sheet py-1 text-[14px] shadow-[var(--shadow-float)]"
+        className="absolute max-h-[calc(100dvh-16px)] min-w-52 overflow-y-auto overscroll-contain rounded-lg border border-mist bg-sheet py-1 text-[14px] shadow-[var(--shadow-float)]"
         style={pos}
       >
         {items.map((it, i) =>

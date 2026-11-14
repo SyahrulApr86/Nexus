@@ -33,7 +33,7 @@ export function CanvasToolbar(p: {
       data-canvas-ui
       role="toolbar"
       aria-label="Canvas tools"
-      className={`absolute bottom-3 left-1/2 z-20 ${p.shifted ? "md:left-[calc(50%-160px)]" : ""} flex max-w-[calc(100%-16px)] -translate-x-1/2 items-center gap-0.5 rounded-xl border border-border bg-sheet p-1 shadow-[var(--shadow-float)] pb-[max(4px,env(safe-area-inset-bottom))] md:pb-1`}
+      className={`absolute bottom-3 left-1/2 z-20 ${p.shifted ? "md:left-[calc(50%-160px)]" : ""} flex max-w-[calc(100%-16px)] -translate-x-1/2 items-center gap-0.5 rounded-lg border border-mist bg-sheet p-1 shadow-[var(--shadow-float)] pb-[max(4px,env(safe-area-inset-bottom))] md:pb-1`}
     >
       <div className="hidden items-center gap-0.5 md:flex">
         <IconButton label="Add text card" onClick={p.onAddText}>

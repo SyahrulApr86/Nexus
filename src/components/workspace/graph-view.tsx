@@ -27,11 +27,13 @@ const readColors = () => {
   const v = (n: string) => css.getPropertyValue(n).trim();
   return {
     fg: v("--fg"),
-    node: v("--faint"),
+    // Blueprint line-art: ink nodes on hairline edges; blue and orange are the only data points.
+    node: v("--fg"),
     accent: v("--accent"),
     mark: v("--mark"),
-    edge: v("--control"),
-    ghost: v("--border"),
+    edge: v("--mist"),
+    ghost: v("--control"),
+    sheet: v("--sheet"),
     font: v("--font-hanken") || "sans-serif",
   };
 };
@@ -162,7 +164,7 @@ export function GraphView() {
     let structure = "";
     let labelAll = true;
     let hover: N | null = null;
-    const radius = (n: N) => 3.5 + Math.sqrt(n.degree) * 2;
+    const radius = (n: N) => 3 + Math.sqrt(n.degree) * 1.5;
 
     const dpr = window.devicePixelRatio || 1;
     let W = 0;
@@ -199,7 +201,7 @@ export function GraphView() {
         const t = l.target as N;
         const lit = focus && (s.id === focus || t.id === focus);
         ctx.strokeStyle = lit ? C.accent : C.edge;
-        ctx.globalAlpha = focus && !lit ? 0.15 : lit ? 1 : 0.45;
+        ctx.globalAlpha = focus && !lit ? 0.25 : 1;
         ctx.beginPath();
         ctx.moveTo(s.x!, s.y!);
         ctx.lineTo(t.x!, t.y!);
@@ -208,10 +210,19 @@ export function GraphView() {
       for (const n of nodes) {
         const dim = focus && n.id !== focus && !near?.has(n.id);
         ctx.globalAlpha = dim ? 0.2 : 1;
-        ctx.fillStyle = n.id === focus || n.id === activeId ? C.accent : n.ghost ? C.ghost : n.tagged ? C.mark : C.node;
+        const lit = n.id === focus || n.id === activeId;
         ctx.beginPath();
         ctx.arc(n.x!, n.y!, radius(n), 0, Math.PI * 2);
-        ctx.fill();
+        if (n.ghost && !lit) {
+          // A note not created yet is drawn hollow, like a planned station on a map.
+          ctx.fillStyle = C.sheet;
+          ctx.fill();
+          ctx.strokeStyle = C.ghost;
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = lit ? C.accent : n.tagged ? C.mark : C.node;
+          ctx.fill();
+        }
       }
       ctx.fillStyle = C.fg;
       ctx.font = `${13 / view2d.k}px ${C.font}, sans-serif`;
@@ -470,6 +481,7 @@ export function GraphView() {
 
   return (
     <div ref={rootRef} className="flex h-full flex-col">
+      <h1 className="sr-only">Graph view</h1>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pb-3 pt-1" role="toolbar" aria-label="Graph options">
         <label htmlFor={filterId} className="sr-only">
           Filter notes

@@ -99,7 +99,7 @@ export const FileCardBody = memo(function FileCardBody({ file, selfId }: { file:
   if (IMAGE.test(file))
     return (
       // eslint-disable-next-line @next/next/no-img-element -- same-origin attachment, sized by the card
-      <img src={`/api/attachments/file?path=${encodeURIComponent(file)}`} alt={basename(file)} draggable={false} className="h-full w-full rounded-[11px] object-contain" />
+      <img src={`/api/attachments/file?path=${encodeURIComponent(file)}`} alt={basename(file)} draggable={false} className="h-full w-full rounded-[7px] object-contain" />
     );
 
   const name = canvas ? canvasTitle(basename(file)) : fileLabel(file);

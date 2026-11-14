@@ -64,7 +64,7 @@ export function SettingsDialog({ section = "general" }: { section?: "general" | 
   return (
     <Modal label="Settings" onClose={close} className="max-w-2xl" placement="top">
       {/* The header sits outside the scroller, so it can never cover a focused control. */}
-      <div className="flex max-h-[min(80vh,calc(100dvh-12vh-1.5rem))] flex-col overflow-hidden rounded-xl border border-border bg-sheet shadow-[var(--shadow-float)]">
+      <div className="flex max-h-[min(80vh,calc(100dvh-12vh-1.5rem))] flex-col overflow-hidden rounded-lg border border-mist bg-sheet shadow-[var(--shadow-float)]">
         <div className="flex shrink-0 items-center justify-between border-b border-rule px-6 py-3">
           <h2 className="text-[16px] font-medium">Settings</h2>
           <IconButton label="Close settings" className="max-md:size-11" onClick={close}>

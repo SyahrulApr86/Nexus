@@ -93,7 +93,7 @@ function Ribbon({ inert }: { inert: boolean }) {
   const a = useWorkspaceActions();
   const leftOpen = useWorkspaceSelector((w) => w.prefs.leftOpen);
   return (
-    <nav aria-label="Ribbon" inert={inert} className="hidden w-11 shrink-0 flex-col items-center pb-2 md:flex">
+    <nav aria-label="Ribbon" inert={inert} className="hidden w-12 shrink-0 flex-col items-center pb-2 md:flex">
       {/* The mark stays on screen when the left sidebar (which carries the full wordmark) is hidden. */}
       <div className="flex h-10 items-center">
         {!leftOpen && (
@@ -122,7 +122,7 @@ function Ribbon({ inert }: { inert: boolean }) {
           <SquareTerminal />
         </IconButton>
       </div>
-      <div className="mt-auto flex flex-col items-center gap-1">
+      <div className="mt-auto flex flex-col items-center gap-1 border-t border-border pt-2">
         <IconButton label="Keyboard shortcuts" onClick={() => a.setSettingsOpen("hotkeys")}>
           <Keyboard />
         </IconButton>
@@ -221,7 +221,7 @@ function LeftSidebar() {
       aria-modal={open || undefined}
       tabIndex={-1}
       inert={!!drawer && !open}
-      className={`fixed inset-y-0 left-0 z-40 flex w-[85vw] max-w-80 flex-col border-r border-border bg-frame shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)]
+      className={`fixed inset-y-0 left-0 z-40 flex w-[85vw] max-w-80 flex-col border-r border-mist bg-frame shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)]
         max-md:pl-[env(safe-area-inset-left)] md:static md:z-auto md:w-[260px] md:max-w-none md:shrink-0 md:translate-x-0 md:border-r-0 md:shadow-none md:visible
         ${open ? "visible translate-x-0" : "invisible -translate-x-full"}
         ${leftOpen ? "md:flex" : "md:hidden"}`}
@@ -278,7 +278,7 @@ function RightSidebar() {
       aria-modal={open || undefined}
       tabIndex={-1}
       inert={!!drawer && !open}
-      className={`fixed inset-y-0 right-0 z-40 flex w-[85vw] max-w-80 flex-col border-l border-border bg-frame shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)] max-lg:pr-[env(safe-area-inset-right)]
+      className={`fixed inset-y-0 right-0 z-40 flex w-[85vw] max-w-80 flex-col border-l border-mist bg-frame shadow-[var(--shadow-float)] outline-none transition-[transform,visibility] duration-200 ease-[var(--ease-out-quint)] max-lg:pr-[env(safe-area-inset-right)]
         lg:static lg:z-auto lg:w-[280px] lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:border-l-0 lg:shadow-none lg:visible
         ${open ? "visible translate-x-0" : "invisible translate-x-full"}
         ${rightOpen ? "lg:flex" : "lg:hidden"}`}
@@ -293,8 +293,8 @@ function RightSidebar() {
         className="flex h-10 shrink-0 items-center gap-0.5 px-2 pointer-coarse:h-12"
       />
       <div id="right-panel" role="tabpanel" aria-labelledby={`right-tab-${view}`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-6">
-        {/* One line: a long note name is cut with an ellipsis; the full text is in the tooltip. */}
-        <h2 className="truncate px-2 pb-0 pt-3 text-[13px] text-faint" title={heading}>
+        {/* At most two lines: a long note name wraps once, then ends with an ellipsis; the full text is in the tooltip. */}
+        <h2 className="line-clamp-2 px-2 pb-0 pt-3 text-[13px] text-faint [overflow-wrap:anywhere]" title={heading}>
           {current.label}
           {view !== "tags" && noteName && (
             <span className="text-muted">
@@ -419,7 +419,7 @@ function PhoneTopBar({ inert }: { inert: boolean }) {
   return (
     <header
       inert={inert}
-      className="box-content grid h-12 shrink-0 grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-1 border-b border-rule bg-frame px-1 md:hidden"
+      className="box-content grid h-12 shrink-0 grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-1 border-b border-border bg-frame px-1 md:hidden"
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       <IconButton
@@ -506,7 +506,7 @@ function PhoneBottomBar({ inert }: { inert: boolean }) {
     <nav
       aria-label="Phone navigation"
       inert={inert}
-      className="flex shrink-0 items-center justify-around border-t border-rule bg-frame px-1 md:hidden"
+      className="flex shrink-0 items-center justify-around border-t border-border bg-frame px-4 md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <PhoneBarButton label="Navigate back" text="Back" disabled={!t || t.index === 0} onClick={actions.back}>
@@ -731,9 +731,9 @@ function Shell() {
       <div
         aria-hidden="true"
         onClick={closeDrawer}
-        className={`fixed inset-0 z-30 bg-[var(--scrim)] transition-opacity duration-200 ease-[var(--ease-out-quint)] ${
+        className={`fixed inset-0 z-30 bg-[var(--scrim)] transition-[opacity,visibility] duration-200 ease-[var(--ease-out-quint)] ${
           w.drawer === "left" ? "md:hidden" : "lg:hidden"
-        } ${w.drawer ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        } ${w.drawer ? "visible opacity-100" : "pointer-events-none invisible opacity-0"}`}
       />
       {w.palette && (
         <Palette

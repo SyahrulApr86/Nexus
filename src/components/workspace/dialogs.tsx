@@ -103,7 +103,7 @@ function DialogView({ req, close }: { req: Req; close: () => void }) {
           e.preventDefault();
           void ok();
         }}
-        className="rounded-xl border border-border bg-sheet p-5 shadow-[var(--shadow-float)]"
+        className="rounded-lg border border-mist bg-sheet p-5 shadow-[var(--shadow-float)]"
       >
         <h2 className="text-[16px] font-medium leading-6 text-balance wrap-break-word">{req.title}</h2>
         {req.kind === "confirm" ? (

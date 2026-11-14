@@ -5,12 +5,13 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
   type RefObject,
 } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, EllipsisVertical, GitFork, PanelRight, Pencil, Plus, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, EllipsisVertical, GitFork, PanelRight, Pencil, Plus, X } from "lucide-react";
 import {
   currentView,
   sameItems,
@@ -29,7 +30,8 @@ import { Presence } from "./collab/presence";
 /* end collab-editor */
 import { Reader } from "./reader";
 import { GraphView } from "./graph-view";
-import { Bar, IconButton, Menu, Shortcut, useMenu, type MenuItem } from "./ui";
+import { Bar, IconButton, Menu, Shortcut, nf, useMenu, type MenuItem } from "./ui";
+import type { TreeNote } from "./api";
 import { dirname } from "@/lib/markdown/parse";
 import { openShare } from "./share-dialog"; // vaults-ui
 /* templates-properties */
@@ -360,7 +362,7 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
 /* ------------------------------------------------------------------ */
 
 const TITLE_CLASS =
-  "block w-full resize-none overflow-hidden rounded-md bg-transparent font-note text-[24px] font-semibold leading-8 tracking-[-0.01em] [overflow-wrap:anywhere] [field-sizing:content] focus-visible:outline-2 focus-visible:outline-offset-4 md:text-[28px] md:leading-9";
+  "block w-full resize-none overflow-hidden rounded-md bg-transparent font-ui text-[26px] font-medium leading-8 tracking-[-0.03em] [overflow-wrap:anywhere] [field-sizing:content] focus-visible:outline-2 focus-visible:outline-offset-4 md:text-[32px] md:leading-[38px]";
 
 /**
  * The note's name as an editable title. Wraps instead of clipping; Enter or
@@ -561,8 +563,8 @@ function NoteSkeleton({ label = "Loading note…" }: { label?: string }) {
   return (
     <div className="mx-auto w-full max-w-[42rem] px-5 pb-8 pt-4 md:px-10 md:pt-6" role="status" aria-busy="true">
       <span className="sr-only">{label}</span>
-      <div className="mb-4 flex h-8 items-center md:h-9">
-        <Bar w="45%" h={22} />
+      <div className="mb-4 flex h-8 items-center md:h-[38px]">
+        <Bar w="45%" h={24} />
       </div>
       {["100%", "92%", "96%", "76%"].map((width, i) => (
         <div key={i} className="flex h-7 items-center">
@@ -573,45 +575,145 @@ function NoteSkeleton({ label = "Loading note…" }: { label?: string }) {
   );
 }
 
+const dayFmt = new Intl.DateTimeFormat("en", { day: "numeric", month: "short" });
+
+/**
+ * The vault drawn as a blueprint: one hairline bar per note, grouped by top-level folder, the bar's
+ * height set by how recently the note changed (the newest is tallest). The most recently edited
+ * note is the one blue data point. It is a picture of real data, so it carries a text equivalent.
+ */
+function VaultPlan({ notes }: { notes: TreeNote[] }) {
+  const groups = useMemo(() => {
+    const byFolder = new Map<string, TreeNote[]>();
+    for (const n of notes) {
+      const i = n.path.indexOf("/");
+      const top = i < 0 ? "Vault root" : n.path.slice(0, i);
+      byFolder.set(top, [...(byFolder.get(top) ?? []), n]);
+    }
+    return [...byFolder.entries()].sort(([a], [b]) => (a === "Vault root" ? 1 : b === "Vault root" ? -1 : a.localeCompare(b)));
+  }, [notes]);
+  const order = useMemo(() => {
+    const ranked = [...notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return new Map(ranked.map((n, i) => [n.id, i]));
+  }, [notes]);
+  if (!notes.length) return null;
+  const newest = [...notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  const H = 88;
+  const height = (n: TreeNote) => {
+    const r = order.get(n.id) ?? 0;
+    return Math.round(12 + (H - 20) * (1 - r / Math.max(1, notes.length - 1)));
+  };
+  const summary = groups.map(([name, list]) => `${name} ${list.length}`).join(", ");
+  return (
+    <figure className="mt-10">
+      <div role="img" aria-label={`Notes by folder: ${summary}. Latest edit: ${newest.name}.`} className="flex flex-wrap gap-x-5 gap-y-6">
+        {groups.map(([name, list]) => (
+          <div key={name} className="min-w-14 flex-1" style={{ flexGrow: list.length + 2 }}>
+            <div className="flex items-end gap-[5px] border-b border-mist" style={{ height: H }}>
+              {list.map((n) => {
+                const latest = n.id === newest.id;
+                return (
+                  <span key={n.id} className="relative block w-px" style={{ height: height(n) }}>
+                    <span className={`absolute inset-0 ${latest ? "bg-accent" : "bg-control"}`} />
+                    {latest && <span className="absolute -left-[3px] -top-[10px] size-[7px] rounded-full bg-accent" />}
+                  </span>
+                );
+              })}
+            </div>
+            <p className="mt-2 truncate text-[12px] leading-4 text-faint" translate="no">
+              {name} <span className="tabular">{nf.format(list.length)}</span>
+            </p>
+          </div>
+        ))}
+      </div>
+      <figcaption className="mt-4 text-[12px] leading-4 text-faint">
+        One line per note, taller when edited more recently. Latest edit:{" "}
+        <span className="text-muted" translate="no">
+          {newest.name}
+        </span>
+        , {dayFmt.format(new Date(newest.updatedAt))}.
+      </figcaption>
+    </figure>
+  );
+}
+
 function EmptyView({ gi }: { gi: number }) {
   const actions = useWorkspaceActions();
   const w = useWorkspaceSelector(
-    (s) => ({ g: s.layout.groups[gi], noNotes: s.tree.notes.length === 0, treeStatus: s.treeStatus }),
+    (s) => ({ g: s.layout.groups[gi], notes: s.tree.notes, folders: s.tree.folders.length, treeStatus: s.treeStatus }),
     shallowEqual,
   );
   const g = w.g;
+  const noNotes = w.notes.length === 0;
+  const today = new Date().toDateString();
+  const editedToday = w.notes.filter((n) => new Date(n.updatedAt).toDateString() === today).length;
   const rows: [string, string, () => void][] = [
     ["Create new note", "Alt+N", () => actions.newNote("")],
     ["Go to file", "Mod+O", () => actions.setPalette("notes")],
     ["Open today’s daily note", "Mod+D", () => actions.dailyNote()],
     ["Open graph view", "Mod+G", () => actions.openView({ type: "graph" })],
   ];
+  const stats: [string, number][] = [
+    ["Notes", w.notes.length],
+    ["Folders", w.folders],
+    ["Edited today", editedToday],
+  ];
+  const ready = w.treeStatus === "ready";
   return (
-    <div className="grid h-full place-items-center px-6 py-12" data-empty-view>
-      <div className="w-full max-w-xs">
-        <h1 className="mb-4 text-[16px] font-medium">No file is open</h1>
-        <ul className="space-y-1">
+    <div className="px-5 py-8 md:px-10 md:py-12" data-empty-view>
+      <div className="w-full">
+        {/* Two-column header: the title on the left, what to do on the right. */}
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] md:gap-10">
+          <h1 className="font-ui text-[26px] font-medium leading-8 tracking-[-0.03em] md:text-[32px] md:leading-[38px]">No file is open</h1>
+          <p className="text-[15px] leading-6 text-muted md:pt-1.5">
+            {noNotes && ready
+              ? "This vault is empty. Write the first note, or import an Obsidian vault from Settings: your files stay plain markdown."
+              : "Pick a note in the file explorer, jump to one by name, or start a new one."}
+          </p>
+        </div>
+
+        <dl className="mt-10 grid grid-cols-3 border-y border-border">
+          {stats.map(([label, value], i) => (
+            <div key={label} className={`py-4 ${i ? "border-l border-border pl-4 md:pl-6" : ""}`}>
+              <dt className="text-[13px] leading-5 text-muted md:text-[14px]">{label}</dt>
+              <dd className="tabular mt-2 text-[26px] leading-8 tracking-[-0.02em] md:text-[32px] md:leading-[38px]">
+                {ready ? nf.format(value) : <Bar w={40} h={24} className="my-1" />}
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <ul className="mt-8 border-t border-border">
           {rows.map(([label, keys, run]) => (
-            <li key={label}>
-              <button type="button" onClick={run} className="flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5 text-left text-accent-ink hover:bg-sheet-hover">
-                {label}
+            <li key={label} className="border-b border-rule">
+              <button
+                type="button"
+                onClick={run}
+                className="group flex min-h-11 w-full items-center justify-between gap-4 px-1 text-left text-[15px] text-fg outline-offset-[-2px] transition-colors hover:text-accent-ink"
+              >
+                <span className="flex items-center gap-2">
+                  <ChevronRight aria-hidden="true" className="size-4 stroke-[1.5] text-faint transition-colors group-hover:text-accent-ink" />
+                  {label}
+                </span>
                 <Shortcut keys={keys} />
               </button>
             </li>
           ))}
           {g?.tabs.length > 0 && (
-            <li>
-              <button type="button" onClick={() => actions.closeTab(gi, g.active)} className="w-full rounded-md px-2 py-1.5 text-left text-muted hover:bg-sheet-hover">
+            <li className="border-b border-rule">
+              <button
+                type="button"
+                onClick={() => actions.closeTab(gi, g.active)}
+                className="flex min-h-11 w-full items-center gap-2 px-1 text-left text-[15px] text-muted outline-offset-[-2px] transition-colors hover:text-fg"
+              >
+                <X aria-hidden="true" className="size-4 stroke-[1.5]" />
                 Close tab
               </button>
             </li>
           )}
         </ul>
-        {w.noNotes && w.treeStatus === "ready" && (
-          <p className="mt-6 text-[13px] leading-5 text-faint">
-            Have an Obsidian vault? Import it from Settings, or drop in .md files there. Your files stay plain markdown.
-          </p>
-        )}
+
+        <VaultPlan notes={w.notes} />
       </div>
     </div>
   );
@@ -648,7 +750,7 @@ export function TabGroup({ gi }: { gi: number }) {
         id={panelId}
         role="tabpanel"
         aria-label={title}
-        className={`flex min-h-0 flex-1 flex-col overflow-hidden bg-sheet md:rounded-[16px] md:border md:border-border ${
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden bg-sheet md:rounded-lg md:border md:border-border ${
           last ? "md:mr-2" : ""
         } ${layout.groups.length > 1 && !focused ? "md:opacity-[0.985]" : ""}`}
       >

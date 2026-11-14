@@ -83,7 +83,7 @@ export function Palette({
 
   return (
     <Modal label={mode === "notes" ? "Quick switcher" : "Command palette"} onClose={onClose} className="max-w-xl" placement="top">
-      <div className="overflow-hidden rounded-xl border border-border bg-sheet shadow-[var(--shadow-float)]">
+      <div className="overflow-hidden rounded-lg border border-mist bg-sheet shadow-[var(--shadow-float)]">
         <input
           data-autofocus
           role="combobox"

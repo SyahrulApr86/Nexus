@@ -137,7 +137,7 @@ function ShareDialog({ note, onClose }: { note: ShareTarget; onClose: () => void
 
   return (
     <Modal label={`Share “${note.name}”`} describedBy={descId} onClose={onClose} className="max-w-lg" placement="top">
-      <div className="rounded-xl border border-border bg-sheet p-5 shadow-[var(--shadow-float)]">
+      <div className="rounded-lg border border-mist bg-sheet p-5 shadow-[var(--shadow-float)]">
         <h2 id={titleId} className="text-[16px] font-medium leading-6 text-balance [overflow-wrap:anywhere]">
           Share “<span translate="no">{note.name}</span>”
         </h2>

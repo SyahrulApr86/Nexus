@@ -237,9 +237,9 @@ const frontmatterBand = ViewPlugin.fromClass(
 );
 
 const highlight = HighlightStyle.define([
-  { tag: t.heading1, fontSize: "1.6em", fontWeight: "600", lineHeight: "1.3" },
-  { tag: t.heading2, fontSize: "1.35em", fontWeight: "600" },
-  { tag: t.heading3, fontSize: "1.15em", fontWeight: "600" },
+  { tag: t.heading1, fontSize: "1.4em", fontWeight: "600", lineHeight: "1.3" },
+  { tag: t.heading2, fontSize: "1.25em", fontWeight: "600" },
+  { tag: t.heading3, fontSize: "1.1em", fontWeight: "600" },
   { tag: [t.heading4, t.heading5, t.heading6], fontWeight: "600" },
   { tag: t.strong, fontWeight: "650" },
   { tag: t.emphasis, fontStyle: "italic" },
