@@ -52,6 +52,7 @@ import { splitFrontmatter } from "@/lib/markdown/parse";
 /* vaults-ui */
 import { VaultSwitcher, VaultsHost, openCreateVault, openVaults } from "./vaults";
 import { ShareHost, openShare } from "./share-dialog";
+import { HistoryHost, openHistory } from "./history/history-dialog"; // graph-history
 import { exportActiveVault } from "./vaults-export";
 /* end vaults-ui */
 /* collab-editor */
@@ -631,6 +632,7 @@ function Shell() {
             { id: "reveal", label: "Reveal current note in file explorer", run: () => a.reveal(note.path) },
             { id: "delete", label: "Delete current note", run: () => a.deleteNote(note) },
             { id: "share", label: "Share note…", run: () => openShare(note) }, // vaults-ui
+            ...(isCanvasPath(note.path) ? [] : [{ id: "history", label: "Show version history", run: () => openHistory(note) }]), // graph-history
           ]
         : []),
       /* templates-properties: palette entries */
@@ -811,6 +813,9 @@ function Shell() {
       <VaultsHost />
       <ShareHost />
       {/* end vaults-ui */}
+      {/* graph-history */}
+      <HistoryHost />
+      {/* end graph-history */}
       {/* templates-properties */}
       <TemplatePickerHost />
       {/* end templates-properties */}

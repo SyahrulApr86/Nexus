@@ -35,6 +35,7 @@ import { Bar, IconButton, Menu, Shortcut, nf, useMenu, type MenuItem } from "./u
 import type { TreeNote } from "./api";
 import { dirname } from "@/lib/markdown/parse";
 import { openShare } from "./share-dialog"; // vaults-ui
+import { openHistory } from "./history/history-dialog"; // graph-history
 /* templates-properties */
 import { Properties } from "./properties";
 import { hideFrontmatter } from "./properties-extension";
@@ -293,6 +294,7 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
         { label: "Reveal in file explorer", onSelect: () => actions.reveal(note.path) },
         { label: "Copy path", onSelect: () => navigator.clipboard?.writeText(canvas ? note.path : `${note.path}.md`).then(() => actions.notify("Path copied")) },
         { label: "Share…", onSelect: () => openShare(note) }, // vaults-ui
+        ...(canvas ? [] : [{ label: "Version history…", onSelect: () => openHistory(note) }]), // graph-history
         "separator",
         { label: canvas ? "Delete canvas" : "Delete note", danger: true, onSelect: () => actions.deleteNote(note) },
       ]
