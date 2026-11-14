@@ -81,11 +81,11 @@ export function SearchView() {
 
   return (
     <div ref={rootRef} className="flex h-full flex-col">
-      <div className="px-3 pb-2 pt-1">
+      <div className="px-3 pb-3 pt-3">
         <label htmlFor={inputId} className="sr-only">
           Search notes
         </label>
-        <div className="flex h-9 items-center gap-2 rounded-lg border border-control bg-sheet pl-2.5 pr-1 pointer-coarse:h-11 focus-within:outline focus-within:outline-2 focus-within:outline-[var(--focus)]">
+        <div className="flex h-8 items-center gap-2 rounded-md border border-control bg-sheet pl-2.5 pr-1 pointer-coarse:h-11 focus-within:outline focus-within:outline-2 focus-within:outline-[var(--focus)]">
           <Search aria-hidden="true" className="size-4 shrink-0 stroke-[1.5] text-faint" />
           <input
             id={inputId}
@@ -148,15 +148,15 @@ export function SearchView() {
           </div>
         )}
         {result && <p className="px-2 pb-2 text-[12px] text-faint tabular">{summary}</p>}
-        <ul className="space-y-0.5">
+        <ul>
           {result?.hits.map((h) => (
-            <li key={h.id}>
+            <li key={h.id} className="border-b border-rule last:border-b-0">
               <button
                 type="button"
                 onClick={(e) => actions.open(h.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
-                className="block w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-hover"
+                className="block w-full rounded-md px-2 py-2.5 text-left transition-colors hover:bg-hover"
               >
-                <span className="block truncate font-medium" translate="no">
+                <span className="block truncate text-[13px] font-medium text-fg" translate="no">
                   {h.name}
                 </span>
                 {h.path.includes("/") && (

@@ -7,7 +7,7 @@ import { Lightbox } from "./lightbox";
 import { baseName, embedLink, folderOf, formatSize, kindLabel } from "./model";
 
 const BUTTON =
-  "inline-flex h-9 items-center rounded-lg border border-control px-3 text-[13px] font-medium transition-colors hover:bg-sheet-hover pointer-coarse:h-11";
+  "inline-flex h-9 items-center rounded-lg border border-control px-3 text-[13px] font-medium transition-colors hover:bg-hover pointer-coarse:h-11";
 
 /** A tab showing one attachment: the image, PDF, audio or video, with what can be done to it. */
 export function AttachmentView({ path, onClose }: { path: string; onClose: () => void }) {

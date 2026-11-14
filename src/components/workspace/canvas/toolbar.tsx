@@ -27,13 +27,13 @@ export function CanvasToolbar(p: {
   onOutline: () => void;
 }) {
   const add = useMenu();
-  const sep = <span aria-hidden="true" className="mx-0.5 h-5 w-px shrink-0 bg-rule" />;
+  const sep = <span aria-hidden="true" className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
   return (
     <div
       data-canvas-ui
       role="toolbar"
       aria-label="Canvas tools"
-      className={`absolute bottom-3 left-1/2 z-20 ${p.shifted ? "md:left-[calc(50%-160px)]" : ""} flex max-w-[calc(100%-16px)] -translate-x-1/2 items-center gap-0.5 rounded-lg border border-mist bg-sheet p-1 shadow-[var(--shadow-float)] pb-[max(4px,env(safe-area-inset-bottom))] md:pb-1`}
+      className={`absolute bottom-3 left-1/2 z-20 ${p.shifted ? "md:left-[calc(50%-160px)]" : ""} flex max-w-[calc(100%-16px)] -translate-x-1/2 items-center gap-0.5 rounded-lg border border-mist bg-raised p-1 shadow-[var(--shadow-float)] pb-[max(4px,env(safe-area-inset-bottom))] md:pb-1`}
     >
       <div className="hidden items-center gap-0.5 md:flex">
         <IconButton label="Add text card" onClick={p.onAddText}>

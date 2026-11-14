@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "
 import { ArrowDownUp, ChevronRight, ChevronsDownUp, EllipsisVertical, FilePen, FolderPlus } from "lucide-react";
 import type { TreeNote } from "./api";
 import { shallowEqual, useWorkspaceActions, useWorkspaceSelector, type SortOrder } from "./store";
-import { Bar, IconButton, Menu, useMenu, type MenuItem } from "./ui";
+import { Bar, IconButton, Menu, nf, useMenu, type MenuItem } from "./ui";
 // --- canvas track: .canvas files get their own icon and a "New canvas" command ---
 import { LayoutDashboard } from "lucide-react";
 import { canvasTitle, isCanvasPath } from "@/lib/canvas";
@@ -145,7 +145,7 @@ const TreeRow = memo(function TreeRow({
         {...common}
         aria-expanded={open}
         aria-selected={false}
-        className={`group flex h-11 cursor-pointer select-none items-center gap-1 rounded-md text-muted outline-offset-[-2px] transition-colors hover:bg-hover hover:text-fg md:h-7 md:pointer-coarse:h-11 ${
+        className={`group flex h-11 cursor-pointer select-none items-center gap-1 rounded-md text-[13px] font-medium text-muted outline-offset-[-2px] transition-colors hover:bg-hover hover:text-fg md:h-7 md:pointer-coarse:h-11 ${
           dropTarget ? "bg-active" : ""
         }`}
       >
@@ -165,8 +165,8 @@ const TreeRow = memo(function TreeRow({
       aria-selected={active}
       aria-current={active ? "page" : undefined}
       draggable
-      className={`group flex h-11 cursor-pointer select-none items-center rounded-md outline-offset-[-2px] transition-colors md:h-7 md:pointer-coarse:h-11 ${
-        active ? "bg-active font-medium text-accent-ink" : "text-fg hover:bg-hover"
+      className={`group flex h-11 cursor-pointer select-none items-center rounded-md text-[13px] outline-offset-[-2px] transition-colors md:h-7 md:pointer-coarse:h-11 ${
+        active ? "bg-active font-medium text-fg shadow-[inset_1px_0_0_var(--accent-line)]" : "text-muted hover:bg-hover hover:text-fg"
       }`}
     >
       {/* --- canvas track --- */}
@@ -454,14 +454,19 @@ export function FileExplorer() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-center gap-0.5 px-2 md:h-10" role="toolbar" aria-label="File explorer">
-        <IconButton label="New note" shortcut="Alt+N" className="max-md:size-11" onClick={() => actions.newNote("")}>
+      <div className="flex h-12 shrink-0 items-center gap-0.5 pl-4 pr-2 md:h-10">
+        {/* What the tree holds, in figures; the tools sit at the right. */}
+        <p className="tabular mr-auto truncate text-[12px] text-faint">
+          {w.treeStatus === "ready" ? `${nf.format(w.tree.notes.length)} ${w.tree.notes.length === 1 ? "note" : "notes"} · ${nf.format(w.tree.folders.length)} ${w.tree.folders.length === 1 ? "folder" : "folders"}` : ""}
+        </p>
+        <div role="toolbar" aria-label="File explorer" className="flex items-center gap-0.5">
+        <IconButton label="New note" shortcut="Alt+N" className="max-md:size-11 md:size-7" onClick={() => actions.newNote("")}>
           <FilePen />
         </IconButton>
-        <IconButton label="New folder" className="max-md:size-11" onClick={() => actions.newFolder("")}>
+        <IconButton label="New folder" className="max-md:size-11 md:size-7" onClick={() => actions.newFolder("")}>
           <FolderPlus />
         </IconButton>
-        <IconButton label="Change sort order" aria-haspopup="menu" className="max-md:size-11" onClick={(e) => sortMenu.openBelow(e.currentTarget)}>
+        <IconButton label="Change sort order" aria-haspopup="menu" className="max-md:size-11 md:size-7" onClick={(e) => sortMenu.openBelow(e.currentTarget)}>
           <ArrowDownUp />
         </IconButton>
         <IconButton
@@ -472,6 +477,7 @@ export function FileExplorer() {
         >
           <ChevronsDownUp />
         </IconButton>
+        </div>
       </div>
 
       <div

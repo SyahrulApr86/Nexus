@@ -64,7 +64,7 @@ export function CanvasOutline({
       onClick={() => onPick(id)}
       aria-label={spoken ? `${spoken}${detail ? `, ${detail}` : ""}` : undefined}
       aria-current={selection.has(id) || undefined}
-      className="flex w-full min-w-0 flex-col items-start rounded-md px-2 py-1.5 text-left hover:bg-sheet-hover aria-[current]:bg-accent-soft"
+      className="flex w-full min-w-0 flex-col items-start rounded-md px-2 py-1.5 text-left hover:bg-hover aria-[current]:bg-accent-soft"
     >
       <span className="w-full truncate text-[14px] text-fg" translate="no">
         {text}

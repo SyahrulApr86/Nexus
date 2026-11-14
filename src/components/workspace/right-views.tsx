@@ -216,9 +216,9 @@ export function BacklinksView() {
                 <button
                   type="button"
                   onClick={(e) => actions.open(b.id, e.ctrlKey || e.metaKey ? "tab" : "current")}
-                  className="block w-full rounded-md px-2 py-3 text-left transition-colors hover:bg-hover lg:py-1.5"
+                  className="block w-full rounded-md px-2 py-3 text-left transition-colors hover:bg-hover lg:py-2"
                 >
-                  <span className="block truncate" translate="no">
+                  <span className="block truncate text-[13px] font-medium text-fg" translate="no">
                     {b.name}
                   </span>
                   {b.context && <Context line={b.context} target={note.name} />}
@@ -255,7 +255,7 @@ export function BacklinksView() {
                     type="button"
                     disabled={linking === m.id}
                     onClick={() => link(m)}
-                    className="h-11 shrink-0 rounded-md border border-control px-3 text-[12px] font-medium transition-colors hover:bg-sheet disabled:opacity-50 lg:h-7 lg:px-2"
+                    className="h-11 shrink-0 rounded-md border border-control px-3 text-[12px] font-medium transition-colors hover:bg-hover disabled:opacity-50 lg:h-7 lg:px-2"
                   >
                     {linking === m.id ? "Linking…" : "Link"}
                     <span className="sr-only"> mention in {m.name}</span>
@@ -441,6 +441,7 @@ export function TagsView() {
         <Empty>No tags yet. Write #tag in a note to add one.</Empty>
       </div>
     );
+  const most = Math.max(1, ...tags.map((x) => x.count));
   return (
     <ul ref={rootRef} className="space-y-0.5">
       {tags.map((t) => (
@@ -448,12 +449,18 @@ export function TagsView() {
           <button
             type="button"
             onClick={() => actions.setSelectedTag(t.tag)}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-3 text-left transition-colors hover:bg-hover lg:py-1.5"
+            className="block w-full rounded-md px-2 py-2.5 text-left transition-colors hover:bg-hover lg:py-1.5"
           >
-            <span className="min-w-0 flex-1 truncate text-mark-ink" translate="no">
-              #{t.tag}
+            <span className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-[13px] text-mark-ink" translate="no">
+                #{t.tag}
+              </span>
+              <span className="tabular text-[12px] text-faint">{nf.format(t.count)}</span>
             </span>
-            <span className="tabular text-[12px] text-faint">{nf.format(t.count)}</span>
+            {/* How often, against the most used tag: a 2px grey track, the share in slate. */}
+            <span aria-hidden="true" className="mt-1.5 block h-0.5 bg-rule">
+              <span className="block h-full bg-control" style={{ width: `${(t.count / most) * 100}%` }} />
+            </span>
           </button>
         </li>
       ))}

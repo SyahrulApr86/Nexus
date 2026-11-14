@@ -27,8 +27,10 @@ const readColors = () => {
   const v = (n: string) => css.getPropertyValue(n).trim();
   return {
     fg: v("--fg"),
-    // Blueprint line-art: ink nodes on hairline edges; blue and orange are the only data points.
-    node: v("--fg"),
+    // Blueprint line-art: slate nodes on hairline edges; blue and orange are the only data points.
+    node: v("--muted"),
+    label: v("--muted"),
+    grid: v("--border"),
     accent: v("--accent"),
     mark: v("--mark"),
     edge: v("--mist"),
@@ -191,6 +193,12 @@ export function GraphView() {
       const activeId = activeRef.current;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
+      // The map's survey grid: a dot every 24px on screen, fixed to the paper as it pans.
+      ctx.fillStyle = C.grid;
+      const step = 24;
+      const ox = (((W / 2 + view2d.x) % step) + step) % step;
+      const oy = (((H / 2 + view2d.y) % step) + step) % step;
+      for (let gx = ox; gx < W; gx += step) for (let gy = oy; gy < H; gy += step) ctx.fillRect(gx, gy, 1, 1);
       ctx.translate(W / 2 + view2d.x, H / 2 + view2d.y);
       ctx.scale(view2d.k, view2d.k);
       const focus = hover?.id ?? null;
@@ -223,16 +231,30 @@ export function GraphView() {
           ctx.fillStyle = lit ? C.accent : n.tagged ? C.mark : C.node;
           ctx.fill();
         }
+        if (n.id === activeId) {
+          // The open note: a 1px ring around its dot, like a station you are standing at.
+          ctx.beginPath();
+          ctx.arc(n.x!, n.y!, radius(n) + 4 / view2d.k, 0, Math.PI * 2);
+          ctx.strokeStyle = C.accent;
+          ctx.stroke();
+        }
       }
-      ctx.fillStyle = C.fg;
-      ctx.font = `${13 / view2d.k}px ${C.font}, sans-serif`;
+      ctx.font = `500 ${12 / view2d.k}px ${C.font}, sans-serif`;
       ctx.textAlign = "center";
+      // Labels are knocked out of the edges with a stroke in the sheet's colour, so they stay readable.
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 4 / view2d.k;
+      ctx.strokeStyle = C.sheet;
       for (const n of nodes) {
         const show = labelAll || view2d.k > 1.2 || n.degree > 3 || n.id === focus || n.id === activeId || near?.has(n.id);
         if (!show) continue;
         const dim = focus && n.id !== focus && !near?.has(n.id);
-        ctx.globalAlpha = dim ? 0.2 : n.ghost ? 0.6 : 0.9;
-        ctx.fillText(n.name, n.x!, n.y! + radius(n) + 14 / view2d.k);
+        ctx.globalAlpha = dim ? 0.2 : n.ghost ? 0.6 : 1;
+        const text = n.id === focus || n.name.length <= 28 ? n.name : `${n.name.slice(0, 26).trimEnd()}…`;
+        const y = n.y! + radius(n) + 15 / view2d.k;
+        ctx.strokeText(text, n.x!, y);
+        ctx.fillStyle = n.id === focus || n.id === activeId ? C.fg : C.label;
+        ctx.fillText(text, n.x!, y);
       }
       ctx.globalAlpha = 1;
     };
@@ -482,11 +504,11 @@ export function GraphView() {
   return (
     <div ref={rootRef} className="flex h-full flex-col">
       <h1 className="sr-only">Graph view</h1>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pb-3 pt-1" role="toolbar" aria-label="Graph options">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border px-4 py-2.5" role="toolbar" aria-label="Graph options">
         <label htmlFor={filterId} className="sr-only">
           Filter notes
         </label>
-        <div className="flex h-9 w-full items-center gap-1 rounded-lg border border-control bg-sheet pl-2.5 pr-1 focus-within:outline focus-within:outline-2 focus-within:outline-[var(--focus)] sm:w-64 md:h-8 pointer-coarse:h-11">
+        <div className="flex h-9 w-full items-center gap-1 rounded-md border border-control bg-sheet pl-2.5 pr-1 focus-within:outline focus-within:outline-2 focus-within:outline-[var(--focus)] sm:w-64 md:h-8 pointer-coarse:h-11">
           <input
             ref={filterRef}
             id={filterId}
