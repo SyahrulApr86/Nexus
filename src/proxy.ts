@@ -42,7 +42,7 @@ const GONE_HTML = `<!doctype html>
 <meta name="referrer" content="no-referrer">
 <title>Link not available</title>
 <style>
-:root{color-scheme:dark;--bg:#02070a;--panel:#0b131a;--fg:#e8eef2;--muted:#a9b5c0;--border:#1f2b36;--blue:#0297de}
+:root{color-scheme:dark;--bg:#02070a;--panel:#0c161e;--fg:#e9eef2;--muted:#a2b0bc;--border:#18252f;--blue:#0297de}
 *{box-sizing:border-box}
 body{margin:0;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font-family:"Hanken Grotesk",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 header{display:flex;align-items:center;min-height:56px;padding:0 16px;border-bottom:1px solid var(--border);font-size:18px;font-weight:650;letter-spacing:-.03em} /* taste-skill-ignore: owner-approved hairline structure (DESIGN/ reference) */
