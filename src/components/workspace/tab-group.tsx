@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent,
   type RefObject,
 } from "react";
@@ -51,6 +52,13 @@ function isCanvasNote(w: WorkspaceValue, id: string) {
 /* attachments-ui */
 import { AttachmentView } from "./attachments/attachment-view";
 /* end attachments-ui */
+
+const PHONE = "(max-width: 767px)";
+const subscribePhone = (cb: () => void) => {
+  const m = window.matchMedia(PHONE);
+  m.addEventListener("change", cb);
+  return () => m.removeEventListener("change", cb);
+};
 
 /** Focus an element once it exists (checked each frame, for up to half a second). */
 function focusWhenReady(find: () => HTMLElement | null | undefined, tries = 30) {
@@ -144,14 +152,14 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
   }, [activeKey, g.tabs.length]);
 
   return (
-    <div className="hidden h-10 shrink-0 items-end gap-1 pl-4 pr-2 md:flex pointer-coarse:h-12">
-      {/* pb-px lets the selected tab paint over the sheet's top hairline; pl-4 clears the sheet's rounded corner. */}
-      <div ref={listRef} role="tablist" aria-label={layout.groups.length > 1 ? `Tabs, group ${gi + 1}` : "Tabs"} className="relative z-10 -mb-px flex min-w-0 items-end gap-0.5 overflow-x-auto overflow-y-hidden pb-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="hidden h-10 shrink-0 items-stretch border-b border-border pr-1.5 md:flex pointer-coarse:h-12">
+      {/* A ruled strip: tabs split by hairlines; the selected one is ink with the 1px accent line under its label. */}
+      <div ref={listRef} role="tablist" aria-label={layout.groups.length > 1 ? `Tabs, group ${gi + 1}` : "Tabs"} className="flex min-w-0 items-stretch overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {g.tabs.map((t: Tab, i) => {
           const selected = i === g.active;
           const v = currentView(t);
           return (
-            <div key={t.key} data-tab-key={t.key} className="group relative flex shrink-0 items-center">
+            <div key={t.key} data-tab-key={t.key} className="group relative flex shrink-0 items-stretch border-r border-border">
               <button
                 id={`tab-${g.key}-${i}`}
                 type="button"
@@ -166,19 +174,21 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
                   setMenuTab(i);
                   menu.openAt(e);
                 }}
-                className={`relative flex h-9 max-w-56 items-center gap-1.5 rounded-t-lg pl-3 pr-8 text-[13px] pointer-coarse:h-11 pointer-coarse:pr-10 outline-offset-[-2px] transition-colors ${
-                  selected
-                    ? "z-10 -mb-px border border-b-0 border-border bg-sheet text-fg"
-                    : "text-muted hover:bg-hover hover:text-fg"
+                className={`relative flex max-w-60 items-center gap-2 pl-4 pr-9 text-[13px] outline-offset-[-3px] transition-colors pointer-coarse:pr-11 ${
+                  selected ? (layout.focus === gi ? "font-medium text-fg" : "text-fg") : "text-faint hover:bg-hover hover:text-muted"
                 }`}
               >
-                {selected && layout.focus === gi && (
-                  <span aria-hidden="true" className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-accent" />
-                )}
                 {v.type === "graph" && <GitFork aria-hidden="true" className="size-3.5 shrink-0 stroke-[1.5] text-faint" />}
-                <span className="truncate" translate={v.type === "note" ? "no" : undefined}>
+                <span className="relative min-w-0 truncate" translate={v.type === "note" ? "no" : undefined}>
                   {titles[i]}
                 </span>
+                {/* The selection line sits on the strip's bottom hairline, as wide as the label. */}
+                {selected && (
+                  <span
+                    aria-hidden="true"
+                    className={`absolute bottom-[-1px] left-4 right-9 h-px pointer-coarse:right-11 ${layout.focus === gi ? "bg-accent-line" : "bg-control"}`}
+                  />
+                )}
               </button>
               <button
                 type="button"
@@ -187,7 +197,7 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
                 title="Close tab"
                 onClick={() => actions.closeTab(gi, i)}
                 // 24px to see, 44px to touch: the ::after pad widens the hit area on coarse pointers.
-                className={`absolute right-1.5 top-1/2 z-20 grid size-6 -translate-y-1/2 place-items-center rounded text-faint transition-opacity hover:bg-hover hover:text-fg pointer-coarse:right-2.5 pointer-coarse:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 ${
+                className={`absolute right-2 top-1/2 z-20 grid size-6 -translate-y-1/2 place-items-center rounded text-faint transition-opacity hover:bg-hover hover:text-fg pointer-coarse:right-2.5 pointer-coarse:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 ${
                   selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                 }`}
               >
@@ -197,7 +207,7 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
           );
         })}
       </div>
-      <IconButton label="New tab" shortcut="Alt+T" className="mb-0.5 size-7 pointer-coarse:size-11" onClick={() => actions.openView({ type: "empty" }, "tab")}>
+      <IconButton label="New tab" shortcut="Alt+T" className="mx-1 size-7 self-center pointer-coarse:size-11" onClick={() => actions.openView({ type: "empty" }, "tab")}>
         <Plus />
       </IconButton>
       <div className="flex-1" />
@@ -208,14 +218,14 @@ function TabBar({ gi, panelId, last }: { gi: number; panelId: string; last: bool
             label={drawer === "right" ? "Hide right sidebar" : "Show right sidebar"}
             aria-expanded={drawer === "right"}
             aria-controls="right-sidebar"
-            className="mb-0.5 lg:hidden"
+            className="self-center lg:hidden"
             onClick={() => actions.showRight()}
           >
             <PanelRight />
           </IconButton>
           <IconButton
             label={rightOpen ? "Hide right sidebar" : "Show right sidebar"}
-            className="mb-0.5 hidden lg:inline-flex"
+            className="hidden self-center lg:inline-flex"
             onClick={() => actions.showRight()}
           >
             <PanelRight />
@@ -289,31 +299,29 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
     : [{ label: "Close tab", onSelect: () => actions.closeTab(gi, w.layout.groups[gi].active) }];
 
   return (
-    <div className="hidden h-11 shrink-0 items-center gap-1 px-2 md:flex">
+    <div className="hidden h-11 shrink-0 items-center gap-0.5 px-2 md:flex">
       <IconButton label="Navigate back" shortcut="Ctrl+Alt+←" disabled={!canBack} onClick={() => go(-1)}>
         <ArrowLeft />
       </IconButton>
       <IconButton label="Navigate forward" shortcut="Ctrl+Alt+→" disabled={!canForward} onClick={() => go(1)}>
         <ArrowRight />
       </IconButton>
-      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 justify-center px-2">
-        <ol className="flex min-w-0 items-center gap-1 text-[13px]">
+      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 px-2">
+        <ol className="flex min-w-0 items-center gap-0.5 text-[13px]">
           {folders.map((f, i) => (
             <li key={i} className="flex min-w-0 items-center gap-1">
               <button
                 type="button"
                 onClick={() => actions.reveal(`${folders.slice(0, i + 1).join("/")}/x`)}
                 translate="no"
-                className="truncate rounded px-1 text-faint hover:bg-hover hover:text-fg"
+                className="truncate rounded px-1.5 py-0.5 text-faint transition-colors hover:bg-hover hover:text-fg"
               >
                 {f}
               </button>
-              <span aria-hidden="true" className="text-faint">
-                /
-              </span>
+              <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 stroke-[1.5] text-faint" />
             </li>
           ))}
-          <li className="min-w-0 truncate px-1 text-muted" aria-current="page" translate={view.type === "note" ? "no" : undefined}>
+          <li className="min-w-0 truncate px-1.5 font-medium text-fg" aria-current="page" translate={view.type === "note" ? "no" : undefined}>
             {current}
           </li>
         </ol>
@@ -362,7 +370,7 @@ function ViewHeader({ gi, tab, view }: { gi: number; tab?: Tab; view: View }) {
 /* ------------------------------------------------------------------ */
 
 const TITLE_CLASS =
-  "block w-full resize-none overflow-hidden rounded-md bg-transparent font-ui text-[26px] font-medium leading-8 tracking-[-0.03em] [overflow-wrap:anywhere] [field-sizing:content] focus-visible:outline-2 focus-visible:outline-offset-4 md:text-[32px] md:leading-[38px]";
+  "display block w-full resize-none overflow-hidden rounded-md bg-transparent text-[30px] leading-[36px] text-fg [overflow-wrap:anywhere] [field-sizing:content] focus-visible:outline-2 focus-visible:outline-offset-4 md:text-[40px] md:leading-[46px]";
 
 /**
  * The note's name as an editable title. Wraps instead of clipping; Enter or
@@ -409,7 +417,7 @@ function InlineTitle({
     });
   };
   return (
-    <h1 className="mb-4">
+    <h1 className="mb-3">
       <textarea
         ref={inputRef}
         rows={1}
@@ -513,7 +521,7 @@ function NoteView({ id, mode, gi, focused, onClose }: { id: string; mode: "edit"
   }
   if (!note) return <NoteSkeleton />;
   return (
-    <div className="mx-auto w-full max-w-[42rem] px-5 pb-8 pt-4 md:px-10 md:pt-6">
+    <div className="mx-auto w-full max-w-[46rem] px-5 pb-16 pt-6 md:px-12 md:pt-12">
       <InlineTitle
         key={note.name}
         id={note.id}
@@ -522,6 +530,7 @@ function NoteView({ id, mode, gi, focused, onClose }: { id: string; mode: "edit"
         inputRef={titleRef}
         onDone={() => (mode === "edit" ? handle.current?.focus() : undefined)}
       />
+      <NoteMeta path={note.path} createdAt={note.createdAt} />
       {/* templates-properties */}
       {showProperties === "visible" && <Properties id={note.id} gi={gi} mode={mode} />}
       {/* end templates-properties */}
@@ -558,13 +567,37 @@ function NoteView({ id, mode, gi, focused, onClose }: { id: string; mode: "edit"
   );
 }
 
+const createdFmt = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "numeric" });
+
+/** One quiet line under the title: where the note lives (phones have no breadcrumb) and when it began. */
+function NoteMeta({ path, createdAt }: { path: string; createdAt: string }) {
+  const folder = dirname(path);
+  const date = new Date(createdAt);
+  return (
+    <p className="mb-8 flex flex-wrap items-center gap-x-2 text-[13px] leading-5 text-faint">
+      <span className="md:hidden" translate="no">
+        {folder || "Vault root"}
+      </span>
+      <span aria-hidden="true" className="h-3 w-px bg-border md:hidden" />
+      {!Number.isNaN(+date) && (
+        <span className="tabular">
+          Created <time dateTime={createdAt}>{createdFmt.format(date)}</time>
+        </span>
+      )}
+    </p>
+  );
+}
+
 /** Placeholder laid out like NoteView: same padding, a title line and 28px text lines, so nothing moves when the note arrives. */
 function NoteSkeleton({ label = "Loading note…" }: { label?: string }) {
   return (
-    <div className="mx-auto w-full max-w-[42rem] px-5 pb-8 pt-4 md:px-10 md:pt-6" role="status" aria-busy="true">
+    <div className="mx-auto w-full max-w-[46rem] px-5 pb-16 pt-6 md:px-12 md:pt-12" role="status" aria-busy="true">
       <span className="sr-only">{label}</span>
-      <div className="mb-4 flex h-8 items-center md:h-[38px]">
-        <Bar w="45%" h={24} />
+      <div className="mb-3 flex h-9 items-center md:h-[46px]">
+        <Bar w="45%" h={30} />
+      </div>
+      <div className="mb-8 flex h-5 items-center">
+        <Bar w={120} h={10} />
       </div>
       {["100%", "92%", "96%", "76%"].map((width, i) => (
         <div key={i} className="flex h-7 items-center">
@@ -605,17 +638,18 @@ function VaultPlan({ notes }: { notes: TreeNote[] }) {
   };
   const summary = groups.map(([name, list]) => `${name} ${list.length}`).join(", ");
   return (
-    <figure className="mt-10">
-      <div role="img" aria-label={`Notes by folder: ${summary}. Latest edit: ${newest.name}.`} className="flex flex-wrap gap-x-5 gap-y-6">
+    <figure>
+      <h2 className="text-[13px] font-medium leading-5 text-faint">Vault plan</h2>
+      <div role="img" aria-label={`Notes by folder: ${summary}. Latest edit: ${newest.name}.`} className="mt-4 flex flex-wrap gap-x-5 gap-y-6 border-t border-border pt-6">
         {groups.map(([name, list]) => (
           <div key={name} className="min-w-14 flex-1" style={{ flexGrow: list.length + 2 }}>
-            <div className="flex items-end gap-[5px] border-b border-mist" style={{ height: H }}>
+            <div className="flex items-end gap-[7px] border-b border-control" style={{ height: H }}>
               {list.map((n) => {
                 const latest = n.id === newest.id;
                 return (
-                  <span key={n.id} className="relative block w-px" style={{ height: height(n) }}>
+                  <span key={n.id} className="relative block w-0.5" style={{ height: height(n) }}>
                     <span className={`absolute inset-0 ${latest ? "bg-accent" : "bg-control"}`} />
-                    {latest && <span className="absolute -left-[3px] -top-[10px] size-[7px] rounded-full bg-accent" />}
+                    {latest && <span className="absolute -left-[3px] -top-[11px] size-2 rounded-full bg-accent" />}
                   </span>
                 );
               })}
@@ -660,59 +694,66 @@ function EmptyView({ gi }: { gi: number }) {
   ];
   const ready = w.treeStatus === "ready";
   return (
-    <div className="px-5 py-8 md:px-10 md:py-12" data-empty-view>
-      <div className="w-full">
-        {/* Two-column header: the title on the left, what to do on the right. */}
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] md:gap-10">
-          <h1 className="font-ui text-[26px] font-medium leading-8 tracking-[-0.03em] md:text-[32px] md:leading-[38px]">No file is open</h1>
-          <p className="text-[15px] leading-6 text-muted md:pt-1.5">
-            {noNotes && ready
-              ? "This vault is empty. Write the first note, or import an Obsidian vault from Settings: your files stay plain markdown."
-              : "Pick a note in the file explorer, jump to one by name, or start a new one."}
-          </p>
-        </div>
+    <div className="@container px-5 py-8 md:px-12 md:py-12" data-empty-view>
+      {/* Two-column header: the title on the left, what to do on the right. */}
+      <div className="grid gap-3 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] @2xl:gap-12">
+        <h1 className="display text-[30px] leading-[36px] md:text-[40px] md:leading-[46px]">No file is open</h1>
+        <p className="text-[15px] leading-6 text-muted @2xl:pt-2">
+          {noNotes && ready
+            ? "This vault is empty. Write the first note, or import an Obsidian vault from Settings: your files stay plain markdown."
+            : "Pick a note in the file explorer, jump to one by name, or start a new one."}
+        </p>
+      </div>
 
-        <dl className="mt-10 grid grid-cols-3 border-y border-border">
-          {stats.map(([label, value], i) => (
-            <div key={label} className={`py-4 ${i ? "border-l border-border pl-4 md:pl-6" : ""}`}>
-              <dt className="text-[13px] leading-5 text-muted md:text-[14px]">{label}</dt>
-              <dd className="tabular mt-2 text-[26px] leading-8 tracking-[-0.02em] md:text-[32px] md:leading-[38px]">
-                {ready ? nf.format(value) : <Bar w={40} h={24} className="my-1" />}
-              </dd>
-            </div>
-          ))}
-        </dl>
+      {/* The vault in three figures, one container split by hairlines. */}
+      <dl className="mt-10 grid grid-cols-3 rounded-lg border border-border">
+        {stats.map(([label, value], i) => (
+          <div key={label} className={`px-4 py-4 md:px-5 md:py-5 ${i ? "border-l border-border" : ""}`}>
+            <dt className="text-[12px] font-medium leading-4 text-faint md:text-[13px]">{label}</dt>
+            <dd className="display tabular mt-3 text-[28px] font-normal leading-8 md:text-[40px] md:leading-10">
+              {ready ? nf.format(value) : <Bar w={48} h={28} className="my-1.5" />}
+            </dd>
+          </div>
+        ))}
+      </dl>
 
-        <ul className="mt-8 border-t border-border">
-          {rows.map(([label, keys, run]) => (
-            <li key={label} className="border-b border-rule">
-              <button
-                type="button"
-                onClick={run}
-                className="group flex min-h-11 w-full items-center justify-between gap-4 px-1 text-left text-[15px] text-fg outline-offset-[-2px] transition-colors hover:text-accent-ink"
-              >
-                <span className="flex items-center gap-2">
-                  <ChevronRight aria-hidden="true" className="size-4 stroke-[1.5] text-faint transition-colors group-hover:text-accent-ink" />
-                  {label}
-                </span>
-                <Shortcut keys={keys} />
-              </button>
-            </li>
-          ))}
-          {g?.tabs.length > 0 && (
-            <li className="border-b border-rule">
-              <button
-                type="button"
-                onClick={() => actions.closeTab(gi, g.active)}
-                className="flex min-h-11 w-full items-center gap-2 px-1 text-left text-[15px] text-muted outline-offset-[-2px] transition-colors hover:text-fg"
-              >
-                <X aria-hidden="true" className="size-4 stroke-[1.5]" />
-                Close tab
-              </button>
-            </li>
-          )}
-        </ul>
-
+      <div className="mt-10 grid gap-10 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @2xl:gap-12">
+        <section aria-labelledby="empty-start">
+          <h2 id="empty-start" className="text-[13px] font-medium leading-5 text-faint">
+            Start
+          </h2>
+          <ul className="mt-2 border-t border-border">
+            {rows.map(([label, keys, run]) => (
+              <li key={label} className="border-b border-rule">
+                <button
+                  type="button"
+                  onClick={run}
+                  className="group flex min-h-11 w-full items-center justify-between gap-4 rounded-md px-1 text-left text-[14px] text-fg outline-offset-[-2px] transition-colors hover:text-accent-ink"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <ChevronRight aria-hidden="true" className="size-4 stroke-[1.5] text-faint transition-[color,translate] group-hover:translate-x-0.5 group-hover:text-accent-ink" />
+                    {label}
+                  </span>
+                  <span className="pointer-coarse:hidden">
+                    <Shortcut keys={keys} />
+                  </span>
+                </button>
+              </li>
+            ))}
+            {g?.tabs.length > 0 && (
+              <li className="border-b border-rule">
+                <button
+                  type="button"
+                  onClick={() => actions.closeTab(gi, g.active)}
+                  className="flex min-h-11 w-full items-center gap-2.5 rounded-md px-1 text-left text-[14px] text-muted outline-offset-[-2px] transition-colors hover:text-fg"
+                >
+                  <X aria-hidden="true" className="size-4 stroke-[1.5]" />
+                  Close tab
+                </button>
+              </li>
+            )}
+          </ul>
+        </section>
         <VaultPlan notes={w.notes} />
       </div>
     </div>
@@ -736,6 +777,9 @@ export function TabGroup({ gi }: { gi: number }) {
   // The pane is the transition boundary, so a note switch is clipped to the sheet.
   const viewKey = view.type === "note" ? `note:${view.id}` : view.type;
   const canvas = useWorkspaceSelector((s) => view.type === "note" && isCanvasNote(s, view.id)); // canvas track
+  // Phones show one pane: the others are not rendered at all, so the screen has one title.
+  const phone = useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE).matches, () => false);
+  if (phone && layout.groups.length > 1 && !focused) return null;
 
   return (
     <section
@@ -750,9 +794,7 @@ export function TabGroup({ gi }: { gi: number }) {
         id={panelId}
         role="tabpanel"
         aria-label={title}
-        className={`flex min-h-0 flex-1 flex-col overflow-hidden bg-sheet md:rounded-lg md:border md:border-border ${
-          last ? "md:mr-2" : ""
-        } ${layout.groups.length > 1 && !focused ? "md:opacity-[0.985]" : ""}`}
+        className="flex min-h-0 flex-1 flex-col overflow-hidden bg-sheet"
       >
         <ViewHeader gi={gi} tab={tab} view={view} />
         <ViewTransition key={viewKey} enter="note-in" exit="note-out" default="none">

@@ -56,7 +56,7 @@ export function IconButton({
         type="button"
         aria-label={label}
         aria-keyshortcuts={shortcut ? keyShortcuts(shortcut) : undefined}
-        className={`inline-flex size-8 shrink-0 items-center justify-center rounded-md text-faint transition-[color,background-color,scale] duration-150 ease-[var(--ease-out-quint)] hover:bg-hover hover:text-fg active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40 pointer-coarse:size-11 [&_svg]:size-[18px] [&_svg]:stroke-[1.5] ${className}`}
+        className={`inline-flex size-8 shrink-0 items-center justify-center rounded-md text-faint transition-[color,background-color,scale] duration-150 ease-[var(--ease-out-quint)] hover:bg-hover hover:text-fg active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40 pointer-coarse:size-11 [&_svg]:size-[17px] [&_svg]:stroke-[1.5] ${className}`}
         {...props}
         {...tip.handlers(props)}
       >
@@ -159,7 +159,7 @@ function useTooltip(anchor: React.RefObject<HTMLElement | null>) {
           aria-hidden="true"
           onPointerEnter={() => clearTimeout(timer.current)}
           onPointerLeave={() => hide(120)}
-          className="fixed z-[60] inline-flex items-center gap-2 whitespace-nowrap rounded-md bg-[var(--toast-bg)] px-2 py-1 text-[12px] leading-4 text-[var(--toast-fg)] shadow-[var(--shadow-float)] [&_.kbd]:h-[18px] [&_.kbd]:min-w-[18px]"
+          className="fixed z-[60] inline-flex items-center gap-2 whitespace-nowrap rounded-md border border-mist bg-raised px-2 py-1 text-[12px] font-medium leading-4 text-fg shadow-[var(--shadow-float)] [&_.kbd]:h-[18px] [&_.kbd]:min-w-[18px]"
           style={{ left: pos.left, top: pos.top }}
         >
           {content}
@@ -306,12 +306,12 @@ export function Menu({
             fn();
           }
         }}
-        className="absolute max-h-[calc(100dvh-16px)] min-w-52 overflow-y-auto overscroll-contain rounded-lg border border-mist bg-sheet py-1 text-[14px] shadow-[var(--shadow-float)]"
+        className="float-panel absolute max-h-[calc(100dvh-16px)] min-w-56 overflow-y-auto overscroll-contain p-1 text-[13px]"
         style={pos}
       >
         {items.map((it, i) =>
           it === "separator" ? (
-            <div key={i} role="separator" className="my-1 h-px bg-rule" />
+            <div key={i} role="separator" className="-mx-1 my-1 h-px bg-border" />
           ) : (
             <button
               key={it.label}
@@ -324,7 +324,7 @@ export function Menu({
                 onClose();
                 it.onSelect();
               }}
-              className={`mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-md px-2 py-1.5 text-left outline-offset-[-2px] hover:bg-sheet-hover focus-visible:bg-active aria-disabled:opacity-50 ${
+              className={`flex h-8 w-full items-center gap-3 rounded-md px-2.5 text-left outline-none hover:bg-hover focus-visible:bg-active focus-visible:shadow-[inset_1px_0_0_var(--accent-line)] aria-disabled:opacity-50 pointer-coarse:h-11 ${
                 it.danger ? "text-negative" : "text-fg"
               }`}
             >
@@ -509,8 +509,9 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: num
           data-toast=""
           onPointerEnter={() => setHover(true)}
           onPointerLeave={() => setHover(false)}
-          className="pointer-events-auto flex max-w-[min(32rem,100%)] animate-[rise_200ms_var(--ease-out-quint)] items-center gap-3 rounded-lg bg-[var(--toast-bg)] py-1.5 pl-4 pr-1.5 text-[14px] text-[var(--toast-fg)] shadow-[var(--shadow-float)]"
+          className="pointer-events-auto flex max-w-[min(32rem,100%)] animate-[rise_200ms_var(--ease-out-quint)] items-center gap-3 rounded-lg border border-mist bg-[var(--toast-bg)] py-1.5 pl-3.5 pr-1.5 text-[13px] text-[var(--toast-fg)] shadow-[var(--shadow-float)]"
         >
+          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent" />
           <span className="min-w-0 py-1 wrap-anywhere">{t.message}</span>
           {/* The store gives error toasts a no-op "Dismiss" action; the close button covers it. */}
           {t.action && t.action.label !== "Dismiss" && (

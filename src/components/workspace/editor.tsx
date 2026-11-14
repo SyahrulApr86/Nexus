@@ -72,7 +72,7 @@ type Props = {
 const theme = EditorView.theme({
   "&": { backgroundColor: "transparent", color: "var(--fg)", fontSize: "17px" },
   "&.cm-focused": { outline: "none" },
-  ".cm-scroller": { fontFamily: "var(--font-note)", lineHeight: "1.65", overflow: "visible" },
+  ".cm-scroller": { fontFamily: "var(--font-note)", lineHeight: "1.7", overflow: "visible" },
   ".cm-content": { padding: "4px 0 45vh", caretColor: "var(--accent)" },
   ".cm-line": { padding: "0" },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)", borderLeftWidth: "2px" },
@@ -237,10 +237,11 @@ const frontmatterBand = ViewPlugin.fromClass(
 );
 
 const highlight = HighlightStyle.define([
-  { tag: t.heading1, fontSize: "1.4em", fontWeight: "600", lineHeight: "1.3" },
-  { tag: t.heading2, fontSize: "1.25em", fontWeight: "600" },
-  { tag: t.heading3, fontSize: "1.1em", fontWeight: "600" },
-  { tag: [t.heading4, t.heading5, t.heading6], fontWeight: "600" },
+  // Headings in the interface face, set tight: Literata carries the prose, Hanken the structure.
+  { tag: t.heading1, fontFamily: "var(--font-ui)", fontSize: "1.6em", fontWeight: "600", lineHeight: "1.25", letterSpacing: "-0.025em" },
+  { tag: t.heading2, fontFamily: "var(--font-ui)", fontSize: "1.32em", fontWeight: "600", letterSpacing: "-0.02em" },
+  { tag: t.heading3, fontFamily: "var(--font-ui)", fontSize: "1.1em", fontWeight: "600", letterSpacing: "-0.01em" },
+  { tag: [t.heading4, t.heading5, t.heading6], fontFamily: "var(--font-ui)", fontWeight: "600" },
   { tag: t.strong, fontWeight: "650" },
   { tag: t.emphasis, fontStyle: "italic" },
   { tag: t.strikethrough, textDecoration: "line-through", color: "var(--muted)" },
