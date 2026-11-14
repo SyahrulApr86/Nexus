@@ -127,7 +127,7 @@ export function SettingsDialog({ section = "general" }: { section?: SettingsSect
   return (
     <Modal label="Settings" onClose={close} className="max-w-[880px]" placement="top">
       {/* One view per area: the areas down the left, the chosen one on the right. */}
-      <div className="float-panel flex max-h-[min(640px,calc(100dvh-12vh-1.5rem))] min-h-[min(440px,calc(100dvh-12vh-1.5rem))] flex-col overflow-hidden md:flex-row">
+      <div className="float-panel relative flex h-[min(680px,calc(100dvh-12vh-1.5rem))] flex-col overflow-hidden md:flex-row">
         <div className="flex shrink-0 flex-col border-border bg-frame max-md:border-b md:w-[212px] md:border-r">
           <div className="flex h-14 items-center justify-between pl-5 pr-2 md:pr-5">
             <h2 className="text-[15px] font-semibold tracking-[-0.01em]">Settings</h2>
@@ -170,9 +170,9 @@ export function SettingsDialog({ section = "general" }: { section?: SettingsSect
               <X />
             </IconButton>
           </div>
-          <div id="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${current}`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6 md:px-8">
+          <div id="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${current}`} className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6 md:px-8">
             {current === "general" && (
-              <fieldset className="border-b border-border py-5">
+              <fieldset className="py-5">
                 <legend className="sr-only">Theme</legend>
                 <h4 aria-hidden="true" className="text-[14px] font-medium leading-5">
                   Theme
