@@ -212,67 +212,6 @@ export function CanvasFragment() {
   );
 }
 
-export function PhoneFragment() {
-  return (
-    <figure data-ui className="fx fx-phone" aria-label="The same note open on a phone">
-      <div className="fx-phone-bar">
-        <span>9:41</span>
-        <span className="fx-phone-off">
-          <Icon name="cloud" size={12} /> Offline
-        </span>
-      </div>
-      <div className="fx-phone-head">
-        <span className="fx-phone-crumb">Meetings</span>
-        <span className="fx-phone-title">Weekly sync</span>
-      </div>
-      <div className="fx-phone-body">
-        <p className="fx-phone-p">
-          Launch moves to <span className="fx-link">the Q4 plan</span>.
-        </p>
-        <p className="fx-phone-task fx-phone-done">
-          <span className="fx-box" aria-hidden="true">
-            <Icon name="check" size={12} />
-          </span>
-          <span>
-            Draft the <mark className="fx-hl">release notes</mark>
-          </span>
-        </p>
-        <p className="fx-phone-task">
-          <span className="fx-box" aria-hidden="true" />
-          <span>
-            Ask <span className="fx-link">Mira Chen</span> about the beta
-          </span>
-        </p>
-        <p className="fx-phone-task">
-          <span className="fx-box" aria-hidden="true" />
-          <span>
-            Book the launch room
-            <span className="fx-phone-type" aria-hidden="true" />
-          </span>
-        </p>
-        <p className="fx-phone-p">
-          <span className="fx-tag">#planning</span> <span className="fx-tag">#team</span>
-        </p>
-      </div>
-      <p className="fx-phone-outbox">1 change waits in the outbox</p>
-      <div className="fx-phone-nav" aria-hidden="true">
-        <span>
-          <Icon name="files" />
-        </span>
-        <span>
-          <Icon name="search" />
-        </span>
-        <span className="fx-phone-nav-on">
-          <Icon name="file" />
-        </span>
-        <span>
-          <Icon name="graph" />
-        </span>
-      </div>
-    </figure>
-  );
-}
-
 /** Two sessions in one note: each cursor carries the name of who is typing. */
 export function CollabFragment() {
   return (

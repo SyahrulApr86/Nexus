@@ -6,7 +6,8 @@ import "./fragments.css";
 import "./landing.css";
 import { VaultAtlas } from "./atlas";
 import { CopyButton } from "./copy-button";
-import { BacklinksFragment, CanvasFragment, CollabFragment, FilesFragment, GraphFragment, PhoneFragment, SearchFragment } from "./fragments";
+import { BacklinksFragment, CanvasFragment, CollabFragment, FilesFragment, SearchFragment } from "./fragments";
+import { GraphShot, PhoneShot } from "./shots";
 import { Icon } from "./icons";
 import { LiveNote } from "./live-note";
 import { Reveal } from "./reveal";
@@ -172,7 +173,7 @@ export function Landing() {
           </SectionHead>
           <div className="lp-links-stage">
             <div className="lp-links-graph" data-reveal>
-              <GraphFragment />
+              <GraphShot />
             </div>
             <div className="lp-links-back" data-reveal style={{ ["--d" as string]: 2 }}>
               <BacklinksFragment />
@@ -265,7 +266,7 @@ export function Landing() {
               </dl>
             </div>
             <div className="lp-devices-phone" data-reveal style={{ ["--d" as string]: 1 }}>
-              <PhoneFragment />
+              <PhoneShot />
             </div>
             <div className="lp-devices-collab" data-reveal style={{ ["--d" as string]: 2 }}>
               <CollabFragment />
