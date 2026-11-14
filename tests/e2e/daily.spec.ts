@@ -77,6 +77,8 @@ test("focus mode hides the workspace chrome until Escape", async ({ page, accoun
 
 test("offline, a daily note opens even when its template is not on this device", async ({ page, api, context }) => {
   await api.createNote("Templates/Daily", "## Plan for {{title}}\n");
+  // The vault opens the most recently edited note: make that another one, so the template is never loaded here.
+  await api.createNote("Inbox", "Nothing yet.\n");
   await openVault(page);
   const registered = await page.evaluate(async () => {
     if (!("serviceWorker" in navigator)) return false;
