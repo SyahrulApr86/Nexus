@@ -8,6 +8,11 @@ import { isCanvasPath } from "@/lib/canvas";
 import { search } from "@/lib/search";
 import { HttpError, logError } from "@/lib/session";
 import { applyTemplate, renderTemplate } from "@/lib/templates";
+/* query-block */
+import { QueryNotesInput, QUERY_SYNTAX } from "@/lib/query/mcp";
+import { runQuery } from "@/lib/query/run";
+import { resultText } from "@/lib/query/text";
+/* end query-block */
 import pkg from "../../../package.json";
 import { MCP_LIMITS, USER_DATA_NOTICE, noteUri, pathFromUriPart, sliceContent, truncationMarker } from "./format";
 import {
@@ -246,6 +251,28 @@ export function buildServer(principal: TokenPrincipal): McpServer {
         return ok(notes.length ? notes.map((n) => `- ${n.path} (${n.updatedAt})`).join("\n") : "The vault is empty.", { notes });
       }),
   );
+
+  /* query-block */
+  server.registerTool(
+    "query_notes",
+    {
+      title: "Query notes",
+      description: `Runs a query in the vault's query language (the same as a \`\`\`query block in a note) and returns the matching notes, a table of their properties, or their tasks. ${QUERY_SYNTAX}`,
+      inputSchema: QueryNotesInput,
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async ({ query }) =>
+      guard(async () => {
+        const r = await runQuery(vaultId, query);
+        if (!r.ok) {
+          const at = r.error.line ? `Line ${r.error.line}, column ${r.error.column}: ` : "";
+          return fail(`${at}${r.error.message}`, { error: "invalid", ...r.error });
+        }
+        if ("unchanged" in r) return fail("Nexus could not finish that. Try again in a moment.", { error: "internal" });
+        return ok(resultText(r.result), { result: r.result });
+      }),
+  );
+  /* end query-block */
 
   /* ---------------------------- write tools --------------------------- */
 
